@@ -260,6 +260,40 @@ Delete a page.
 
 ---
 
+### PATCH /api/pages/reorder
+
+Reorder all pages in a project.
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:**
+
+```json
+{
+  "pageIds": ["page-002", "page-001", "page-003"],
+  "projectId": "550e8400-e29b-41d4-a716-446655440000" // optional
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "pages": [
+    { "id": "page-002", "order": 0 },
+    { "id": "page-001", "order": 1 },
+    { "id": "page-003", "order": 2 }
+  ]
+}
+```
+
+**Errors:**
+
+- `400` - pageIds missing, duplicated, or do not match project pages
+- `403` - Access denied for projectId
+
+---
+
 ### GET /api/templates
 
 List all available page templates.

@@ -56,7 +56,7 @@ export const requireProjectAccess = createMiddleware(async (c: Context, next: Ne
   }
 
   // Get project ID from URL params
-  const projectId = c.req.param("projectId") ?? c.req.param("id");
+  const projectId = c.req.param("projectId") || c.req.param("id");
   if (!projectId) {
     // No project ID in URL, skip validation
     await next();
@@ -104,7 +104,7 @@ export const requireProjectAuth = createMiddleware(async (c: Context, next: Next
   }
 
   // Get project ID from URL params
-  const projectId = c.req.param("projectId") ?? c.req.param("id");
+  const projectId = c.req.param("projectId") || c.req.param("id");
 
   // If projectId is in URL, validate access
   if (projectId && payload.project_id !== projectId) {

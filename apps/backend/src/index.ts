@@ -10,6 +10,7 @@ import { projectsRouter } from "./routes/projects";
 import { imagesRouter } from "./routes/images";
 import { elementsRouter } from "./routes/elements";
 import { templatesRouter } from "./routes/templates";
+import pagesRouter from "./routes/pages";
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -63,6 +64,9 @@ app.get("/health", async (c) => {
     );
   }
 });
+
+// API routes
+app.route("/api", pagesRouter);
 
 // API root
 app.get("/", (c) => {
