@@ -1,0 +1,24 @@
+{
+  "name": "@gazette/monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "build": "bun run --filter '*' build",
+    "test": "bun test",
+    "lint": "bun run --filter '*' lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "bun run --filter '*' typecheck",
+    "clean": "bun run --filter '*' clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  }
+}
