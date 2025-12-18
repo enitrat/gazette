@@ -4,9 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "dev": "bun run --hot src/index.tsx",
+    "build": "bun build src/index.tsx --outdir ./dist --target browser",
     "test": "bun test",
     "lint": "prettier --check \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
@@ -19,7 +18,8 @@
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "vibe-kanban-web-companion": "^0.0.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
