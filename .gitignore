@@ -37,3 +37,13 @@ bun-debug.log*
 *.tmp
 .cache/
 .temp/
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# Uploads
+uploads/

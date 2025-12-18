@@ -1,6 +1,6 @@
 {
   "name": "@gazette/backend",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,13 +10,22 @@
     "test": "bun test",
     "lint": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf node_modules dist"
+    "clean": "rm -rf node_modules dist data",
+    "db:migrate": "bun run src/db/migrate.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@gazette/shared": "workspace:*"
+    "@gazette/shared": "workspace:*",
+    "@hono/zod-validator": "^0.7.6",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.11.1",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "drizzle-kit": "^0.31.8",
     "typescript": "^5.3.3"
   }
 }
