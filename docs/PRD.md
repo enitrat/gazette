@@ -5,12 +5,14 @@
 ---
 
 ## Table of Contents
+
 1. [Executive Summary](#1-executive-summary)
 2. [Feature Specifications](#2-feature-specifications)
 3. [Implementation Plan](#3-implementation-plan)
 4. [Risks & Mitigations](#4-risks--mitigations)
 
 **Related Documents:**
+
 - [Branding Guidelines](./BRANDING.md)
 - [User Stories](./USER_STORIES.md)
 - [Technical Architecture](./TECHNICAL_ARCHITECTURE.md)
@@ -23,18 +25,22 @@
 ## 1. Executive Summary
 
 ### 1.1 Product Overview
+
 **La Gazette de la Vie** is a web application that transforms static family photographs into animated "living newspapers" reminiscent of the Daily Prophet from Harry Potter. Users upload old photos, receive AI-generated animation suggestions, and compose multi-page vintage-style newspapers where images come to life.
 
 ### 1.2 Target Audience
+
 - **Primary**: Family members creating personalized gifts
 - **Secondary**: Anyone wanting to animate and present old photographs in a unique format
 
 ### 1.3 Key Value Proposition
+
 - **Nostalgia meets magic**: Bring old memories to life with AI animation
 - **Effortless creativity**: Pre-built templates with drag-and-drop customization
 - **Shareable keepsakes**: Password-protected URLs for family sharing
 
 ### 1.4 Success Metrics
+
 - Complete newspaper generation in under 30 minutes (excluding video generation time)
 - Successful video generation rate > 95%
 - Shareable output accessible on any modern browser
@@ -45,39 +51,41 @@
 
 ### 2.1 Feature Priority Matrix
 
-| Feature | Priority | MVP | Complexity |
-|---------|----------|-----|------------|
-| Project access (name + password) | P0 | Yes | Low |
-| Page templates (4 layouts) | P0 | Yes | Medium |
-| Image upload | P0 | Yes | Low |
-| Animation suggestion | P0 | Yes | Medium |
-| Prompt editing | P0 | Yes | Low |
-| Video generation (WAN API) | P0 | Yes | High |
-| Text editing | P0 | Yes | Low |
-| Video preview/playback | P0 | Yes | Medium |
-| Share via URL | P0 | Yes | Medium |
-| Layout drag-and-drop | P1 | Yes | High |
-| Multi-page support | P1 | Yes | Medium |
-| Download HTML | P1 | Partial | High |
-| Download videos ZIP | P2 | No | Low |
-| Print PDF | P2 | No | Medium |
-| Undo/Redo | P2 | No | Medium |
+| Feature                          | Priority | MVP     | Complexity |
+| -------------------------------- | -------- | ------- | ---------- |
+| Project access (name + password) | P0       | Yes     | Low        |
+| Page templates (4 layouts)       | P0       | Yes     | Medium     |
+| Image upload                     | P0       | Yes     | Low        |
+| Animation suggestion             | P0       | Yes     | Medium     |
+| Prompt editing                   | P0       | Yes     | Low        |
+| Video generation (WAN API)       | P0       | Yes     | High       |
+| Text editing                     | P0       | Yes     | Low        |
+| Video preview/playback           | P0       | Yes     | Medium     |
+| Share via URL                    | P0       | Yes     | Medium     |
+| Layout drag-and-drop             | P1       | Yes     | High       |
+| Multi-page support               | P1       | Yes     | Medium     |
+| Download HTML                    | P1       | Partial | High       |
+| Download videos ZIP              | P2       | No      | Low        |
+| Print PDF                        | P2       | No      | Medium     |
+| Undo/Redo                        | P2       | No      | Medium     |
 
 ### 2.2 Animation Suggestion Engine
 
 The system analyzes uploaded images to suggest contextual animations:
 
 #### Detection Categories
-| Detected Scene | Suggested Animations |
-|----------------|---------------------|
-| Two people face-to-face | "Dancing together", "Having a conversation", "Embracing" |
-| Group photo | "Waving at camera", "Laughing together", "Subtle movements" |
-| Single portrait | "Gentle smile forming", "Head turning slightly", "Blinking" |
-| Child/Baby | "Giggling", "Looking around curiously", "Reaching out" |
-| Outdoor/Nature | "Wind in hair/clothes", "Looking at scenery", "Walking" |
-| Formal pose | "Dignified nod", "Slight smile", "Adjusting posture" |
+
+| Detected Scene          | Suggested Animations                                        |
+| ----------------------- | ----------------------------------------------------------- |
+| Two people face-to-face | "Dancing together", "Having a conversation", "Embracing"    |
+| Group photo             | "Waving at camera", "Laughing together", "Subtle movements" |
+| Single portrait         | "Gentle smile forming", "Head turning slightly", "Blinking" |
+| Child/Baby              | "Giggling", "Looking around curiously", "Reaching out"      |
+| Outdoor/Nature          | "Wind in hair/clothes", "Looking at scenery", "Walking"     |
+| Formal pose             | "Dignified nod", "Slight smile", "Adjusting posture"        |
 
 #### Implementation
+
 - Use **Gemini 2.0 Flash** to analyze image content
 - Generate 2-3 contextual suggestions
 - Fallback suggestions if analysis fails: "Gentle movement", "Subtle animation"
@@ -87,9 +95,11 @@ The system analyzes uploaded images to suggest contextual animations:
 ## 3. Implementation Plan
 
 ### Phase 1: Foundation (Days 1-2)
+
 **Goal**: Basic project structure and core infrastructure
 
 #### Tasks:
+
 1. **Project Setup**
    - Initialize monorepo with bun workspace
    - Configure TypeScript (strict mode)
@@ -112,9 +122,11 @@ The system analyzes uploaded images to suggest contextual animations:
    - Auth middleware
 
 ### Phase 2: Editor Core (Days 2-4)
+
 **Goal**: Functional gazette editor with layout system
 
 #### Tasks:
+
 1. **Page Templates**
    - Implement 4 template layouts
    - Template selection UI
@@ -137,9 +149,11 @@ The system analyzes uploaded images to suggest contextual animations:
    - Page reordering
 
 ### Phase 3: AI Integration (Days 4-5)
+
 **Goal**: Animation suggestions and video generation
 
 #### Tasks:
+
 1. **Image Analysis**
    - Gemini 2.0 Flash API integration
    - Scene description generation
@@ -157,9 +171,11 @@ The system analyzes uploaded images to suggest contextual animations:
    - Video preview
 
 ### Phase 4: Viewing & Export (Days 5-6)
+
 **Goal**: Shareable output and export options
 
 #### Tasks:
+
 1. **Viewer Mode**
    - Password-protected view route
    - Read-only gazette renderer
@@ -171,9 +187,11 @@ The system analyzes uploaded images to suggest contextual animations:
    - Print-friendly CSS
 
 ### Phase 5: Polish (Day 6-7)
+
 **Goal**: Visual refinement and UX improvements
 
 #### Tasks:
+
 1. **Visual Design**
    - Paper texture backgrounds
    - Typography refinement
@@ -195,18 +213,19 @@ The system analyzes uploaded images to suggest contextual animations:
 
 ## 4. Risks & Mitigations
 
-| Risk | Impact | Likelihood | Mitigation |
-|------|--------|------------|------------|
-| WAN API latency | High | Medium | Queue system, async processing, progress UI |
-| Video quality inconsistent | Medium | Medium | Allow regeneration, prompt editing |
-| Large file uploads | Low | Medium | Client-side compression, chunked upload |
-| Browser compatibility | Low | Low | Target modern browsers only |
+| Risk                       | Impact | Likelihood | Mitigation                                  |
+| -------------------------- | ------ | ---------- | ------------------------------------------- |
+| WAN API latency            | High   | Medium     | Queue system, async processing, progress UI |
+| Video quality inconsistent | Medium | Medium     | Allow regeneration, prompt editing          |
+| Large file uploads         | Low    | Medium     | Client-side compression, chunked upload     |
+| Browser compatibility      | Low    | Low        | Target modern browsers only                 |
 
 ---
 
 ## Appendix: WAN API Integration Notes
 
 **TODO**: Fetch WAN 2.x API documentation together to determine:
+
 - Exact endpoint URLs
 - Authentication method
 - Request/response format
@@ -216,5 +235,5 @@ The system analyzes uploaded images to suggest contextual animations:
 
 ---
 
-*Document Version: 1.0*
-*Last Updated: December 18, 2024*
+_Document Version: 1.0_
+_Last Updated: December 18, 2024_

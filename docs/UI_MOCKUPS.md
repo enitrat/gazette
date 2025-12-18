@@ -45,6 +45,7 @@
 ```
 
 **Components:**
+
 - Masthead logo with Playfair Display font
 - Tagline in italic
 - Form card with subtle shadow
@@ -127,6 +128,7 @@
 ```
 
 **Toolbar Components:**
+
 - Logo/Home link
 - "Add Page" button with + icon
 - "Generate" button with sparkle icon (primary, gold)
@@ -135,12 +137,14 @@
 - "Save" button (shows save status)
 
 **Sidebar:**
+
 - Page thumbnails with preview
 - Current page highlighted (arrow indicator)
 - Drag handle for reordering
 - "Add Page" button at bottom
 
 **Canvas:**
+
 - Paper texture background
 - Vignette effect on edges
 - Grid overlay (hidden, for snapping)
@@ -252,6 +256,7 @@
 ```
 
 **Loading State:**
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                   Analyzing Your Photo                      ✕   │
@@ -368,6 +373,7 @@
 ```
 
 **Status Icons:**
+
 - ✓ Complete (green)
 - ⟳ Processing (animated spinner)
 - ◷ Queued (clock/waiting)
@@ -471,6 +477,7 @@
 ```
 
 **Viewer Features:**
+
 - No editing controls
 - Videos auto-play on loop
 - Page navigation at bottom
@@ -688,16 +695,19 @@
 ## 4. Responsive Breakpoints
 
 ### 4.1 Desktop (1024px+)
+
 - Full editor with sidebar
 - 3-column template support
 - All features visible
 
 ### 4.2 Tablet (768px - 1023px)
+
 - Collapsible sidebar (drawer)
 - 2-column max templates
 - Simplified toolbar
 
 ### 4.3 Mobile (< 768px)
+
 - **Viewer only** (editing not supported)
 - Single column layout
 - Touch-friendly page navigation
@@ -726,5 +736,5 @@
 
 ---
 
-*UI Mockups v1.0*
-*Last Updated: December 18, 2024*
+_UI Mockups v1.0_
+_Last Updated: December 18, 2024_

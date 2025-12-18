@@ -22,9 +22,11 @@ Authorization: Bearer <token>
 ## 1. Authentication Endpoints
 
 ### POST /api/projects
+
 Create a new project.
 
 **Request:**
+
 ```json
 {
   "name": "Famille Dupont 1950-2024",
@@ -33,6 +35,7 @@ Create a new project.
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -44,15 +47,18 @@ Create a new project.
 ```
 
 **Errors:**
+
 - `400` - Invalid input (name too short, password too weak)
 - `409` - Project name already exists
 
 ---
 
 ### POST /api/projects/access
+
 Access an existing project.
 
 **Request:**
+
 ```json
 {
   "name": "Famille Dupont 1950-2024",
@@ -61,6 +67,7 @@ Access an existing project.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -73,6 +80,7 @@ Access an existing project.
 ```
 
 **Errors:**
+
 - `401` - Invalid credentials
 - `404` - Project not found
 
@@ -81,11 +89,13 @@ Access an existing project.
 ## 2. Project Endpoints
 
 ### GET /api/projects/:id
+
 Get project details.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -101,11 +111,13 @@ Get project details.
 ---
 
 ### PUT /api/projects/:id
+
 Update project settings.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "name": "La Famille Dupont - Une Histoire"
@@ -113,6 +125,7 @@ Update project settings.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -125,6 +138,7 @@ Update project settings.
 ---
 
 ### DELETE /api/projects/:id
+
 Delete a project and all associated data.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -136,11 +150,13 @@ Delete a project and all associated data.
 ## 3. Page Endpoints
 
 ### GET /api/projects/:id/pages
+
 List all pages in a project.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response (200 OK):**
+
 ```json
 {
   "pages": [
@@ -167,19 +183,22 @@ List all pages in a project.
 ---
 
 ### POST /api/projects/:id/pages
+
 Create a new page.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "template": "grid-gallery",
-  "afterPageId": "page-001"  // optional, inserts after this page
+  "afterPageId": "page-001" // optional, inserts after this page
 }
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "page-003",
@@ -195,11 +214,13 @@ Create a new page.
 ---
 
 ### PUT /api/pages/:id
+
 Update a page.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "title": "La Vie de Famille",
@@ -210,6 +231,7 @@ Update a page.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "page-003",
@@ -225,6 +247,7 @@ Update a page.
 ---
 
 ### DELETE /api/pages/:id
+
 Delete a page.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -232,6 +255,7 @@ Delete a page.
 **Response (204 No Content)**
 
 **Errors:**
+
 - `400` - Cannot delete the only page in a project
 
 ---
@@ -239,11 +263,13 @@ Delete a page.
 ## 4. Element Endpoints
 
 ### GET /api/pages/:id/elements
+
 List all elements on a page.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response (200 OK):**
+
 ```json
 {
   "elements": [
@@ -287,11 +313,13 @@ List all elements on a page.
 ---
 
 ### POST /api/pages/:id/elements
+
 Create a new element.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request (Image Element):**
+
 ```json
 {
   "type": "image",
@@ -305,6 +333,7 @@ Create a new element.
 ```
 
 **Request (Text Element):**
+
 ```json
 {
   "type": "headline",
@@ -319,6 +348,7 @@ Create a new element.
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "elem-003",
@@ -337,16 +367,19 @@ Create a new element.
 ```
 
 **Errors:**
+
 - `400` - Maximum 5 image elements per page
 
 ---
 
 ### PUT /api/elements/:id
+
 Update an element.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "position": {
@@ -365,6 +398,7 @@ Update an element.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "elem-001",
@@ -378,6 +412,7 @@ Update an element.
 ---
 
 ### DELETE /api/elements/:id
+
 Delete an element.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -389,18 +424,22 @@ Delete an element.
 ## 5. Image Endpoints
 
 ### POST /api/projects/:id/images
+
 Upload an image.
 
 **Headers:**
+
 - `Authorization: Bearer <token>`
 - `Content-Type: multipart/form-data`
 
 **Request:**
+
 ```
 file: [binary image data]
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "img-002",
@@ -414,17 +453,20 @@ file: [binary image data]
 ```
 
 **Errors:**
+
 - `400` - Invalid file type (not JPG/PNG/WebP)
 - `413` - File too large (>10MB)
 
 ---
 
 ### GET /api/images/:id
+
 Get image metadata.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "img-002",
@@ -441,6 +483,7 @@ Get image metadata.
 ---
 
 ### GET /api/images/:id/file
+
 Get the actual image file.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -450,11 +493,13 @@ Get the actual image file.
 ---
 
 ### POST /api/images/:id/analyze
+
 Get AI-generated animation suggestions.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response (200 OK):**
+
 ```json
 {
   "imageId": "img-002",
@@ -484,11 +529,13 @@ Get AI-generated animation suggestions.
 ## 6. Generation Endpoints
 
 ### POST /api/projects/:id/generate
+
 Start video generation for multiple images.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Request:**
+
 ```json
 {
   "elements": [
@@ -507,6 +554,7 @@ Start video generation for multiple images.
 ```
 
 **Response (202 Accepted):**
+
 ```json
 {
   "projectId": "550e8400...",
@@ -530,11 +578,13 @@ Start video generation for multiple images.
 ---
 
 ### GET /api/generation/:id
+
 Get status of a single generation job.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "job-001",
@@ -551,6 +601,7 @@ Get status of a single generation job.
 ```
 
 **Status Values:**
+
 - `queued` - Waiting in queue
 - `processing` - Currently generating
 - `complete` - Video ready
@@ -559,11 +610,13 @@ Get status of a single generation job.
 ---
 
 ### GET /api/projects/:id/generation/status
+
 Get status of all generation jobs for a project.
 
 **Headers:** `Authorization: Bearer <token>`
 
 **Response (200 OK):**
+
 ```json
 {
   "projectId": "550e8400...",
@@ -595,6 +648,7 @@ Get status of all generation jobs for a project.
 ---
 
 ### DELETE /api/generation/:id
+
 Cancel a pending generation job.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -602,6 +656,7 @@ Cancel a pending generation job.
 **Response (204 No Content)**
 
 **Errors:**
+
 - `400` - Job already completed or processing
 
 ---
@@ -609,9 +664,11 @@ Cancel a pending generation job.
 ## 7. Viewer Endpoints (Public)
 
 ### POST /api/view/:slug/access
+
 Verify password for viewing a shared gazette.
 
 **Request:**
+
 ```json
 {
   "password": "famille2024"
@@ -619,6 +676,7 @@ Verify password for viewing a shared gazette.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "viewToken": "eyJhbGciOiJIUzI1NiIs...",
@@ -627,17 +685,20 @@ Verify password for viewing a shared gazette.
 ```
 
 **Errors:**
+
 - `401` - Invalid password
 - `404` - Project not found
 
 ---
 
 ### GET /api/view/:slug
+
 Get gazette data for viewing (read-only).
 
 **Headers:** `Authorization: Bearer <viewToken>`
 
 **Response (200 OK):**
+
 ```json
 {
   "project": {
@@ -677,6 +738,7 @@ Get gazette data for viewing (read-only).
 ## 8. Export Endpoints
 
 ### GET /api/projects/:id/export/html
+
 Download gazette as standalone HTML.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -686,6 +748,7 @@ Download gazette as standalone HTML.
 ---
 
 ### GET /api/projects/:id/export/videos
+
 Download all videos as ZIP.
 
 **Headers:** `Authorization: Bearer <token>`
@@ -727,5 +790,5 @@ All errors follow this format:
 
 ---
 
-*API Specification v1.0*
-*Last Updated: December 18, 2024*
+_API Specification v1.0_
+_Last Updated: December 18, 2024_

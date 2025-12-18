@@ -57,49 +57,49 @@
 
 ### 2.1 Frontend
 
-| Layer | Technology | Version | Justification |
-|-------|------------|---------|---------------|
-| Framework | React | 18.x | Mature ecosystem, component model |
-| Language | TypeScript | 5.x | Type safety, better DX |
-| Build | Vite | 5.x | Fast HMR, modern bundling |
-| Routing | TanStack Router | 1.x | Type-safe routing |
-| State | Zustand | 4.x | Simple, performant, TypeScript-friendly |
-| UI Components | shadcn/ui | latest | Accessible, customizable, copy-paste components |
-| Drag/Drop | dnd-kit | 6.x | Accessible, performant drag-and-drop |
-| Styling | Tailwind CSS | 3.x | Utility-first, shadcn/ui foundation |
-| Validation | Zod | 3.x | Runtime type checking, schema validation |
-| HTTP Client | ky | 1.x | Lightweight, typed fetch wrapper |
-| Icons | Lucide React | latest | Consistent icons, shadcn/ui default |
+| Layer         | Technology      | Version | Justification                                   |
+| ------------- | --------------- | ------- | ----------------------------------------------- |
+| Framework     | React           | 18.x    | Mature ecosystem, component model               |
+| Language      | TypeScript      | 5.x     | Type safety, better DX                          |
+| Build         | Vite            | 5.x     | Fast HMR, modern bundling                       |
+| Routing       | TanStack Router | 1.x     | Type-safe routing                               |
+| State         | Zustand         | 4.x     | Simple, performant, TypeScript-friendly         |
+| UI Components | shadcn/ui       | latest  | Accessible, customizable, copy-paste components |
+| Drag/Drop     | dnd-kit         | 6.x     | Accessible, performant drag-and-drop            |
+| Styling       | Tailwind CSS    | 3.x     | Utility-first, shadcn/ui foundation             |
+| Validation    | Zod             | 3.x     | Runtime type checking, schema validation        |
+| HTTP Client   | ky              | 1.x     | Lightweight, typed fetch wrapper                |
+| Icons         | Lucide React    | latest  | Consistent icons, shadcn/ui default             |
 
 ### 2.2 Backend
 
-| Layer | Technology | Version | Justification |
-|-------|------------|---------|---------------|
-| Runtime | Bun | 1.x | Fast runtime, native TypeScript, built-in test runner |
-| Framework | Hono | 4.x | Lightweight, fast, TypeScript-first |
-| Database | SQLite | 3.x | Simple, file-based, no setup |
-| DB Driver | bun:sqlite | built-in | Native Bun SQLite driver, zero dependencies |
-| ORM | Drizzle | 0.29+ | Type-safe, lightweight |
-| File Storage | Local filesystem | - | Simple for VPS deployment |
-| Queue | BullMQ | 5.x | Reliable job processing |
-| Queue Backend | Redis | 7.x | Required for BullMQ |
-| Validation | Zod | 3.x | Shared schemas with frontend |
-| Auth | jose | 5.x | JWT handling |
-| Password | Bun.password | built-in | Native Bun password hashing (Argon2id) |
+| Layer         | Technology       | Version  | Justification                                         |
+| ------------- | ---------------- | -------- | ----------------------------------------------------- |
+| Runtime       | Bun              | 1.x      | Fast runtime, native TypeScript, built-in test runner |
+| Framework     | Hono             | 4.x      | Lightweight, fast, TypeScript-first                   |
+| Database      | SQLite           | 3.x      | Simple, file-based, no setup                          |
+| DB Driver     | bun:sqlite       | built-in | Native Bun SQLite driver, zero dependencies           |
+| ORM           | Drizzle          | 0.29+    | Type-safe, lightweight                                |
+| File Storage  | Local filesystem | -        | Simple for VPS deployment                             |
+| Queue         | BullMQ           | 5.x      | Reliable job processing                               |
+| Queue Backend | Redis            | 7.x      | Required for BullMQ                                   |
+| Validation    | Zod              | 3.x      | Shared schemas with frontend                          |
+| Auth          | jose             | 5.x      | JWT handling                                          |
+| Password      | Bun.password     | built-in | Native Bun password hashing (Argon2id)                |
 
 ### 2.3 Package Management
 
-| Tool | Usage |
-|------|-------|
-| Bun | Package manager, runtime, bundler, test runner |
-| Bun Workspaces | Monorepo management |
+| Tool           | Usage                                          |
+| -------------- | ---------------------------------------------- |
+| Bun            | Package manager, runtime, bundler, test runner |
+| Bun Workspaces | Monorepo management                            |
 
 ### 2.4 External Services
 
-| Service | Provider | Purpose |
-|---------|----------|---------|
-| Image-to-Video | WAN 2.x API (Alibaba) | Core video generation (~5s clips) |
-| Image Analysis | Gemini 2.0 Flash (Google) | Animation suggestions |
+| Service        | Provider                  | Purpose                           |
+| -------------- | ------------------------- | --------------------------------- |
+| Image-to-Video | WAN 2.x API (Alibaba)     | Core video generation (~5s clips) |
+| Image Analysis | Gemini 2.0 Flash (Google) | Animation suggestions             |
 
 ---
 
@@ -247,6 +247,7 @@ gazette/
 ## 4. Data Flow
 
 ### 4.1 Project Access Flow
+
 ```
 User → Enter credentials → POST /api/projects/access
                                     ↓
@@ -260,6 +261,7 @@ User → Enter credentials → POST /api/projects/access
 ```
 
 ### 4.2 Image Upload Flow
+
 ```
 User → Select image → Frontend validates format/size
                               ↓
@@ -281,6 +283,7 @@ User → Select image → Frontend validates format/size
 ```
 
 ### 4.3 Video Generation Flow
+
 ```
 User → Click "Generate" → POST /api/projects/:id/generate
                                     ↓
@@ -306,6 +309,7 @@ User → Click "Generate" → POST /api/projects/:id/generate
 ## 5. Deployment Strategy
 
 ### 5.1 Target Environment
+
 - **Provider**: Hetzner or OVH VPS
 - **Specs**: 2 vCPU, 4GB RAM, 40GB SSD
 - **OS**: Ubuntu 22.04 LTS
@@ -336,12 +340,14 @@ User → Click "Generate" → POST /api/projects/:id/generate
 ### 5.3 Deployment Steps
 
 1. **Provision VPS**
+
    ```bash
    # Create VPS on Hetzner/OVH
    # SSH access configured
    ```
 
 2. **Install Dependencies**
+
    ```bash
    # Update system
    sudo apt update && sudo apt upgrade -y
@@ -365,6 +371,7 @@ User → Click "Generate" → POST /api/projects/:id/generate
    ```
 
 3. **Deploy Application**
+
    ```bash
    # Clone repo
    git clone https://github.com/user/gazette.git /opt/gazette
@@ -387,6 +394,7 @@ User → Click "Generate" → POST /api/projects/:id/generate
    ```
 
 4. **Configure Caddy**
+
    ```caddyfile
    # /etc/caddy/Caddyfile
    gazette.example.com {
@@ -413,31 +421,31 @@ User → Click "Generate" → POST /api/projects/:id/generate
 module.exports = {
   apps: [
     {
-      name: 'gazette-server',
-      script: 'bun',
-      args: 'run ./apps/server/src/index.ts',
+      name: "gazette-server",
+      script: "bun",
+      args: "run ./apps/server/src/index.ts",
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: '500M',
+      max_memory_restart: "500M",
       env: {
-        NODE_ENV: 'production',
-        PORT: 3000
-      }
+        NODE_ENV: "production",
+        PORT: 3000,
+      },
     },
     {
-      name: 'gazette-worker',
-      script: 'bun',
-      args: 'run ./apps/server/src/queue/worker.ts',
+      name: "gazette-worker",
+      script: "bun",
+      args: "run ./apps/server/src/queue/worker.ts",
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: '500M',
+      max_memory_restart: "500M",
       env: {
-        NODE_ENV: 'production'
-      }
-    }
-  ]
+        NODE_ENV: "production",
+      },
+    },
+  ],
 };
 ```
 
@@ -477,7 +485,7 @@ CMD ["bun", "run", "./apps/server/src/index.ts"]
 
 ```yaml
 # docker-compose.prod.yml
-version: '3.8'
+version: "3.8"
 
 services:
   app:
@@ -558,21 +566,25 @@ VITE_API_URL=http://localhost:3000/api
 ## 7. Security Considerations
 
 ### 7.1 Authentication
+
 - Project-based auth (name + password), no user accounts
 - Passwords hashed with Bun.password (Argon2id)
 - JWT tokens with 24-hour expiry
 - Tokens stored in httpOnly cookies (production)
 
 ### 7.2 Input Validation
+
 - All inputs validated with Zod schemas
 - File uploads: type checked, size limited
 - SQL injection: prevented by Drizzle ORM parameterization
 
 ### 7.3 Rate Limiting
+
 - API rate limiting per IP
 - Generation requests limited per project
 
 ### 7.4 HTTPS
+
 - Enforced via Caddy (automatic Let's Encrypt)
 - HSTS headers enabled
 
@@ -581,18 +593,21 @@ VITE_API_URL=http://localhost:3000/api
 ## 8. Performance Considerations
 
 ### 8.1 Frontend
+
 - Code splitting per route
 - Lazy loading of heavy components
 - Image optimization on upload
 - Video streaming (not full download)
 
 ### 8.2 Backend
+
 - SQLite with WAL mode for concurrency
 - Connection pooling for Redis
 - File streaming for large uploads
 - Async job processing
 
 ### 8.3 Caching
+
 - Static assets: CDN/Caddy caching
 - API responses: ETag/conditional requests
 - Generated videos: long cache TTL
@@ -641,13 +656,13 @@ Override CSS variables in `gazette.css` to match the vintage aesthetic:
 /* gazette.css - Custom theme overrides */
 :root {
   /* Override shadcn/ui defaults with gazette colors */
-  --background: 45 30% 96%;     /* cream */
-  --foreground: 30 24% 16%;     /* newspaper black */
-  --primary: 43 69% 47%;        /* antique gold */
+  --background: 45 30% 96%; /* cream */
+  --foreground: 30 24% 16%; /* newspaper black */
+  --primary: 43 69% 47%; /* antique gold */
   --primary-foreground: 30 24% 16%;
-  --secondary: 24 29% 28%;      /* sepia ink */
+  --secondary: 24 29% 28%; /* sepia ink */
   --secondary-foreground: 45 30% 96%;
-  --muted: 30 16% 44%;          /* faded gray */
+  --muted: 30 16% 44%; /* faded gray */
   --muted-foreground: 30 16% 44%;
   --accent: 43 69% 47%;
   --accent-foreground: 30 24% 16%;
@@ -658,5 +673,5 @@ Override CSS variables in `gazette.css` to match the vintage aesthetic:
 
 ---
 
-*Technical Architecture v1.1*
-*Last Updated: December 18, 2024*
+_Technical Architecture v1.1_
+_Last Updated: December 18, 2024_

@@ -10,7 +10,7 @@
 
 ```typescript
 // packages/shared/src/schemas/project.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 // Database record
 export const ProjectSchema = z.object({
@@ -24,12 +24,14 @@ export const ProjectSchema = z.object({
 
 // Create project request
 export const CreateProjectSchema = z.object({
-  name: z.string()
-    .min(1, 'Project name is required')
-    .max(100, 'Project name must be 100 characters or less'),
-  password: z.string()
-    .min(4, 'Password must be at least 4 characters')
-    .max(50, 'Password must be 50 characters or less'),
+  name: z
+    .string()
+    .min(1, "Project name is required")
+    .max(100, "Project name must be 100 characters or less"),
+  password: z
+    .string()
+    .min(4, "Password must be at least 4 characters")
+    .max(50, "Password must be 50 characters or less"),
 });
 
 // Access project request
@@ -54,14 +56,14 @@ export type ProjectResponse = z.infer<typeof ProjectResponseSchema>;
 
 ```typescript
 // packages/shared/src/schemas/page.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 // Template types
 export const TemplateType = z.enum([
-  'classic-front',
-  'two-column',
-  'grid-gallery',
-  'magazine-spread',
+  "classic-front",
+  "two-column",
+  "grid-gallery",
+  "magazine-spread",
 ]);
 
 // Database record
@@ -70,8 +72,8 @@ export const PageSchema = z.object({
   projectId: z.string().uuid(),
   order: z.number().int().min(0),
   template: TemplateType,
-  title: z.string().max(200).default(''),
-  subtitle: z.string().max(300).default(''),
+  title: z.string().max(200).default(""),
+  subtitle: z.string().max(300).default(""),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -103,13 +105,13 @@ export type UpdatePage = z.infer<typeof UpdatePageSchema>;
 
 ```typescript
 // packages/shared/src/schemas/element.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 // Element types
-export const ElementType = z.enum(['image', 'headline', 'subheading', 'caption']);
+export const ElementType = z.enum(["image", "headline", "subheading", "caption"]);
 
 // Video generation status
-export const VideoStatus = z.enum(['none', 'pending', 'processing', 'complete', 'failed']);
+export const VideoStatus = z.enum(["none", "pending", "processing", "complete", "failed"]);
 
 // Position schema (shared)
 export const PositionSchema = z.object({
@@ -130,7 +132,7 @@ export const CropDataSchema = z.object({
 export const ImageElementSchema = z.object({
   id: z.string().uuid(),
   pageId: z.string().uuid(),
-  type: z.literal('image'),
+  type: z.literal("image"),
   position: PositionSchema,
   imageId: z.string().uuid().nullable(),
   cropData: CropDataSchema.nullable(),
@@ -145,7 +147,7 @@ export const ImageElementSchema = z.object({
 export const TextElementSchema = z.object({
   id: z.string().uuid(),
   pageId: z.string().uuid(),
-  type: z.enum(['headline', 'subheading', 'caption']),
+  type: z.enum(["headline", "subheading", "caption"]),
   position: PositionSchema,
   content: z.string().max(1000),
   createdAt: z.date(),
@@ -153,23 +155,23 @@ export const TextElementSchema = z.object({
 });
 
 // Union of all element types
-export const ElementSchema = z.discriminatedUnion('type', [
+export const ElementSchema = z.discriminatedUnion("type", [
   ImageElementSchema,
-  TextElementSchema.extend({ type: z.literal('headline') }),
-  TextElementSchema.extend({ type: z.literal('subheading') }),
-  TextElementSchema.extend({ type: z.literal('caption') }),
+  TextElementSchema.extend({ type: z.literal("headline") }),
+  TextElementSchema.extend({ type: z.literal("subheading") }),
+  TextElementSchema.extend({ type: z.literal("caption") }),
 ]);
 
 // Create element request
-export const CreateElementSchema = z.discriminatedUnion('type', [
+export const CreateElementSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal('image'),
+    type: z.literal("image"),
     position: PositionSchema,
   }),
   z.object({
-    type: z.enum(['headline', 'subheading', 'caption']),
+    type: z.enum(["headline", "subheading", "caption"]),
     position: PositionSchema,
-    content: z.string().max(1000).default(''),
+    content: z.string().max(1000).default(""),
   }),
 ]);
 
@@ -199,10 +201,10 @@ export type UpdateElement = z.infer<typeof UpdateElementSchema>;
 
 ```typescript
 // packages/shared/src/schemas/image.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 // Supported mime types
-export const ImageMimeType = z.enum(['image/jpeg', 'image/png', 'image/webp']);
+export const ImageMimeType = z.enum(["image/jpeg", "image/png", "image/webp"]);
 
 // Database record
 export const ImageSchema = z.object({
@@ -243,10 +245,10 @@ export type ImageAnalysisResult = z.infer<typeof ImageAnalysisResultSchema>;
 
 ```typescript
 // packages/shared/src/schemas/generation.ts
-import { z } from 'zod';
+import { z } from "zod";
 
 // Job status
-export const JobStatus = z.enum(['queued', 'processing', 'complete', 'failed']);
+export const JobStatus = z.enum(["queued", "processing", "complete", "failed"]);
 
 // Generation job database record
 export const GenerationJobSchema = z.object({
@@ -282,14 +284,16 @@ export const GenerationStatusSchema = z.object({
   processing: z.number().int(),
   queued: z.number().int(),
   failed: z.number().int(),
-  jobs: z.array(GenerationJobSchema.pick({
-    id: true,
-    elementId: true,
-    status: true,
-    progress: true,
-    videoUrl: true,
-    error: true,
-  })),
+  jobs: z.array(
+    GenerationJobSchema.pick({
+      id: true,
+      elementId: true,
+      status: true,
+      progress: true,
+      videoUrl: true,
+      error: true,
+    })
+  ),
 });
 
 // Types
@@ -306,11 +310,11 @@ export type GenerationStatus = z.infer<typeof GenerationStatusSchema>;
 
 ```typescript
 // packages/shared/src/index.ts
-export * from './schemas/project';
-export * from './schemas/page';
-export * from './schemas/element';
-export * from './schemas/image';
-export * from './schemas/generation';
+export * from "./schemas/project";
+export * from "./schemas/page";
+export * from "./schemas/element";
+export * from "./schemas/image";
+export * from "./schemas/generation";
 ```
 
 ---
@@ -321,109 +325,109 @@ export * from './schemas/generation';
 
 ```typescript
 // apps/server/src/db/schema.ts
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 // Projects table
-export const projects = sqliteTable('projects', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' })
+export const projects = sqliteTable("projects", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
-  updatedAt: integer('updated_at', { mode: 'timestamp' })
+  updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
 });
 
 // Pages table
-export const pages = sqliteTable('pages', {
-  id: text('id').primaryKey(),
-  projectId: text('project_id')
+export const pages = sqliteTable("pages", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
     .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  order: integer('order').notNull(),
-  template: text('template').notNull(), // 'classic-front' | 'two-column' | etc.
-  title: text('title').default(''),
-  subtitle: text('subtitle').default(''),
-  createdAt: integer('created_at', { mode: 'timestamp' })
+    .references(() => projects.id, { onDelete: "cascade" }),
+  order: integer("order").notNull(),
+  template: text("template").notNull(), // 'classic-front' | 'two-column' | etc.
+  title: text("title").default(""),
+  subtitle: text("subtitle").default(""),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
-  updatedAt: integer('updated_at', { mode: 'timestamp' })
+  updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
 });
 
 // Images table (uploaded files)
-export const images = sqliteTable('images', {
-  id: text('id').primaryKey(),
-  projectId: text('project_id')
+export const images = sqliteTable("images", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
     .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  originalFilename: text('original_filename').notNull(),
-  storagePath: text('storage_path').notNull(),
-  mimeType: text('mime_type').notNull(),
-  width: integer('width').notNull(),
-  height: integer('height').notNull(),
-  uploadedAt: integer('uploaded_at', { mode: 'timestamp' })
+    .references(() => projects.id, { onDelete: "cascade" }),
+  originalFilename: text("original_filename").notNull(),
+  storagePath: text("storage_path").notNull(),
+  mimeType: text("mime_type").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  uploadedAt: integer("uploaded_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
 });
 
 // Elements table (polymorphic: image or text)
-export const elements = sqliteTable('elements', {
-  id: text('id').primaryKey(),
-  pageId: text('page_id')
+export const elements = sqliteTable("elements", {
+  id: text("id").primaryKey(),
+  pageId: text("page_id")
     .notNull()
-    .references(() => pages.id, { onDelete: 'cascade' }),
-  type: text('type').notNull(), // 'image' | 'headline' | 'subheading' | 'caption'
+    .references(() => pages.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'image' | 'headline' | 'subheading' | 'caption'
 
   // Position (all elements)
-  positionX: real('position_x').notNull(),
-  positionY: real('position_y').notNull(),
-  positionWidth: real('position_width').notNull(),
-  positionHeight: real('position_height').notNull(),
+  positionX: real("position_x").notNull(),
+  positionY: real("position_y").notNull(),
+  positionWidth: real("position_width").notNull(),
+  positionHeight: real("position_height").notNull(),
 
   // Image-specific fields (nullable for text elements)
-  imageId: text('image_id').references(() => images.id),
-  cropX: real('crop_x'),
-  cropY: real('crop_y'),
-  cropZoom: real('crop_zoom'),
-  animationPrompt: text('animation_prompt'),
-  videoUrl: text('video_url'),
-  videoStatus: text('video_status').default('none'), // 'none' | 'pending' | 'processing' | 'complete' | 'failed'
+  imageId: text("image_id").references(() => images.id),
+  cropX: real("crop_x"),
+  cropY: real("crop_y"),
+  cropZoom: real("crop_zoom"),
+  animationPrompt: text("animation_prompt"),
+  videoUrl: text("video_url"),
+  videoStatus: text("video_status").default("none"), // 'none' | 'pending' | 'processing' | 'complete' | 'failed'
 
   // Text-specific fields (nullable for image elements)
-  content: text('content'),
+  content: text("content"),
 
-  createdAt: integer('created_at', { mode: 'timestamp' })
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
-  updatedAt: integer('updated_at', { mode: 'timestamp' })
+  updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
 });
 
 // Generation jobs table
-export const generationJobs = sqliteTable('generation_jobs', {
-  id: text('id').primaryKey(),
-  elementId: text('element_id')
+export const generationJobs = sqliteTable("generation_jobs", {
+  id: text("id").primaryKey(),
+  elementId: text("element_id")
     .notNull()
-    .references(() => elements.id, { onDelete: 'cascade' }),
-  imageId: text('image_id')
+    .references(() => elements.id, { onDelete: "cascade" }),
+  imageId: text("image_id")
     .notNull()
     .references(() => images.id),
-  prompt: text('prompt').notNull(),
-  status: text('status').notNull().default('queued'), // 'queued' | 'processing' | 'complete' | 'failed'
-  progress: integer('progress').notNull().default(0),
-  videoUrl: text('video_url'),
-  error: text('error'),
-  createdAt: integer('created_at', { mode: 'timestamp' })
+  prompt: text("prompt").notNull(),
+  status: text("status").notNull().default("queued"), // 'queued' | 'processing' | 'complete' | 'failed'
+  progress: integer("progress").notNull().default(0),
+  videoUrl: text("video_url"),
+  error: text("error"),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
-  updatedAt: integer('updated_at', { mode: 'timestamp' })
+  updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
 });
@@ -614,8 +618,8 @@ export type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 export type RequiredBy<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 
 // Extract element type from union
-export type ImageElementType = Extract<Element, { type: 'image' }>;
-export type TextElementType = Exclude<Element, { type: 'image' }>;
+export type ImageElementType = Extract<Element, { type: "image" }>;
+export type TextElementType = Exclude<Element, { type: "image" }>;
 
 // API response wrapper
 export type ApiResponse<T> = {
@@ -642,5 +646,5 @@ export type ApiError = {
 
 ---
 
-*Data Models v1.0*
-*Last Updated: December 18, 2024*
+_Data Models v1.0_
+_Last Updated: December 18, 2024_
