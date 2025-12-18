@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS pages (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   "order" INTEGER NOT NULL,
-  template TEXT NOT NULL,
+  template_id TEXT NOT NULL DEFAULT 'full-page',
   title TEXT DEFAULT '',
   subtitle TEXT DEFAULT '',
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),

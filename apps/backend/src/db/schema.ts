@@ -22,7 +22,7 @@ export const pages = sqliteTable("pages", {
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
   order: integer("order").notNull(),
-  template: text("template").notNull(), // 'classic-front' | 'two-column' | etc.
+  templateId: text("template_id").notNull().default("full-page"), // 'full-page' | 'two-columns' | 'three-grid' | 'masthead'
   title: text("title").default(""),
   subtitle: text("subtitle").default(""),
   createdAt: integer("created_at", { mode: "timestamp" })

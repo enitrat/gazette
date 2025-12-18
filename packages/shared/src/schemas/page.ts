@@ -1,28 +1,23 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Template types
-export const TemplateType = z.enum([
-  'classic-front',
-  'two-column',
-  'grid-gallery',
-  'magazine-spread',
-]);
+export const TemplateType = z.enum(["full-page", "two-columns", "three-grid", "masthead"]);
 
 // Database record
 export const PageSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
   order: z.number().int().min(0),
-  template: TemplateType,
-  title: z.string().max(200).default(''),
-  subtitle: z.string().max(300).default(''),
+  templateId: TemplateType,
+  title: z.string().max(200).default(""),
+  subtitle: z.string().max(300).default(""),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
 
 // Create page request
 export const CreatePageSchema = z.object({
-  template: TemplateType,
+  templateId: TemplateType,
   afterPageId: z.string().uuid().optional(),
 });
 
@@ -30,7 +25,7 @@ export const CreatePageSchema = z.object({
 export const UpdatePageSchema = z.object({
   title: z.string().max(200).optional(),
   subtitle: z.string().max(300).optional(),
-  template: TemplateType.optional(),
+  templateId: TemplateType.optional(),
   order: z.number().int().min(0).optional(),
 });
 

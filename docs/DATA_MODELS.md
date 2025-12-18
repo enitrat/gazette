@@ -59,19 +59,14 @@ export type ProjectResponse = z.infer<typeof ProjectResponseSchema>;
 import { z } from "zod";
 
 // Template types
-export const TemplateType = z.enum([
-  "classic-front",
-  "two-column",
-  "grid-gallery",
-  "magazine-spread",
-]);
+export const TemplateType = z.enum(["full-page", "two-columns", "three-grid", "masthead"]);
 
 // Database record
 export const PageSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
   order: z.number().int().min(0),
-  template: TemplateType,
+  templateId: TemplateType,
   title: z.string().max(200).default(""),
   subtitle: z.string().max(300).default(""),
   createdAt: z.date(),
@@ -80,7 +75,7 @@ export const PageSchema = z.object({
 
 // Create page request
 export const CreatePageSchema = z.object({
-  template: TemplateType,
+  templateId: TemplateType,
   afterPageId: z.string().uuid().optional(),
 });
 
@@ -88,7 +83,7 @@ export const CreatePageSchema = z.object({
 export const UpdatePageSchema = z.object({
   title: z.string().max(200).optional(),
   subtitle: z.string().max(300).optional(),
-  template: TemplateType.optional(),
+  templateId: TemplateType.optional(),
   order: z.number().int().min(0).optional(),
 });
 
@@ -349,7 +344,7 @@ export const pages = sqliteTable("pages", {
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
   order: integer("order").notNull(),
-  template: text("template").notNull(), // 'classic-front' | 'two-column' | etc.
+  templateId: text("template_id").notNull().default("full-page"), // 'full-page' | 'two-columns' | 'three-grid' | 'masthead'
   title: text("title").default(""),
   subtitle: text("subtitle").default(""),
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -471,7 +466,7 @@ CREATE TABLE IF NOT EXISTS pages (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   "order" INTEGER NOT NULL,
-  template TEXT NOT NULL,
+  template_id TEXT NOT NULL DEFAULT 'full-page',
   title TEXT DEFAULT '',
   subtitle TEXT DEFAULT '',
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
@@ -560,7 +555,7 @@ CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug);
 │ id (PK)         │         │ id (PK)         │
 │ project_id (FK) │◄────────│ project_id (FK) │
 │ order           │         │ original_filename│
-│ template        │         │ storage_path    │
+│ template_id     │         │ storage_path    │
 │ title           │         │ mime_type       │
 │ subtitle        │         │ width           │
 │ created_at      │         │ height          │

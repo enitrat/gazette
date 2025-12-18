@@ -163,7 +163,7 @@ List all pages in a project.
     {
       "id": "page-001",
       "order": 0,
-      "template": "classic-front",
+      "templateId": "masthead",
       "title": "L'Enfance",
       "subtitle": "1952 - 1965",
       "elementCount": 4
@@ -171,7 +171,7 @@ List all pages in a project.
     {
       "id": "page-002",
       "order": 1,
-      "template": "two-column",
+      "templateId": "two-columns",
       "title": "Les Années de Jeunesse",
       "subtitle": "1965 - 1980",
       "elementCount": 5
@@ -192,7 +192,7 @@ Create a new page.
 
 ```json
 {
-  "template": "grid-gallery",
+  "templateId": "three-grid",
   "afterPageId": "page-001" // optional, inserts after this page
 }
 ```
@@ -204,7 +204,7 @@ Create a new page.
   "id": "page-003",
   "projectId": "550e8400...",
   "order": 1,
-  "template": "grid-gallery",
+  "templateId": "three-grid",
   "title": "",
   "subtitle": "",
   "createdAt": "2024-12-18T15:00:00Z"
@@ -225,7 +225,7 @@ Update a page.
 {
   "title": "La Vie de Famille",
   "subtitle": "1980 - 2000",
-  "template": "magazine-spread",
+  "templateId": "full-page",
   "order": 2
 }
 ```
@@ -237,7 +237,7 @@ Update a page.
   "id": "page-003",
   "projectId": "550e8400...",
   "order": 2,
-  "template": "magazine-spread",
+  "templateId": "full-page",
   "title": "La Vie de Famille",
   "subtitle": "1980 - 2000",
   "updatedAt": "2024-12-18T15:30:00Z"
@@ -257,6 +257,38 @@ Delete a page.
 **Errors:**
 
 - `400` - Cannot delete the only page in a project
+
+---
+
+### GET /api/templates
+
+List all available page templates.
+
+**Response (200 OK):**
+
+```json
+{
+  "templates": [
+    {
+      "id": "full-page",
+      "name": "Full Page",
+      "description": "Single hero image with headline and caption.",
+      "canvas": { "width": 1200, "height": 1600 },
+      "elements": [
+        {
+          "type": "headline",
+          "position": { "x": 80, "y": 80, "width": 1040, "height": 100 },
+          "content": ""
+        },
+        {
+          "type": "image",
+          "position": { "x": 80, "y": 200, "width": 1040, "height": 1200 }
+        }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -709,7 +741,7 @@ Get gazette data for viewing (read-only).
     {
       "id": "page-001",
       "order": 0,
-      "template": "classic-front",
+      "templateId": "masthead",
       "title": "L'Enfance",
       "subtitle": "1952 - 1965",
       "elements": [
