@@ -4,16 +4,23 @@ import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { requestId } from "hono/request-id";
 import { HTTPException } from "hono/http-exception";
+import { Buffer } from "node:buffer";
+import { randomUUID } from "node:crypto";
+import { mkdir, unlink } from "node:fs/promises";
+import { extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import sharp, { type OutputInfo } from "sharp";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "./db";
-import { AuthError } from "./auth";
+import { AuthError, AuthErrors } from "./auth";
 import { requireAuth } from "./auth/middleware";
-import { elements, pages, type ElementRecord } from "./db/schema";
+import { elements, images, pages, projects, type ElementRecord } from "./db/schema";
 import { projectsRouter } from "./routes/projects";
 import {
   DEFAULTS,
   ELEMENT_TYPES,
   ERROR_CODES,
+  IMAGE_CONSTRAINTS,
   validateCreateElement,
   validateUpdateElement,
 } from "@gazette/shared";
@@ -22,6 +29,72 @@ import {
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const NODE_ENV = process.env.NODE_ENV || "development";
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
+const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
+const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
+const IMAGE_SUBDIR = "images";
+const MAX_IMAGE_WIDTH = 2048;
+const MAX_UPLOAD_BYTES = IMAGE_CONSTRAINTS.MAX_FILE_SIZE;
+const ALLOWED_MIME_TYPES = new Set(IMAGE_CONSTRAINTS.SUPPORTED_MIME_TYPES);
+const MIME_BY_EXTENSION: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+const EXTENSION_BY_MIME: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+};
+
+const appRoot = fileURLToPath(new URL("..", import.meta.url));
+const uploadRoot = join(appRoot, UPLOAD_DIR, IMAGE_SUBDIR);
+await mkdir(uploadRoot, { recursive: true });
+
+type BodyValue = string | File;
+type ParsedBody = Record<string, BodyValue | BodyValue[]>;
+
+const firstBodyValue = (value: BodyValue | BodyValue[] | undefined): BodyValue | undefined =>
+  Array.isArray(value) ? value[0] : value;
+
+const getBodyFile = (body: ParsedBody, keys: string[]): File | undefined => {
+  for (const key of keys) {
+    const value = firstBodyValue(body[key]);
+    if (value instanceof File) {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const normalizeImageType = (name: string, mimeType: string) => {
+  const extension = extname(name).toLowerCase();
+  const normalizedExtension = MIME_BY_EXTENSION[extension] ? extension : "";
+  const normalizedMimeType = ALLOWED_MIME_TYPES.has(mimeType)
+    ? mimeType
+    : MIME_BY_EXTENSION[extension];
+  if (!normalizedMimeType) {
+    return null;
+  }
+  const outputExtension = EXTENSION_BY_MIME[normalizedMimeType] || normalizedExtension;
+  return { extension: outputExtension, mimeType: normalizedMimeType };
+};
+
+const safeUnlink = async (filePath: string) => {
+  try {
+    await unlink(filePath);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "ENOENT"
+    ) {
+      return;
+    }
+    throw error;
+  }
+};
 
 // Create Hono app
 export const app = new Hono();
@@ -82,6 +155,9 @@ app.get("/", (c) => {
 
 // API routes
 app.route("/api/projects", projectsRouter);
+app.use("/api/projects/:id/images", requireAuth);
+app.use("/api/images/:id", requireAuth);
+app.use("/api/images/:id/file", requireAuth);
 
 const MAX_PHOTOS_PER_PAGE = 5;
 
@@ -121,8 +197,6 @@ function serializeElement(record: ElementRecord) {
           zoom: record.cropZoom ?? DEFAULTS.CROP_ZOOM,
         }
       : null;
-    const imageUrl = record.imageId ? `/api/images/${record.imageId}/file` : null;
-
     const imageUrl = record.imageId ? `/api/images/${record.imageId}/file` : null;
 
     return {
@@ -173,6 +247,182 @@ async function ensureElementAccess(elementId: string, projectId: string) {
 
 app.use("/api/pages/:id/elements", requireAuth);
 app.use("/api/elements/:id", requireAuth);
+
+// Upload an image
+app.post("/api/projects/:id/images", async (c) => {
+  const projectId = c.req.param("id");
+  const authProjectId = c.get("projectId");
+
+  if (projectId !== authProjectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const project = db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .get();
+  if (!project) {
+    return errorResponse(c, 404, ERROR_CODES.PROJECT_NOT_FOUND, "Project not found");
+  }
+
+  const contentType = c.req.header("content-type") ?? "";
+  if (!contentType.includes("multipart/form-data")) {
+    return errorResponse(
+      c,
+      415,
+      ERROR_CODES.INVALID_INPUT,
+      "Content-Type must be multipart/form-data"
+    );
+  }
+
+  const body = (await c.req.parseBody()) as ParsedBody;
+  const file = getBodyFile(body, ["file", "image", "upload"]);
+  if (!file) {
+    return errorResponse(c, 400, ERROR_CODES.VALIDATION_ERROR, "No file provided");
+  }
+
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return errorResponse(c, 413, ERROR_CODES.VALIDATION_ERROR, "File too large (max 10MB)");
+  }
+
+  const originalFilename = file.name || "upload";
+  const normalizedType = normalizeImageType(originalFilename, file.type);
+  if (!normalizedType) {
+    return errorResponse(
+      c,
+      400,
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid file type (only JPG, PNG, WebP allowed)"
+    );
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  let transformer = sharp(buffer, { failOnError: true }).rotate();
+
+  transformer = transformer.resize({
+    width: MAX_IMAGE_WIDTH,
+    withoutEnlargement: true,
+  });
+
+  switch (normalizedType.extension) {
+    case ".jpg":
+      transformer = transformer.jpeg({ quality: 82, mozjpeg: true });
+      break;
+    case ".png":
+      transformer = transformer.png({ compressionLevel: 9 });
+      break;
+    case ".webp":
+      transformer = transformer.webp({ quality: 82 });
+      break;
+    default:
+      break;
+  }
+
+  let output: { data: Buffer; info: OutputInfo };
+  try {
+    output = await transformer.toBuffer({ resolveWithObject: true });
+  } catch {
+    return errorResponse(c, 400, ERROR_CODES.VALIDATION_ERROR, "Unable to process image file");
+  }
+
+  const { data, info } = output;
+  if (!info.width || !info.height) {
+    return errorResponse(c, 422, ERROR_CODES.VALIDATION_ERROR, "Unable to read image dimensions");
+  }
+
+  const uploadedAt = new Date();
+  const imageId = randomUUID();
+  const filename = `${imageId}${normalizedType.extension}`;
+  const storagePath = `${UPLOAD_DIR}/${IMAGE_SUBDIR}/${filename}`;
+  const filePath = join(uploadRoot, filename);
+
+  await Bun.write(filePath, data);
+
+  try {
+    db.insert(images)
+      .values({
+        id: imageId,
+        projectId,
+        originalFilename,
+        storagePath,
+        mimeType: normalizedType.mimeType,
+        width: info.width,
+        height: info.height,
+        uploadedAt,
+      })
+      .run();
+  } catch (error) {
+    await safeUnlink(filePath);
+    throw error;
+  }
+
+  return c.json(
+    {
+      id: imageId,
+      originalFilename,
+      mimeType: normalizedType.mimeType,
+      width: info.width,
+      height: info.height,
+      url: `/api/images/${imageId}/file`,
+      uploadedAt: uploadedAt.toISOString(),
+    },
+    201
+  );
+});
+
+// Get image metadata
+app.get("/api/images/:id", async (c) => {
+  const imageId = c.req.param("id");
+  const projectId = c.get("projectId");
+  const image = db.select().from(images).where(eq(images.id, imageId)).get();
+
+  if (!image) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
+  }
+
+  if (image.projectId !== projectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  return c.json({
+    id: imageId,
+    projectId: image.projectId,
+    originalFilename: image.originalFilename,
+    mimeType: image.mimeType,
+    width: image.width,
+    height: image.height,
+    url: `/api/images/${imageId}/file`,
+    uploadedAt: image.uploadedAt.toISOString(),
+  });
+});
+
+// Get image file
+app.get("/api/images/:id/file", async (c) => {
+  const imageId = c.req.param("id");
+  const projectId = c.get("projectId");
+  const image = db.select().from(images).where(eq(images.id, imageId)).get();
+
+  if (!image) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
+  }
+
+  if (image.projectId !== projectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const normalizedPath = image.storagePath.startsWith("/")
+    ? image.storagePath.slice(1)
+    : image.storagePath;
+  const file = Bun.file(join(appRoot, normalizedPath));
+  if (!(await file.exists())) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
+  }
+
+  return c.body(file, 200, {
+    "Content-Type": image.mimeType,
+  });
+});
 
 // List elements for a page
 app.get("/api/pages/:id/elements", async (c) => {
@@ -411,6 +661,29 @@ app.delete("/api/elements/:id", async (c) => {
   }
 
   db.delete(elements).where(eq(elements.id, elementId)).run();
+
+  if (existing.imageId) {
+    const usage = db
+      .select({ count: sql<number>`count(*)` })
+      .from(elements)
+      .where(eq(elements.imageId, existing.imageId))
+      .get();
+
+    if ((usage?.count ?? 0) === 0) {
+      const image = db
+        .select()
+        .from(images)
+        .where(and(eq(images.id, existing.imageId), eq(images.projectId, projectId)))
+        .get();
+      if (image) {
+        db.delete(images).where(eq(images.id, existing.imageId)).run();
+        const normalizedPath = image.storagePath.startsWith("/")
+          ? image.storagePath.slice(1)
+          : image.storagePath;
+        await safeUnlink(join(appRoot, normalizedPath));
+      }
+    }
+  }
 
   return c.body(null, 204);
 });
