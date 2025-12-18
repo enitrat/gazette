@@ -1,0 +1,150 @@
+/* Google Fonts Import - must be before Tailwind */
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Old+Standard+TT:wght@700&family=Libre+Baskerville:ital@1&family=EB+Garamond:wght@400;500&family=Inter:wght@400;500;600&display=swap");
+
+@import "tailwindcss";
+
+/* Vintage Theme Configuration */
+@theme {
+  /* Colors - Vintage Newspaper Palette */
+  --color-parchment: #f4e4bc;
+  --color-sepia: #5c4033;
+  --color-gold: #c9a227;
+  --color-ink: #2c2416;
+  --color-muted: #8b7355;
+  --color-cream: #fdf8e8;
+  --color-aged-red: #8b4513;
+  --color-forest-green: #355e3b;
+
+  /* Font Families */
+  --font-masthead: "Playfair Display", Georgia, serif;
+  --font-headline: "Old Standard TT", "Times New Roman", serif;
+  --font-subheading: "Libre Baskerville", Georgia, serif;
+  --font-body: "EB Garamond", Garamond, serif;
+  --font-ui: "Inter", system-ui, sans-serif;
+
+  /* Animation Timings */
+  --transition-fast: 150ms;
+  --transition-normal: 250ms;
+  --transition-slow: 400ms;
+
+  /* Border Radius */
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.5rem;
+}
+
+/* Base Styles */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: var(--font-body);
+    background-color: var(--color-cream);
+    color: var(--color-ink);
+    line-height: 1.6;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  /* Typography */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-headline);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-ink);
+  }
+
+  h1 {
+    font-family: var(--font-masthead);
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 4vw, 2.25rem);
+  }
+
+  h3 {
+    font-size: clamp(1.25rem, 3vw, 1.5rem);
+  }
+
+  p {
+    margin: 0;
+  }
+
+  a {
+    color: var(--color-sepia);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    transition: color var(--transition-fast) ease;
+  }
+
+  a:hover {
+    color: var(--color-gold);
+  }
+}
+
+/* Utility Classes */
+@layer utilities {
+  .font-masthead {
+    font-family: var(--font-masthead);
+    font-weight: 700;
+  }
+
+  .font-headline {
+    font-family: var(--font-headline);
+    font-weight: 700;
+  }
+
+  .font-subheading {
+    font-family: var(--font-subheading);
+    font-style: italic;
+  }
+
+  .font-body {
+    font-family: var(--font-body);
+  }
+
+  .font-ui {
+    font-family: var(--font-ui);
+  }
+
+  /* Vintage Paper Effect */
+  .gazette-page {
+    background: radial-gradient(
+        ellipse at center,
+        transparent 60%,
+        rgba(92, 64, 51, 0.15) 100%
+      ),
+      var(--color-parchment);
+    border: 1px solid rgba(92, 64, 51, 0.3);
+    box-shadow:
+      inset 0 0 30px rgba(92, 64, 51, 0.05),
+      0 4px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Ink Text Effect */
+  .text-ink-effect {
+    text-shadow: 0 0 0.5px var(--color-ink);
+  }
+}
