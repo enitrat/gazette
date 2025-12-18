@@ -88,8 +88,7 @@ app.onError((err, c) => {
     {
       error: {
         code: "INTERNAL_ERROR",
-        message:
-          NODE_ENV === "production" ? "Internal server error" : err.message,
+        message: NODE_ENV === "production" ? "Internal server error" : err.message,
       },
     },
     500
@@ -97,12 +96,12 @@ app.onError((err, c) => {
 });
 
 // Start server
-console.log(`Starting server in ${NODE_ENV} mode...`);
-console.log(`CORS origin: ${CORS_ORIGIN}`);
+if (NODE_ENV === "development") {
+  console.warn(`Starting server in ${NODE_ENV} mode...`);
+  console.warn(`CORS origin: ${CORS_ORIGIN}`);
+}
 
 export default {
   port: PORT,
   fetch: app.fetch,
 };
-
-console.log(`Server running at http://localhost:${PORT}`);
