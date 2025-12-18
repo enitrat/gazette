@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { Template } from "@gazette/shared";
 
 import {
   Dialog,
@@ -12,17 +13,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type TemplateOption = {
-  id: string;
+  id: Template;
   name: string;
   description: string;
-};
-
-export type CreatedPage = {
-  id: string;
-  title: string;
-  subtitle: string;
-  templateId: string;
-  order?: number | null;
 };
 
 export const TEMPLATE_OPTIONS: TemplateOption[] = [
@@ -51,7 +44,7 @@ export const TEMPLATE_OPTIONS: TemplateOption[] = [
 type TemplateDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (page: CreatedPage) => void;
+  onCreate: (templateId: Template) => Promise<void>;
 };
 
 const previewShellClasses =
@@ -118,8 +111,10 @@ function TemplatePreview({ templateId }: { templateId: string }) {
   }
 }
 
-export function TemplateDialog({ open, onOpenChange, onCreated }: TemplateDialogProps) {
-  const [selectedId, setSelectedId] = useState<string>(TEMPLATE_OPTIONS[0]?.id ?? "");
+export function TemplateDialog({ open, onOpenChange, onCreate }: TemplateDialogProps) {
+  const [selectedId, setSelectedId] = useState<Template>(
+    TEMPLATE_OPTIONS[0]?.id ?? "classic-front"
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,53 +140,7 @@ export function TemplateDialog({ open, onOpenChange, onCreated }: TemplateDialog
     setError(null);
 
     try {
-      const response = await fetch("/api/pages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ template_id: selectedTemplate.id }),
-      });
-
-      if (!response.ok) {
-        let message = "Failed to create page. Please try again.";
-        try {
-          const data = await response.json();
-          if (typeof data?.error === "string") {
-            message = data.error;
-          } else if (typeof data?.message === "string") {
-            message = data.message;
-          }
-        } catch {
-          // Ignore JSON parsing failures and fall back to default message.
-        }
-        throw new Error(message);
-      }
-
-      let payload: Record<string, unknown> | null = null;
-      try {
-        payload = (await response.json()) as Record<string, unknown>;
-      } catch {
-        payload = null;
-      }
-
-      const resolvedTemplateId =
-        (payload?.template_id as string | undefined) ??
-        (payload?.template as string | undefined) ??
-        selectedTemplate.id;
-
-      const createdPage: CreatedPage = {
-        id:
-          (payload?.id as string | undefined) ??
-          globalThis.crypto?.randomUUID?.() ??
-          `page-${Date.now()}`,
-        title: (payload?.title as string | undefined) ?? "",
-        subtitle: (payload?.subtitle as string | undefined) ?? "",
-        templateId: resolvedTemplateId,
-        order: (payload?.order as number | undefined) ?? null,
-      };
-
-      onCreated(createdPage);
+      await onCreate(selectedTemplate.id);
       onOpenChange(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to create page.";

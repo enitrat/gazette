@@ -1,80 +1,83 @@
-import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-
-import { TemplateDialog, TEMPLATE_OPTIONS, type CreatedPage } from "@/components/TemplateDialog";
+import { useEffect, useMemo, useState } from "react";
+import type { Template } from "@gazette/shared";
+import { PageSidebar } from "@/components/PageSidebar";
+import { TemplateDialog } from "@/components/TemplateDialog";
+import { usePagesStore } from "@/stores/pages-store";
 
 export const Route = createFileRoute("/editor")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    pageId: typeof search.pageId === "string" ? search.pageId : undefined,
+  }),
   component: EditorPage,
 });
 
 function EditorPage() {
+  const { pageId } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const pages = usePagesStore((state) => state.pages);
+  const createPage = usePagesStore((state) => state.createPage);
+  const [projectId] = useState(() =>
+    typeof window !== "undefined"
+      ? (localStorage.getItem("gazette:projectId") ?? undefined)
+      : undefined
+  );
+  const [token] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("gazette:token") : null
+  );
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
-  const [pages, setPages] = useState<
-    { id: string; title: string; subtitle: string; templateId: string }[]
-  >([
-    {
-      id: "page-1",
-      title: "Page 1",
-      subtitle: "Cover",
-      templateId: "classic-front",
-    },
-  ]);
 
-  const templateNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    TEMPLATE_OPTIONS.forEach((template) => map.set(template.id, template.name));
-    return map;
-  }, []);
+  const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
 
-  const handlePageCreated = (page: CreatedPage) => {
-    setPages((prev) => [
-      ...prev,
-      {
-        id: page.id,
-        title: page.title,
-        subtitle: page.subtitle,
-        templateId: page.templateId,
+  useEffect(() => {
+    if (!pageId && pages.length > 0) {
+      navigate({
+        search: {
+          pageId: pages[0]?.id,
+        },
+        replace: true,
+      });
+    }
+  }, [navigate, pageId, pages]);
+
+  const handleSelectPage = (selectedId: string) => {
+    navigate({
+      search: {
+        pageId: selectedId,
       },
-    ]);
+    });
+  };
+
+  const handleCreatePage = async (templateId: Template) => {
+    if (!projectId) {
+      throw new Error("Missing project ID.");
+    }
+
+    const lastPage = pages[pages.length - 1];
+    const created = await createPage(projectId, token, templateId, lastPage?.id);
+    if (!created) {
+      throw new Error("Unable to create page.");
+    }
+    handleSelectPage(created.id);
   };
 
   return (
     <div className="flex min-h-[calc(100vh-57px)]">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-sepia/20 bg-parchment p-4">
-        <h3 className="mb-4 text-ink-effect">Pages</h3>
-        <div className="space-y-2">
-          {pages.map((page, index) => {
-            const templateName = templateNameById.get(page.templateId) ?? "Custom layout";
-            const title = page.title?.trim() ? page.title : `Page ${index + 1}`;
-            const subtitle = page.subtitle?.trim() ? page.subtitle : templateName;
-
-            return (
-              <div
-                key={page.id}
-                className="cursor-pointer rounded-sm border border-sepia/30 bg-cream p-3 transition-colors hover:border-gold"
-              >
-                <p className="font-ui text-sm font-medium text-ink">{title}</p>
-                <p className="font-ui text-xs text-muted">{subtitle}</p>
-              </div>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => setIsTemplateDialogOpen(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-sm border border-dashed border-muted/50 bg-transparent p-3 font-ui text-sm text-muted transition-colors hover:border-gold hover:text-sepia"
-          >
-            + Add Page
-          </button>
-        </div>
-      </aside>
+      <PageSidebar
+        projectId={projectId}
+        token={token}
+        activePageId={activePageId}
+        onSelectPage={handleSelectPage}
+        onRequestNewPage={() => setIsTemplateDialogOpen(true)}
+      />
 
       {/* Canvas */}
       <main className="flex-1 bg-cream/50 p-8">
         <div className="mx-auto aspect-[3/4] max-w-2xl">
           <div className="gazette-page h-full w-full rounded-md p-8">
             <p className="text-center font-subheading text-muted">
-              Click to add elements to your gazette
+              {activePageId ? "Click to add elements to your gazette" : "Select a page to begin"}
             </p>
           </div>
         </div>
@@ -89,7 +92,7 @@ function EditorPage() {
       <TemplateDialog
         open={isTemplateDialogOpen}
         onOpenChange={setIsTemplateDialogOpen}
-        onCreated={handlePageCreated}
+        onCreate={handleCreatePage}
       />
     </div>
   );
