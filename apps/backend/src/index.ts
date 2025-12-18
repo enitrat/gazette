@@ -3,7 +3,9 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { requestId } from "hono/request-id";
+import { HTTPException } from "hono/http-exception";
 import { db } from "./db";
+import { AuthError } from "./auth";
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -82,6 +84,33 @@ app.notFound((c) => {
 
 // Error handler
 app.onError((err, c) => {
+  // Handle authentication errors
+  if (err instanceof AuthError) {
+    return c.json(
+      {
+        error: {
+          code: err.code,
+          message: err.message,
+        },
+      },
+      err.status
+    );
+  }
+
+  // Handle other HTTP exceptions
+  if (err instanceof HTTPException) {
+    return c.json(
+      {
+        error: {
+          code: "HTTP_ERROR",
+          message: err.message,
+        },
+      },
+      err.status
+    );
+  }
+
+  // Log unexpected errors
   console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err);
 
   return c.json(
