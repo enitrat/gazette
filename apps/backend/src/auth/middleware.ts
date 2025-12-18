@@ -2,8 +2,7 @@ import type { Context, Next } from "hono";
 import { createMiddleware } from "hono/factory";
 import { extractBearerToken, verifyProjectToken, type ProjectTokenPayload } from "./jwt";
 import { AuthErrors } from "./errors";
-import { db, schema } from "../db";
-import { eq } from "drizzle-orm";
+import { getProjectById } from "../projects";
 
 // Extend Hono's context to include auth info
 declare module "hono" {
@@ -28,7 +27,7 @@ export const requireAuth = createMiddleware(async (c: Context, next: Next) => {
   try {
     const payload = await verifyProjectToken(token);
     c.set("auth", payload);
-    c.set("projectId", payload.projectId);
+    c.set("projectId", payload.project_id);
     await next();
   } catch (error: unknown) {
     // Handle specific JWT errors from Hono
@@ -57,24 +56,20 @@ export const requireProjectAccess = createMiddleware(async (c: Context, next: Ne
   }
 
   // Get project ID from URL params
-  const projectId = c.req.param("projectId");
+  const projectId = c.req.param("projectId") ?? c.req.param("id");
   if (!projectId) {
     // No project ID in URL, skip validation
     await next();
     return;
   }
 
-  // Verify the token's projectId matches the requested project
-  if (auth.projectId !== projectId) {
+  // Verify the token's project_id matches the requested project
+  if (auth.project_id !== projectId) {
     throw AuthErrors.ACCESS_DENIED();
   }
 
   // Optionally verify the project still exists
-  const project = await db
-    .select({ id: schema.projects.id })
-    .from(schema.projects)
-    .where(eq(schema.projects.id, projectId))
-    .get();
+  const project = await getProjectById(projectId);
 
   if (!project) {
     throw AuthErrors.PROJECT_NOT_FOUND();
@@ -109,26 +104,22 @@ export const requireProjectAuth = createMiddleware(async (c: Context, next: Next
   }
 
   // Get project ID from URL params
-  const projectId = c.req.param("projectId");
+  const projectId = c.req.param("projectId") ?? c.req.param("id");
 
   // If projectId is in URL, validate access
-  if (projectId && payload.projectId !== projectId) {
+  if (projectId && payload.project_id !== projectId) {
     throw AuthErrors.ACCESS_DENIED();
   }
 
   // Verify project exists
-  const targetProjectId = projectId || payload.projectId;
-  const project = await db
-    .select({ id: schema.projects.id })
-    .from(schema.projects)
-    .where(eq(schema.projects.id, targetProjectId))
-    .get();
+  const targetProjectId = projectId || payload.project_id;
+  const project = await getProjectById(targetProjectId);
 
   if (!project) {
     throw AuthErrors.PROJECT_NOT_FOUND();
   }
 
   c.set("auth", payload);
-  c.set("projectId", payload.projectId);
+  c.set("projectId", payload.project_id);
   await next();
 });

@@ -20,6 +20,9 @@ sqlite.exec("PRAGMA foreign_keys = ON;");
 // Create Drizzle ORM instance
 export const db = drizzle(sqlite, { schema });
 
+// Export db type for tests and tooling
+export type DatabaseClient = typeof db;
+
 // Export schema for use in other modules
 export { schema };
 

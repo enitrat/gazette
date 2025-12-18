@@ -10,7 +10,7 @@ if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
 }
 
 export interface ProjectTokenPayload extends JWTPayload {
-  projectId: string;
+  project_id: string;
   slug: string;
   iat: number;
   exp: number;
@@ -22,7 +22,7 @@ export interface ProjectTokenPayload extends JWTPayload {
 export async function signProjectToken(projectId: string, slug: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const payload: ProjectTokenPayload = {
-    projectId,
+    project_id: projectId,
     slug,
     iat: now,
     exp: now + JWT_EXPIRES_IN,

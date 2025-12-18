@@ -6,6 +6,7 @@ import { requestId } from "hono/request-id";
 import { HTTPException } from "hono/http-exception";
 import { db } from "./db";
 import { AuthError } from "./auth";
+import { projectsRouter } from "./routes/projects";
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -13,7 +14,7 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 
 // Create Hono app
-const app = new Hono();
+export const app = new Hono();
 
 // Middleware
 app.use("*", requestId());
@@ -68,6 +69,9 @@ app.get("/", (c) => {
     documentation: "/docs",
   });
 });
+
+// API routes
+app.route("/api/projects", projectsRouter);
 
 // 404 handler
 app.notFound((c) => {
