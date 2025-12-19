@@ -4,6 +4,7 @@ import type { Template } from "@gazette/shared";
 import { Canvas } from "@/components/Canvas";
 import { PageSidebar } from "@/components/PageSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
+import { ShareDialog } from "@/components/ShareDialog";
 import { TemplateDialog } from "@/components/TemplateDialog";
 import { GenerationProgressDialog } from "@/components/GenerationProgressDialog";
 import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
@@ -40,6 +41,7 @@ function EditorPage() {
   const projectId = session?.projectId;
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isProgressOpen, setIsProgressOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isImageEditOpen, setIsImageEditOpen] = useState(false);
@@ -245,7 +247,12 @@ function EditorPage() {
             >
               View generation
             </Button>
-            <Button type="button" variant="outline" disabled={!projectId}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsShareDialogOpen(true)}
+              disabled={!projectId}
+            >
               <Share2 />
               Share
             </Button>
@@ -397,6 +404,7 @@ function EditorPage() {
             type="button"
             variant="outline"
             size="icon"
+            onClick={() => setIsShareDialogOpen(true)}
             disabled={!projectId}
             aria-label="Share"
             title="Share"
@@ -457,6 +465,12 @@ function EditorPage() {
         open={isExportDialogOpen}
         onOpenChange={setIsExportDialogOpen}
         projectId={projectId}
+      />
+      <ShareDialog
+        open={isShareDialogOpen}
+        onOpenChange={setIsShareDialogOpen}
+        projectId={projectId}
+        projectName={session?.projectName}
       />
     </div>
   );
