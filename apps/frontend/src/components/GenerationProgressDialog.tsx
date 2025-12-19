@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Loader2, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import type { GenerationJobStatusItem, GenerationStatus, JobStatusEnum } from "@gazette/shared";
 import {
   Dialog,
@@ -22,6 +22,9 @@ import {
 import { api, parseApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { useElementsStore } from "@/stores/elements-store";
+import { usePagesStore } from "@/stores/pages-store";
 
 // Polling intervals based on activity state
 const POLL_INTERVAL_ACTIVE_MS = 5000; // 5 seconds when there are active jobs
@@ -37,7 +40,7 @@ type GenerationProgressDialogProps = {
 
 type StatusMeta = {
   label: string;
-  icon: typeof Clock;
+  glyph: string;
   className: string;
   animate?: boolean;
 };
@@ -45,23 +48,23 @@ type StatusMeta = {
 const STATUS_META: Record<JobStatusEnum, StatusMeta> = {
   queued: {
     label: "Queued",
-    icon: Clock,
+    glyph: "◷",
     className: "text-muted",
   },
   processing: {
     label: "Processing",
-    icon: Loader2,
+    glyph: "⟳",
     className: "text-gold",
     animate: true,
   },
   complete: {
     label: "Complete",
-    icon: CheckCircle2,
+    glyph: "✓",
     className: "text-forest-green",
   },
   failed: {
     label: "Failed",
-    icon: XCircle,
+    glyph: "✗",
     className: "text-aged-red",
   },
 };
@@ -106,16 +109,7 @@ function getCurrentJob(jobs: GenerationJobStatusItem[]) {
   return null;
 }
 
-function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="h-2 w-full rounded-full bg-ink/10">
-      <div
-        className="h-full rounded-full bg-gold transition-all duration-500"
-        style={{ width: `${Math.min(Math.max(value, 0), 100)}%` }}
-      />
-    </div>
-  );
-}
+const ESTIMATED_MINUTES_PER_JOB = 2;
 
 export function GenerationProgressDialog({
   projectId,
@@ -132,6 +126,9 @@ export function GenerationProgressDialog({
   const [confirmCancelJobId, setConfirmCancelJobId] = useState<string | null>(null);
   const [confirmCancelAllOpen, setConfirmCancelAllOpen] = useState(false);
   const completionNotified = useRef(false);
+  const generationStartRef = useRef<number | null>(null);
+  const pages = usePagesStore((state) => state.pages);
+  const elementsByPage = useElementsStore((state) => state.elementsByPage);
 
   const fetchStatus = async () => {
     if (!projectId) return;
@@ -191,13 +188,64 @@ export function GenerationProgressDialog({
     }
     if (completionNotified.current) return;
     completionNotified.current = true;
+    toast({
+      title: "Generation complete",
+      description: "Your videos are ready. You can return to the editor at any time.",
+    });
     onComplete?.();
   }, [isComplete, onComplete]);
 
-  const { processed, total, percent } = useMemo(() => getProgress(status), [status]);
+  const { total, percent } = useMemo(() => getProgress(status), [status]);
   const currentJob = useMemo(() => (status ? getCurrentJob(status.jobs) : null), [status]);
   const queuedJobs = status?.jobs.filter((job) => job.status === "queued") ?? [];
   const failedJobs = status?.jobs.filter((job) => job.status === "failed") ?? [];
+
+  useEffect(() => {
+    if (!status || status.totalJobs === 0) return;
+    if (generationStartRef.current === null) {
+      generationStartRef.current = Date.now();
+    }
+  }, [status]);
+
+  const elementMetaById = useMemo(() => {
+    const meta = new Map<
+      string,
+      { pageNumber: number | null; imageNumber: number | null; prompt: string | null }
+    >();
+    pages.forEach((page, pageIndex) => {
+      const pageElements = elementsByPage[page.id] ?? [];
+      const imageElements = pageElements.filter((element) => element.type === "image");
+      imageElements.forEach((element, imageIndex) => {
+        meta.set(element.id, {
+          pageNumber: pageIndex + 1,
+          imageNumber: imageIndex + 1,
+          prompt: element.animationPrompt ?? null,
+        });
+      });
+    });
+    return meta;
+  }, [elementsByPage, pages]);
+
+  const estimatedMinutesRemaining = useMemo(() => {
+    if (!status || status.totalJobs === 0) return null;
+    const startTime = generationStartRef.current;
+    const remainingJobs = Math.max(status.totalJobs - status.completed - status.failed, 0);
+    const baselineMinutes = remainingJobs * ESTIMATED_MINUTES_PER_JOB;
+    if (!startTime) return baselineMinutes;
+    const elapsedMs = Date.now() - startTime;
+    const processingProgress =
+      status.jobs
+        .filter((job) => job.status === "processing")
+        .reduce((totalProgress, job) => totalProgress + (job.progress ?? 0), 0) / 100;
+    const fractionComplete =
+      status.totalJobs > 0
+        ? (status.completed + status.failed + processingProgress) / status.totalJobs
+        : 0;
+    if (elapsedMs < 30000 || fractionComplete <= 0.05) return baselineMinutes;
+    const totalMs = elapsedMs / fractionComplete;
+    const remainingMs = Math.max(totalMs - elapsedMs, 0);
+    return Math.max(1, Math.round(remainingMs / 60000));
+  }, [status]);
 
   const handleCancelJob = async (jobId: string) => {
     setCancelingJobId(jobId);
@@ -262,28 +310,38 @@ export function GenerationProgressDialog({
           </div>
         ) : null}
 
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="font-ui text-sm text-muted">Overall progress</p>
-            <p className="font-ui text-sm text-ink">
-              {processed} of {total} images processed
-            </p>
+        <section className="space-y-4 rounded-sm border border-sepia/20 bg-cream/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Overall progress
+              </p>
+              <p className="font-ui text-sm text-ink">
+                {status ? `${status.completed} of ${total} videos complete` : "Waiting for jobs"}
+              </p>
+            </div>
+            <p className="font-ui text-2xl text-ink">{formatPercent(percent)}</p>
           </div>
-          <ProgressBar value={percent} />
-          <div className="flex items-center justify-between text-xs text-muted">
-            <span>{formatPercent(percent)}</span>
+          <Progress value={percent} className="h-3 bg-ink/10" />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
             <span>
               {status
                 ? `${status.completed} complete · ${status.failed} failed`
                 : "Waiting for jobs"}
             </span>
+            <span>
+              Estimated time remaining:{" "}
+              {estimatedMinutesRemaining === null
+                ? "Estimating..."
+                : `~${estimatedMinutesRemaining} minutes`}
+            </span>
           </div>
         </section>
 
-        <section className="rounded-sm border border-sepia/20 bg-cream/60 p-4">
+        <section className="rounded-sm border border-sepia/20 bg-parchment/80 p-4">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <p className="font-ui text-sm text-ink">Live queue</p>
+              <p className="font-ui text-sm text-ink">Generation timeline</p>
               <p className="text-xs text-muted">
                 {currentJob
                   ? `${currentJob.detail}: ${currentJob.label}`
@@ -305,58 +363,86 @@ export function GenerationProgressDialog({
           </div>
 
           {status?.jobs?.length ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {status.jobs.map((job, index) => {
                 const meta = STATUS_META[job.status];
-                const Icon = meta.icon;
-                const progressValue = job.progress ?? (job.status === "complete" ? 100 : 0);
+                const progressValue = job.progress ?? 0;
+                const elementMeta = elementMetaById.get(job.elementId);
+                const imageLabel = elementMeta?.imageNumber
+                  ? `Image ${elementMeta.imageNumber}`
+                  : `Image ${index + 1}`;
+                const pageLabel = elementMeta?.pageNumber
+                  ? `Page ${elementMeta.pageNumber} · ${imageLabel}`
+                  : imageLabel;
+                const promptPreview = elementMeta
+                  ? (elementMeta.prompt ?? "Prompt not set yet. Edit it to personalize the motion.")
+                  : "Prompt unavailable for this item.";
+                const isLast = index === status.jobs.length - 1;
 
                 return (
-                  <div key={job.id} className="rounded-sm border border-sepia/15 bg-parchment p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
+                  <div key={job.id} className="relative">
+                    <div className="relative pl-10">
+                      {!isLast ? (
+                        <span className="absolute left-3 top-8 h-full w-px bg-sepia/20" />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "absolute left-0 top-1 flex h-7 w-7 items-center justify-center rounded-full border border-sepia/20 bg-cream text-sm font-semibold",
+                          meta.className
+                        )}
+                      >
                         <span
                           className={cn(
-                            "flex h-8 w-8 items-center justify-center rounded-full border border-sepia/20 bg-cream",
-                            meta.className
+                            "inline-block leading-none",
+                            meta.animate && "animate-spin"
                           )}
                         >
-                          <Icon className={cn("h-4 w-4", meta.animate && "animate-spin")} />
+                          {meta.glyph}
                         </span>
-                        <div>
-                          <p className="font-ui text-sm text-ink">Image {index + 1}</p>
-                          <p className={cn("text-xs", meta.className)}>{meta.label}</p>
+                      </span>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-ui text-sm text-ink">{pageLabel}</p>
+                            <span className={cn("text-xs font-ui", meta.className)}>
+                              {meta.label}
+                            </span>
+                          </div>
+                          <p className="line-clamp-2 text-xs text-muted">{promptPreview}</p>
+                          {job.status === "processing" ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs text-muted">
+                                <span>{formatPercent(progressValue)}</span>
+                                <span className="text-gold">Rendering clip</span>
+                              </div>
+                              <Progress value={progressValue} className="h-2 bg-ink/10" />
+                            </div>
+                          ) : null}
+                          {job.status === "failed" && job.error ? (
+                            <span className="flex items-center gap-1 text-xs text-aged-red">
+                              <AlertTriangle className="h-3 w-3" />
+                              {job.error}
+                            </span>
+                          ) : null}
                         </div>
-                      </div>
-                      {job.status === "queued" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setConfirmCancelJobId(job.id)}
-                          disabled={cancelingJobId === job.id}
-                        >
-                          {cancelingJobId === job.id ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Canceling...
-                            </>
-                          ) : (
-                            "Cancel"
-                          )}
-                        </Button>
-                      ) : null}
-                    </div>
-                    <div className="mt-3 space-y-1">
-                      <div className="flex items-center justify-between text-xs text-muted">
-                        <span>{formatPercent(progressValue)}</span>
-                        {job.status === "failed" && job.error ? (
-                          <span className="flex items-center gap-1 text-aged-red">
-                            <AlertTriangle className="h-3 w-3" />
-                            {job.error}
-                          </span>
+                        {job.status === "queued" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setConfirmCancelJobId(job.id)}
+                            disabled={cancelingJobId === job.id}
+                          >
+                            {cancelingJobId === job.id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Canceling...
+                              </>
+                            ) : (
+                              "Cancel"
+                            )}
+                          </Button>
                         ) : null}
                       </div>
-                      <ProgressBar value={progressValue} />
                     </div>
                   </div>
                 );
@@ -386,7 +472,7 @@ export function GenerationProgressDialog({
           <p className="text-xs text-muted">We will notify you once every clip is ready.</p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Minimize to background
+              Minimize to Background
             </Button>
             <Button
               variant="destructive"
