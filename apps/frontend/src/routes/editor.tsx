@@ -1,7 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Template } from "@gazette/shared";
-import { Canvas } from "@/components/Canvas";
+import { CanvasHeader } from "@/components/editor/CanvasHeader";
+import { CanvasViewport } from "@/components/editor/CanvasViewport";
 import { TopNavbar } from "@/components/editor/TopNavbar";
 import { EditorToolbar } from "@/components/EditorToolbar";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
@@ -91,10 +92,6 @@ function EditorPage() {
   const lastErrorRef = useRef<string | null>(null);
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
-  const activePage = useMemo(
-    () => pages.find((page) => page.id === activePageId) ?? null,
-    [activePageId, pages]
-  );
   const activeElements = useMemo(
     () => (activePageId ? (elementsByPage[activePageId] ?? []) : []),
     [activePageId, elementsByPage]
@@ -502,25 +499,20 @@ function EditorPage() {
         ) : null}
 
         {/* Canvas */}
-        <main className="editor-canvas flex-1 bg-cream/50 p-4 sm:p-6 lg:p-8">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-headline text-ink-effect">Editor Canvas</h2>
-              <p className="font-ui text-xs text-muted">
-                Track generation progress while you keep editing.
-              </p>
-            </div>
-          </div>
-          <div className="mx-auto aspect-[3/4] max-w-2xl">
-            {pagesLoading ? (
-              <div className="flex h-full items-center justify-center rounded-sm border border-sepia/20 bg-cream/70">
+        <main className="editor-canvas flex flex-1 flex-col bg-cream/40">
+          <CanvasHeader />
+          {pagesLoading ? (
+            <div className="flex-1 overflow-auto p-6">
+              <div className="flex h-full items-center justify-center rounded-[4px] border border-sepia/20 bg-cream/70">
                 <span className="inline-flex items-center gap-2 text-sm text-muted">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading pages...
                 </span>
               </div>
-            ) : pages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 rounded-sm border border-dashed border-sepia/30 bg-cream/60 p-6 text-center">
+            </div>
+          ) : pages.length === 0 ? (
+            <div className="flex-1 overflow-auto p-6">
+              <div className="flex h-full flex-col items-center justify-center gap-4 rounded-[4px] border border-dashed border-sepia/30 bg-cream/60 p-6 text-center">
                 <div>
                   <p className="font-headline text-ink-effect">Start your first page</p>
                   <p className="mt-1 text-sm text-muted">
@@ -532,47 +524,35 @@ function EditorPage() {
                   Add your first page
                 </Button>
               </div>
-            ) : (
-              <div className="relative h-full w-full">
-                <Canvas
-                  page={
-                    activePage
-                      ? {
-                          id: activePage.id,
-                          title: activePage.title,
-                          subtitle: activePage.subtitle,
-                          elements: activeElements,
-                        }
-                      : null
-                  }
-                  projectName={session?.projectName}
-                  showChrome={true}
-                  className="h-full w-full"
-                  emptyState={
-                    activePageId
-                      ? "This page awaits your memories. Click to add a photograph and bring the past to life."
-                      : "Every story begins with a blank page. Add your first."
-                  }
-                  selectedElementId={selectedElementId}
-                  onSelectElement={selectElement}
-                  onClearSelection={() => selectElement(null)}
-                  onImageDoubleClick={handleImageDoubleClick}
-                  onTextCommit={handleTextCommit}
-                  onElementPositionChange={handleElementPositionChange}
-                  onResizeElement={handleElementPositionChange}
-                  enableGestures
-                />
-                {elementsLoading ? (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-sm bg-cream/60">
-                    <span className="inline-flex items-center gap-2 text-sm text-muted">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading elements...
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="relative flex-1">
+              <CanvasViewport
+                elements={activeElements}
+                selectedElementId={selectedElementId}
+                emptyState={
+                  activePageId
+                    ? "This page awaits your memories. Click to add a photograph and bring the past to life."
+                    : "Every story begins with a blank page. Add your first."
+                }
+                onSelectElement={selectElement}
+                onClearSelection={() => selectElement(null)}
+                onImageDoubleClick={handleImageDoubleClick}
+                onTextCommit={handleTextCommit}
+                onElementPositionChange={handleElementPositionChange}
+                onResizeElement={handleElementPositionChange}
+                className="flex-1"
+              />
+              {elementsLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-cream/60">
+                  <span className="inline-flex items-center gap-2 text-sm text-muted">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading elements...
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          )}
         </main>
 
         {/* Properties Panel */}
