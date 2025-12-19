@@ -11,6 +11,7 @@ import { elementsRouter } from "./routes/elements";
 import { templatesRouter } from "./routes/templates";
 import pagesRouter from "./routes/pages";
 import { systemRouter } from "./features/system/router";
+import { viewRouter } from "./routes/view";
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -42,6 +43,7 @@ app.route("/api/projects", projectsRouter);
 app.route("/api", templatesRouter);
 app.route("/api", imagesRouter);
 app.route("/api", elementsRouter);
+app.route("/api", viewRouter);
 app.route("/", systemRouter);
 
 // 404 handler

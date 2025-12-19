@@ -24,11 +24,9 @@ export const requireAuth = createMiddleware(async (c: Context, next: Next) => {
     throw AuthErrors.MISSING_TOKEN();
   }
 
+  let payload: ProjectTokenPayload;
   try {
-    const payload = await verifyProjectToken(token);
-    c.set("auth", payload);
-    c.set("projectId", payload.project_id);
-    await next();
+    payload = await verifyProjectToken(token);
   } catch (error: unknown) {
     // Handle specific JWT errors from Hono
     if (error && typeof error === "object" && "name" in error) {
@@ -42,6 +40,15 @@ export const requireAuth = createMiddleware(async (c: Context, next: Next) => {
     }
     throw AuthErrors.INVALID_TOKEN();
   }
+
+  const role = payload.role ?? "editor";
+  if (role !== "editor") {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  c.set("auth", payload);
+  c.set("projectId", payload.project_id);
+  await next();
 });
 
 /**
@@ -103,6 +110,11 @@ export const requireProjectAuth = createMiddleware(async (c: Context, next: Next
     throw AuthErrors.INVALID_TOKEN();
   }
 
+  const role = payload.role ?? "editor";
+  if (role !== "editor") {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
   // Get project ID from URL params
   const projectId = c.req.param("projectId") || c.req.param("id");
 
@@ -117,6 +129,58 @@ export const requireProjectAuth = createMiddleware(async (c: Context, next: Next
 
   if (!project) {
     throw AuthErrors.PROJECT_NOT_FOUND();
+  }
+
+  c.set("auth", payload);
+  c.set("projectId", payload.project_id);
+  await next();
+});
+
+/**
+ * Viewer auth middleware
+ * Validates viewer JWT and ensures requested project access
+ */
+export const requireViewAuth = createMiddleware(async (c: Context, next: Next) => {
+  const authHeader = c.req.header("Authorization");
+  const token = extractBearerToken(authHeader);
+
+  if (!token) {
+    throw AuthErrors.MISSING_TOKEN();
+  }
+
+  let payload: ProjectTokenPayload;
+  try {
+    payload = await verifyProjectToken(token);
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "name" in error) {
+      const name = (error as { name: string }).name;
+      if (name === "JwtTokenExpired") {
+        throw AuthErrors.EXPIRED_TOKEN();
+      }
+    }
+    throw AuthErrors.INVALID_TOKEN();
+  }
+
+  const role = payload.role ?? "editor";
+  if (role !== "viewer") {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const slug = c.req.param("slug");
+  const projectIdParam = c.req.param("projectId") || (slug ? undefined : c.req.param("id"));
+
+  if (projectIdParam && payload.project_id !== projectIdParam) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const project = await getProjectById(payload.project_id);
+
+  if (!project) {
+    throw AuthErrors.PROJECT_NOT_FOUND();
+  }
+
+  if (slug && project.slug !== slug) {
+    throw AuthErrors.ACCESS_DENIED();
   }
 
   c.set("auth", payload);

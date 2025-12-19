@@ -4,14 +4,18 @@ import type { JWTPayload } from "hono/utils/jwt/types";
 // JWT configuration from environment
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production";
 const JWT_EXPIRES_IN = parseInt(process.env.JWT_EXPIRES_IN || "86400", 10); // Default: 24 hours
+const VIEW_JWT_EXPIRES_IN = parseInt(process.env.VIEW_JWT_EXPIRES_IN || "3600", 10); // Default: 1 hour
 
 if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable must be set in production");
 }
 
+export type ProjectTokenRole = "editor" | "viewer";
+
 export interface ProjectTokenPayload extends JWTPayload {
   project_id: string;
   slug: string;
+  role?: ProjectTokenRole;
   iat: number;
   exp: number;
 }
@@ -20,12 +24,29 @@ export interface ProjectTokenPayload extends JWTPayload {
  * Sign a JWT token for project access
  */
 export async function signProjectToken(projectId: string, slug: string): Promise<string> {
+  return signToken(projectId, slug, "editor", JWT_EXPIRES_IN);
+}
+
+/**
+ * Sign a JWT token for viewer access
+ */
+export async function signViewToken(projectId: string, slug: string): Promise<string> {
+  return signToken(projectId, slug, "viewer", VIEW_JWT_EXPIRES_IN);
+}
+
+function signToken(
+  projectId: string,
+  slug: string,
+  role: ProjectTokenRole,
+  expiresIn: number
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const payload: ProjectTokenPayload = {
     project_id: projectId,
     slug,
+    role,
     iat: now,
-    exp: now + JWT_EXPIRES_IN,
+    exp: now + expiresIn,
   };
 
   return sign(payload, JWT_SECRET);
@@ -74,3 +95,4 @@ export function extractBearerToken(authHeader: string | undefined): string | nul
 }
 
 export { JWT_SECRET, JWT_EXPIRES_IN };
+export { VIEW_JWT_EXPIRES_IN };
