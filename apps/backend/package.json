@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "dev:worker": "bun run --hot src/queue/worker.ts",
-    "build": "bun build src/index.ts --outdir ./dist --target bun",
+    "build": "bun build src/index.ts src/queue/worker.ts --outdir ./dist --target bun",
     "start": "bun run dist/index.js",
     "worker": "bun run src/queue/worker.ts",
     "test": "bun test",

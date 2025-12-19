@@ -235,7 +235,7 @@ gazette/
 │   └── UI_MOCKUPS.md
 │
 ├── package.json                      # Workspace root (bun workspaces)
-├── bun.lockb                         # Bun lockfile
+├── bun.lock                          # Bun lockfile
 ├── bunfig.toml                       # Bun configuration
 ├── .env.example
 ├── .gitignore
@@ -313,6 +313,7 @@ User → Click "Generate" → POST /api/pages/:id/generate (or /api/projects/:id
 - **Provider**: Hetzner or OVH VPS
 - **Specs**: 2 vCPU, 4GB RAM, 40GB SSD
 - **OS**: Ubuntu 22.04 LTS
+- **Domain**: `gazette.example.com` (DNS A/AAAA to VPS)
 
 ### 5.2 Architecture
 
@@ -322,10 +323,9 @@ User → Click "Generate" → POST /api/pages/:id/generate (or /api/projects/:id
 │                                                         │
 │  ┌─────────────┐     ┌─────────────────────────────┐   │
 │  │   Caddy     │────▶│     Bun App (PM2)           │   │
-│  │  (HTTPS)    │     │   - API Server              │   │
-│  │  :443/:80   │     │   - Static Frontend         │   │
-│  └─────────────┘     │   :3000                     │   │
-│                      └─────────────────────────────┘   │
+│  │  (HTTPS)    │     │   - API Server :3000        │   │
+│  │  :443/:80   │     │   - Worker (BullMQ)         │   │
+│  └─────────────┘     └─────────────────────────────┘   │
 │                                  │                      │
 │                      ┌───────────┼───────────┐         │
 │                      ▼           ▼           ▼         │
@@ -337,121 +337,148 @@ User → Click "Generate" → POST /api/pages/:id/generate (or /api/projects/:id
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 5.3 Deployment Steps
+### 5.3 VPS Setup (Hetzner/OVH)
 
 1. **Provision VPS**
+   - Create VPS and attach SSH key.
+   - Configure DNS A/AAAA record for `gazette.example.com`.
+
+2. **Harden Base OS**
 
    ```bash
-   # Create VPS on Hetzner/OVH
-   # SSH access configured
-   ```
-
-2. **Install Dependencies**
-
-   ```bash
-   # Update system
    sudo apt update && sudo apt upgrade -y
+   sudo apt install -y curl git unzip ufw fail2ban sqlite3
 
-   # Install Bun
-   curl -fsSL https://bun.sh/install | bash
-   source ~/.bashrc
+   # Create non-root user
+   sudo adduser gazette
+   sudo usermod -aG sudo gazette
 
-   # Install PM2 (for process management)
-   bun add -g pm2
-
-   # Install Redis
-   sudo apt install -y redis-server
-   sudo systemctl enable redis-server
-
-   # Install Caddy
-   sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
-   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-   sudo apt update && sudo apt install caddy
-   ```
-
-3. **Deploy Application**
-
-   ```bash
-   # Clone repo
-   git clone https://github.com/user/gazette.git /opt/gazette
-   cd /opt/gazette
-
-   # Install dependencies
-   bun install
-
-   # Build frontend
-   bun run build
-
-   # Configure environment
-   cp .env.example .env
-   nano .env  # Set production values
-
-   # Start with PM2
-   pm2 start ecosystem.config.js
-   pm2 save
-   pm2 startup
-   ```
-
-4. **Configure Caddy**
-
-   ```caddyfile
-   # /etc/caddy/Caddyfile
-   gazette.example.com {
-       reverse_proxy localhost:3000
-   }
-   ```
-
-   ```bash
-   sudo systemctl reload caddy
-   ```
-
-5. **Setup Firewall**
-   ```bash
+   # Firewall
    sudo ufw allow 22
    sudo ufw allow 80
    sudo ufw allow 443
    sudo ufw enable
    ```
 
-### 5.4 PM2 Ecosystem Config
+3. **Directory Layout**
 
-```javascript
-// ecosystem.config.js
-module.exports = {
-  apps: [
-    {
-      name: "gazette-server",
-      script: "bun",
-      args: "run ./apps/server/src/index.ts",
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "500M",
-      env: {
-        NODE_ENV: "production",
-        PORT: 3000,
-      },
-    },
-    {
-      name: "gazette-worker",
-      script: "bun",
-      args: "run ./apps/server/src/queue/worker.ts",
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "500M",
-      env: {
-        NODE_ENV: "production",
-      },
-    },
-  ],
-};
+   ```bash
+   sudo mkdir -p /opt/gazette /var/lib/gazette/uploads /var/backups/gazette /etc/gazette
+   sudo chown -R gazette:gazette /opt/gazette /var/lib/gazette /var/backups/gazette
+   sudo chmod 750 /etc/gazette
+   ```
+
+### 5.4 Install Dependencies (Bun, Redis, Caddy, PM2)
+
+```bash
+# Bun (as gazette user)
+curl -fsSL https://bun.sh/install | bash
+echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.profile
+source ~/.profile
+
+# PM2 (process manager)
+bun add -g pm2
+
+# Redis
+sudo apt install -y redis-server
+sudo systemctl enable --now redis-server
+
+# Caddy (official repo)
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install caddy
 ```
 
-> **Note**: Bun runs TypeScript directly without compilation, simplifying deployment.
+### 5.5 Application Deployment (First-Time)
 
-### 5.5 Docker Alternative
+```bash
+sudo -iu gazette
+git clone https://github.com/user/gazette.git /opt/gazette
+cd /opt/gazette
+
+# Configure environment
+sudo nano /etc/gazette/gazette.env
+sudo chmod 600 /etc/gazette/gazette.env
+
+# Build and migrate
+set -a && source /etc/gazette/gazette.env && set +a
+./scripts/build-production.sh
+bun run --filter '@gazette/backend' db:migrate
+
+# Start PM2
+pm2 startOrReload ops/ecosystem.config.cjs --env production --update-env
+pm2 save
+pm2 startup
+```
+
+### 5.6 Caddy Reverse Proxy + HTTPS
+
+Use the template in `ops/Caddyfile` and install to `/etc/caddy/Caddyfile`:
+
+```caddyfile
+gazette.example.com {
+  encode zstd gzip
+
+  handle /api/* {
+    reverse_proxy 127.0.0.1:3000
+  }
+
+  handle /health {
+    reverse_proxy 127.0.0.1:3000
+  }
+
+  handle {
+    root * /opt/gazette/apps/frontend/dist
+    try_files {path} /index.html
+    file_server
+  }
+}
+```
+
+```bash
+sudo systemctl reload caddy
+```
+
+### 5.7 PM2 Process Management
+
+Production PM2 configuration lives in `ops/ecosystem.config.cjs` and runs:
+
+- `gazette-api` → `apps/backend/dist/index.js`
+- `gazette-worker` → `apps/backend/dist/queue/worker.js`
+
+### 5.8 Production Build Scripts
+
+- `scripts/build-production.sh` installs dependencies and builds both apps.
+- Root script `bun run build:production` is available for CI/CD use.
+- `VITE_API_URL` must be set in the environment before running the frontend build.
+- `deploy.sh` performs git pull, build, migrations, and PM2 reloads on the VPS.
+
+### 5.9 Redis Production Setup
+
+- Keep Redis bound to localhost (`bind 127.0.0.1`).
+- Enable supervised mode (`supervised systemd`) in `/etc/redis/redis.conf`.
+- If you set `requirepass`, update `REDIS_URL` to:
+  `redis://:YOUR_PASSWORD@127.0.0.1:6379`.
+
+### 5.10 SQLite Backup Strategy
+
+- Use `scripts/backup-sqlite.sh` for consistent `.backup` snapshots.
+- Schedule with cron (daily) and keep 30 days of gzip archives:
+
+```bash
+crontab -e
+0 3 * * * /opt/gazette/scripts/backup-sqlite.sh >/var/log/gazette-backup.log 2>&1
+```
+
+### 5.11 Health Check Monitoring
+
+- Health endpoint: `GET /health`
+- Suggested monitoring:
+  - Uptime Kuma or Healthchecks.io with a 1–5 minute check interval.
+  - Example: `curl -fsS https://gazette.example.com/health`.
+
+### 5.12 Docker Alternative
 
 ```dockerfile
 # Dockerfile
@@ -460,9 +487,9 @@ WORKDIR /app
 
 # Install dependencies
 FROM base AS deps
-COPY package.json bun.lockb ./
-COPY apps/web/package.json ./apps/web/
-COPY apps/server/package.json ./apps/server/
+COPY package.json bun.lock ./
+COPY apps/frontend/package.json ./apps/frontend/
+COPY apps/backend/package.json ./apps/backend/
 COPY packages/shared/package.json ./packages/shared/
 RUN bun install --frozen-lockfile
 
@@ -474,13 +501,13 @@ RUN bun run build
 # Production
 FROM base AS runner
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/apps/server ./apps/server
-COPY --from=builder /app/apps/web/dist ./apps/web/dist
+COPY --from=builder /app/apps/backend ./apps/backend
+COPY --from=builder /app/apps/frontend/dist ./apps/frontend/dist
 COPY --from=builder /app/packages ./packages
 
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["bun", "run", "./apps/server/src/index.ts"]
+CMD ["bun", "run", "./apps/backend/src/index.ts"]
 ```
 
 ```yaml
@@ -505,7 +532,7 @@ services:
 
   worker:
     build: .
-    command: bun run ./apps/server/src/queue/worker.ts
+    command: bun run ./apps/backend/src/queue/worker.ts
     environment:
       - NODE_ENV=production
       - DATABASE_URL=/data/gazette.db
@@ -537,16 +564,20 @@ volumes:
 # Server
 NODE_ENV=development
 PORT=3000
-HOST=localhost
+CORS_ORIGIN=http://localhost:5173
 
 # Database
-DATABASE_PATH=./data/gazette.db
+DATABASE_URL=./data/gazette.db
 
 # Redis (for BullMQ)
 REDIS_URL=redis://localhost:6379
 
 # JWT
 JWT_SECRET=your-super-secret-key-change-in-production
+
+# Public URLs
+APP_URL=http://localhost:5173
+PUBLIC_APP_URL=http://localhost:5173
 
 # File Storage
 UPLOAD_DIR=./uploads
@@ -620,7 +651,7 @@ VITE_API_URL=http://localhost:3000/api
 
 ```bash
 # Initialize shadcn/ui in the web app
-cd apps/web
+cd apps/frontend
 bunx shadcn@latest init
 
 # Install components as needed
@@ -674,4 +705,4 @@ Override CSS variables in `gazette.css` to match the vintage aesthetic:
 ---
 
 _Technical Architecture v1.1_
-_Last Updated: December 18, 2024_
+_Last Updated: December 19, 2025_
