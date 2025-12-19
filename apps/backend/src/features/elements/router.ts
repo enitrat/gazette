@@ -200,7 +200,7 @@ elementsRouter.post("/pages/:id/elements", async (c) => {
       positionY: position.y,
       positionWidth: position.width,
       positionHeight: position.height,
-      imageId: null,
+      imageId: validation.data.imageId ?? null,
       cropX: null,
       cropY: null,
       cropZoom: null,

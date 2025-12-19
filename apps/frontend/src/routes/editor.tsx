@@ -50,6 +50,7 @@ function EditorPage() {
   const elementsByPage = useElementsStore((state) => state.elementsByPage);
   const fetchElements = useElementsStore((state) => state.fetchElements);
   const setElementsForPage = useElementsStore((state) => state.setElementsForPage);
+  const createImageElement = useElementsStore((state) => state.createImageElement);
   const selectedElementId = useElementsStore((state) => state.selectedElementId);
   const setSelectedElementId = useElementsStore((state) => state.setSelectedElementId);
 
@@ -106,28 +107,30 @@ function EditorPage() {
     handleSelectPage(created.id);
   };
 
-  const handleImageUploaded = (result: ImageUploadResult) => {
+  const handleImageUploaded = async (result: ImageUploadResult) => {
     if (!activePageId) return;
 
     const existing = elementsByPage[activePageId] ?? [];
     const offset = existing.length * 18;
-    const nextElement: CanvasElement = {
-      id: `image-${result.image.id}`,
-      type: "image",
-      position: {
-        x: 80 + offset,
-        y: 180 + offset,
-        width: 320,
-        height: 240,
-      },
-      imageUrl: result.image.url,
-      imageWidth: result.image.width,
-      imageHeight: result.image.height,
-      videoStatus: "none",
+    const position = {
+      x: 80 + offset,
+      y: 180 + offset,
+      width: 320,
+      height: 240,
     };
 
-    setElementsForPage(activePageId, [...existing, nextElement]);
-    setSelectedElementId(nextElement.id);
+    const createdElement = await createImageElement(
+      activePageId,
+      result.image.id,
+      position,
+      result.previewUrl || result.image.url,
+      result.image.width,
+      result.image.height
+    );
+
+    if (createdElement) {
+      setSelectedElementId(createdElement.id);
+    }
   };
 
   const handleImageDoubleClick = (element: CanvasElement) => {

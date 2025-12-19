@@ -1,10 +1,10 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Element types
-export const ElementType = z.enum(['image', 'headline', 'subheading', 'caption']);
+export const ElementType = z.enum(["image", "headline", "subheading", "caption"]);
 
 // Video generation status
-export const VideoStatus = z.enum(['none', 'pending', 'processing', 'complete', 'failed']);
+export const VideoStatus = z.enum(["none", "pending", "processing", "complete", "failed"]);
 
 // Position schema (shared)
 export const PositionSchema = z.object({
@@ -25,7 +25,7 @@ export const CropDataSchema = z.object({
 export const ImageElementSchema = z.object({
   id: z.string().uuid(),
   pageId: z.string().uuid(),
-  type: z.literal('image'),
+  type: z.literal("image"),
   position: PositionSchema,
   imageId: z.string().uuid().nullable(),
   cropData: CropDataSchema.nullable(),
@@ -48,27 +48,28 @@ export const TextElementBaseSchema = z.object({
 
 // Text element with type union
 export const TextElementSchema = TextElementBaseSchema.extend({
-  type: z.enum(['headline', 'subheading', 'caption']),
+  type: z.enum(["headline", "subheading", "caption"]),
 });
 
 // Union of all element types
-export const ElementSchema = z.discriminatedUnion('type', [
+export const ElementSchema = z.discriminatedUnion("type", [
   ImageElementSchema,
-  TextElementBaseSchema.extend({ type: z.literal('headline') }),
-  TextElementBaseSchema.extend({ type: z.literal('subheading') }),
-  TextElementBaseSchema.extend({ type: z.literal('caption') }),
+  TextElementBaseSchema.extend({ type: z.literal("headline") }),
+  TextElementBaseSchema.extend({ type: z.literal("subheading") }),
+  TextElementBaseSchema.extend({ type: z.literal("caption") }),
 ]);
 
 // Create element request
-export const CreateElementSchema = z.discriminatedUnion('type', [
+export const CreateElementSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal('image'),
+    type: z.literal("image"),
     position: PositionSchema,
+    imageId: z.string().uuid().optional(),
   }),
   z.object({
-    type: z.enum(['headline', 'subheading', 'caption']),
+    type: z.enum(["headline", "subheading", "caption"]),
     position: PositionSchema,
-    content: z.string().max(1000).default(''),
+    content: z.string().max(1000).default(""),
   }),
 ]);
 
