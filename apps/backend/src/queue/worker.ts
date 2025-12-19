@@ -16,6 +16,8 @@ const updateJobStatus = async (
     progress: number;
     videoUrl: string | null;
     error: string | null;
+    prompt: string;
+    metadata: string | null;
   }>
 ) => {
   await db
@@ -30,7 +32,7 @@ const updateJobStatus = async (
 
 const updateElementVideoStatus = async (
   elementId: string,
-  updates: Partial<{ videoStatus: string; videoUrl: string | null }>
+  updates: Partial<{ videoStatus: string; videoUrl: string | null; animationPrompt: string | null }>
 ) => {
   await db
     .update(schema.elements)
@@ -62,11 +64,14 @@ const worker = new Worker<GenerationJobPayload>(
         status: "complete",
         progress: 100,
         videoUrl: result.videoUrl,
+        prompt: result.promptUsed,
+        metadata: JSON.stringify(result.metadata),
         error: null,
       });
       await updateElementVideoStatus(job.data.elementId, {
         videoStatus: "complete",
         videoUrl: result.videoUrl,
+        animationPrompt: result.promptUsed,
       });
       return result;
     }

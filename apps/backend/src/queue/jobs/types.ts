@@ -12,7 +12,7 @@ export type GenerateVideoJobPayload = {
   projectId: string;
   elementId: string;
   imageId: string;
-  prompt: string;
+  promptOverride?: string | null;
 };
 
 export type GenerationJobPayload =

@@ -35,7 +35,7 @@ const EXTENSION_BY_MIME: Record<SupportedMimeType, string> = {
   "image/webp": ".webp",
 };
 
-const appRoot = fileURLToPath(new URL("../..", import.meta.url));
+const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const uploadRoot = join(appRoot, UPLOAD_DIR, IMAGE_SUBDIR);
 await mkdir(uploadRoot, { recursive: true });
 

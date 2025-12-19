@@ -12,7 +12,7 @@ import { errorResponse } from "../shared/http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const appRoot = fileURLToPath(new URL("../..", import.meta.url));
+const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 const router = new Hono();
 

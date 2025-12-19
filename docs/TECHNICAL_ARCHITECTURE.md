@@ -285,7 +285,7 @@ User → Select image → Frontend validates format/size
 ### 4.3 Video Generation Flow
 
 ```
-User → Click "Generate" → POST /api/projects/:id/generate
+User → Click "Generate" → POST /api/pages/:id/generate (or /api/projects/:id/generate)
                                     ↓
                          Server creates jobs in BullMQ
                                     ↓

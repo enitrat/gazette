@@ -97,6 +97,7 @@ export const generationJobs = sqliteTable("generation_jobs", {
   progress: integer("progress").notNull().default(0),
   videoUrl: text("video_url"),
   error: text("error"),
+  metadata: text("metadata"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),

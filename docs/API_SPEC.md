@@ -594,6 +594,41 @@ Get AI-generated animation suggestions (3-5 prompts). If Gemini is not configure
 
 ## 6. Generation Endpoints
 
+### POST /api/pages/:id/generate
+
+Start video generation for all image elements on a page. Prompts are selected automatically (Gemini suggestion → element animationPrompt → fallback).
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Request:** _(no body)_
+
+**Response (202 Accepted):**
+
+```json
+{
+  "pageId": "page-001",
+  "jobCount": 2,
+  "estimatedDuration": 120,
+  "jobs": [
+    {
+      "id": "job-001",
+      "elementId": "elem-001",
+      "status": "queued"
+    },
+    {
+      "id": "job-002",
+      "elementId": "elem-003",
+      "status": "queued"
+    }
+  ]
+}
+```
+
+**Errors:**
+
+- `400` - No image elements to generate
+- `404` - Page not found
+
 ### POST /api/projects/:id/generate
 
 Start video generation for multiple images.
@@ -661,6 +696,16 @@ Get status of a single generation job.
   "progress": 65,
   "videoUrl": null,
   "error": null,
+  "metadata": {
+    "promptUsed": "The couple begins to dance a gentle waltz",
+    "promptSource": "gemini",
+    "suggestionId": "sug-1",
+    "sceneDescription": "Black and white photo of a young couple...",
+    "durationSeconds": 5,
+    "resolution": "720p",
+    "geminiModel": "gemini-3-flash-preview",
+    "wanModel": "wan2.1-i2v-turbo"
+  },
   "createdAt": "2024-12-18T18:00:00Z",
   "updatedAt": "2024-12-18T18:01:30Z"
 }
@@ -672,6 +717,12 @@ Get status of a single generation job.
 - `processing` - Currently generating
 - `complete` - Video ready
 - `failed` - Generation failed
+
+---
+
+### GET /api/jobs/:id
+
+Alias for `GET /api/generation/:id`.
 
 ---
 

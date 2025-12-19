@@ -245,6 +245,17 @@ import { z } from "zod";
 // Job status
 export const JobStatus = z.enum(["queued", "processing", "complete", "failed"]);
 
+export const GenerationMetadataSchema = z.object({
+  promptUsed: z.string().max(500).nullable(),
+  promptSource: z.enum(["gemini", "override", "fallback"]).nullable(),
+  suggestionId: z.string().nullable(),
+  sceneDescription: z.string().max(500).nullable(),
+  durationSeconds: z.number().int().positive().nullable(),
+  resolution: z.enum(["480p", "720p", "1080p"]).nullable(),
+  geminiModel: z.string().nullable().optional(),
+  wanModel: z.string().nullable().optional(),
+});
+
 // Generation job database record
 export const GenerationJobSchema = z.object({
   id: z.string().uuid(),
@@ -255,6 +266,7 @@ export const GenerationJobSchema = z.object({
   progress: z.number().min(0).max(100),
   videoUrl: z.string().url().nullable(),
   error: z.string().nullable(),
+  metadata: GenerationMetadataSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -293,6 +305,7 @@ export const GenerationStatusSchema = z.object({
 
 // Types
 export type JobStatusEnum = z.infer<typeof JobStatus>;
+export type GenerationMetadata = z.infer<typeof GenerationMetadataSchema>;
 export type GenerationJob = z.infer<typeof GenerationJobSchema>;
 export type GenerationElementInput = z.infer<typeof GenerationElementInput>;
 export type GenerationRequest = z.infer<typeof GenerationRequestSchema>;
@@ -419,6 +432,7 @@ export const generationJobs = sqliteTable("generation_jobs", {
   progress: integer("progress").notNull().default(0),
   videoUrl: text("video_url"),
   error: text("error"),
+  metadata: text("metadata"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -518,6 +532,7 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
   progress INTEGER NOT NULL DEFAULT 0,
   video_url TEXT,
   error TEXT,
+  metadata TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 );

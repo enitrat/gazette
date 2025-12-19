@@ -15,7 +15,7 @@ import {
 } from "@gazette/shared";
 import { errorResponse } from "../shared/http";
 
-const appRoot = fileURLToPath(new URL("../..", import.meta.url));
+const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const MAX_PHOTOS_PER_PAGE = 5;
 
 const safeUnlink = async (filePath: string) => {
