@@ -35,6 +35,7 @@ type CanvasProps = {
   onSelectElement?: (elementId: string) => void;
   onClearSelection?: () => void;
   onImageDoubleClick?: (element: CanvasElement) => void;
+  onTextCommit?: (elementId: string, content: string) => void;
   onResizeElement?: (elementId: string, position: CanvasElement["position"]) => void;
   enableGestures?: boolean;
   onElementPositionChange?: (elementId: string, position: CanvasElement["position"]) => void;
@@ -240,6 +241,7 @@ function CanvasElementView({
   isSelected,
   onSelect,
   onImageDoubleClick,
+  onTextDoubleClick,
   onResizeStart,
   showHandles,
   positionOverride,
@@ -252,11 +254,13 @@ function CanvasElementView({
   isPreview = false,
   isDraggable = false,
   disableInteractions = false,
+  isEditing = false,
 }: {
   element: CanvasElement;
   isSelected: boolean;
   onSelect?: (elementId: string) => void;
   onImageDoubleClick?: (element: CanvasElement) => void;
+  onTextDoubleClick?: (element: CanvasElement) => void;
   onResizeStart?: (
     event: ReactPointerEvent<HTMLDivElement>,
     element: CanvasElement,
@@ -273,6 +277,7 @@ function CanvasElementView({
   isPreview?: boolean;
   isDraggable?: boolean;
   disableInteractions?: boolean;
+  isEditing?: boolean;
 }) {
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const position = positionOverride ?? element.position;
@@ -413,22 +418,23 @@ function CanvasElementView({
 
   const textClass =
     element.type === "headline"
-      ? "font-headline text-ink-effect text-lg"
+      ? "headline"
       : element.type === "subheading"
-        ? "font-subheading text-sm text-sepia"
-        : "font-body text-xs text-muted";
+        ? "subheading"
+        : "caption";
 
   return (
     <div
       className={cn(
-        "leading-snug",
+        "leading-snug whitespace-pre-wrap",
         isPreview ? "relative" : "absolute",
         isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         textClass,
         isSelected && "rounded-sm border border-gold/60 bg-cream/60 px-1 py-0.5",
         "ink-bleed",
         isDragging && "opacity-60",
-        isResizing && "ring-2 ring-amber-500/60"
+        isResizing && "ring-2 ring-amber-500/60",
+        isEditing && "pointer-events-none opacity-0"
       )}
       ref={setNodeRef}
       style={{ ...baseStyle, ...dragStyle }}
@@ -436,6 +442,11 @@ function CanvasElementView({
         if (disableInteractions) return;
         event.stopPropagation();
         onSelect?.(element.id);
+      }}
+      onDoubleClick={(event) => {
+        if (disableInteractions) return;
+        event.stopPropagation();
+        onTextDoubleClick?.(element);
       }}
       {...dragAttributes}
       {...dragListeners}
@@ -477,6 +488,7 @@ export function Canvas({
   onSelectElement,
   onClearSelection,
   onImageDoubleClick,
+  onTextCommit,
   enableGestures = false,
   onElementPositionChange,
   onResizeElement,
@@ -507,6 +519,12 @@ export function Canvas({
     position: CanvasElement["position"];
   } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const [editingElementId, setEditingElementId] = useState<string | null>(null);
+  const [draftContent, setDraftContent] = useState("");
+  const draftContentRef = useRef("");
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const isCommittingRef = useRef(false);
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -525,7 +543,30 @@ export function Canvas({
     setResizePreview(null);
     resizePreviewRef.current = null;
     setIsResizing(false);
+    setEditingElementId(null);
+    setDraftContent("");
+    draftContentRef.current = "";
   }, [page?.id]);
+
+  useEffect(() => {
+    if (!editingElementId) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (editorRef.current?.contains(target)) return;
+      if (toolbarRef.current?.contains(target)) return;
+      handleCommitEditing();
+    };
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [editingElementId]);
+
+  useEffect(() => {
+    if (!editingElementId) {
+      isCommittingRef.current = false;
+    }
+  }, [editingElementId]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -693,6 +734,33 @@ export function Canvas({
     setIsResizing(true);
   };
 
+  const handleStartEditing = (element: CanvasElement) => {
+    if (readOnly || element.type === "image") return;
+    setEditingElementId(element.id);
+    const nextContent = element.content ?? "";
+    draftContentRef.current = nextContent;
+    setDraftContent(nextContent);
+    onSelectElement?.(element.id);
+    requestAnimationFrame(() => {
+      editorRef.current?.focus();
+    });
+  };
+
+  const handleCommitEditing = () => {
+    if (!editingElementId || isCommittingRef.current) return;
+    isCommittingRef.current = true;
+    onTextCommit?.(editingElementId, draftContentRef.current);
+    setEditingElementId(null);
+    setDraftContent("");
+  };
+
+  const handleCancelEditing = () => {
+    isCommittingRef.current = false;
+    draftContentRef.current = "";
+    setEditingElementId(null);
+    setDraftContent("");
+  };
+
   const activeDragElement = useMemo(
     () => elements.find((element) => element.id === activeDragId) ?? null,
     [activeDragId, elements]
@@ -763,7 +831,17 @@ export function Canvas({
     };
   };
 
-  const isDragEnabled = !readOnly && !isResizing;
+  const isDragEnabled = !readOnly && !isResizing && !editingElementId;
+  const editingElement = useMemo(
+    () => elements.find((element) => element.id === editingElementId) ?? null,
+    [editingElementId, elements]
+  );
+  const editingTextClass =
+    editingElement?.type === "headline"
+      ? "headline"
+      : editingElement?.type === "subheading"
+        ? "subheading"
+        : "caption";
 
   return (
     <div
@@ -823,6 +901,7 @@ export function Canvas({
                     isSelected={element.id === selectedElementId}
                     onSelect={handleSelectElement}
                     onImageDoubleClick={onImageDoubleClick}
+                    onTextDoubleClick={handleStartEditing}
                     onResizeStart={handleResizeStart}
                     showHandles={!readOnly && element.id === selectedElementId}
                     positionOverride={
@@ -831,6 +910,7 @@ export function Canvas({
                     isResizing={resizePreview?.elementId === element.id}
                     isDragEnabled={isDragEnabled}
                     isActiveDrag={element.id === activeDragId}
+                    isEditing={element.id === editingElementId}
                   />
                 ))
               ) : (
@@ -838,6 +918,77 @@ export function Canvas({
                   {emptyState}
                 </div>
               )}
+              {editingElement && editingElement.type !== "image" ? (
+                <>
+                  <div
+                    ref={toolbarRef}
+                    className="absolute z-20 flex items-center gap-2 rounded-sm border border-sepia/40 bg-parchment/90 px-2 py-1 text-xs font-ui text-ink shadow-sm"
+                    style={{
+                      left: editingElement.position.x,
+                      top: Math.max(0, editingElement.position.y - 44),
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <label className="uppercase tracking-[0.2em] text-[10px] text-muted">
+                      Style
+                    </label>
+                    <select
+                      className="rounded-sm border border-sepia/40 bg-cream/80 px-2 py-0.5 font-ui text-[11px] text-ink"
+                      value={editingElement.type}
+                      disabled
+                      aria-label="Typography style"
+                    >
+                      <option value="headline">Headline</option>
+                      <option value="subheading">Subheading</option>
+                      <option value="caption">Caption</option>
+                    </select>
+                    <label className="uppercase tracking-[0.2em] text-[10px] text-muted">
+                      Size
+                    </label>
+                    <select
+                      className="rounded-sm border border-sepia/40 bg-cream/80 px-2 py-0.5 font-ui text-[11px] text-ink"
+                      value="auto"
+                      disabled
+                      aria-label="Font size"
+                    >
+                      <option value="auto">Auto</option>
+                    </select>
+                  </div>
+                  <textarea
+                    ref={editorRef}
+                    value={draftContent}
+                    onChange={(event) => {
+                      draftContentRef.current = event.target.value;
+                      setDraftContent(event.target.value);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        handleCancelEditing();
+                      }
+                    }}
+                    onBlur={(event) => {
+                      if (isCommittingRef.current) return;
+                      const nextTarget = event.relatedTarget as Node | null;
+                      if (toolbarRef.current?.contains(nextTarget)) return;
+                      handleCommitEditing();
+                    }}
+                    className={cn(
+                      "absolute z-10 resize-none rounded-sm border border-gold/60 bg-cream/80 p-1 leading-snug text-ink outline-none",
+                      "whitespace-pre-wrap",
+                      editingTextClass,
+                      "ink-bleed"
+                    )}
+                    style={{
+                      left: editingElement.position.x,
+                      top: editingElement.position.y,
+                      width: editingElement.position.width,
+                      height: editingElement.position.height,
+                    }}
+                  />
+                </>
+              ) : null}
             </div>
             <DragOverlay>
               {activeDragElement ? (
@@ -864,17 +1015,20 @@ function DraggableCanvasElement({
   isSelected,
   onSelect,
   onImageDoubleClick,
+  onTextDoubleClick,
   onResizeStart,
   showHandles,
   positionOverride,
   isResizing,
   isDragEnabled,
   isActiveDrag,
+  isEditing,
 }: {
   element: CanvasElement;
   isSelected: boolean;
   onSelect?: (elementId: string) => void;
   onImageDoubleClick?: (element: CanvasElement) => void;
+  onTextDoubleClick?: (element: CanvasElement) => void;
   onResizeStart?: (
     event: ReactPointerEvent<HTMLDivElement>,
     element: CanvasElement,
@@ -885,6 +1039,7 @@ function DraggableCanvasElement({
   isResizing?: boolean;
   isDragEnabled: boolean;
   isActiveDrag: boolean;
+  isEditing?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: element.id,
@@ -897,6 +1052,7 @@ function DraggableCanvasElement({
       isSelected={isSelected}
       onSelect={onSelect}
       onImageDoubleClick={onImageDoubleClick}
+      onTextDoubleClick={onTextDoubleClick}
       onResizeStart={onResizeStart}
       showHandles={showHandles}
       positionOverride={positionOverride}
@@ -908,6 +1064,7 @@ function DraggableCanvasElement({
       isDragging={isDragging}
       isDraggable={isDragEnabled}
       disableInteractions={isDragging || isActiveDrag}
+      isEditing={isEditing}
     />
   );
 }
