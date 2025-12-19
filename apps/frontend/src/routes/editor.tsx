@@ -6,7 +6,7 @@ import { CanvasViewport } from "@/components/editor/CanvasViewport";
 import { TopNavbar } from "@/components/editor/TopNavbar";
 import { EditorToolbar } from "@/components/EditorToolbar";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
-import { PageSidebar } from "@/components/PageSidebar";
+import { LeftSidebar } from "@/components/editor/LeftSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
 import { ShareDialog } from "@/components/editor/dialogs/ShareDialog";
 import { TemplateDialog } from "@/components/editor/dialogs/TemplateDialog";
@@ -27,7 +27,6 @@ import {
   Download,
   ImagePlus,
   Loader2,
-  PanelLeft,
   Plus,
   Save,
   Share2,
@@ -59,6 +58,7 @@ function EditorPage() {
   const pagesError = usePagesStore((state) => state.error);
   const pagesLoading = usePagesStore((state) => state.isLoading);
   const createPage = usePagesStore((state) => state.createPage);
+  const fetchPages = usePagesStore((state) => state.fetchPages);
   const [session] = useState(() => getAuthSession());
   const projectId = session?.projectId;
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
@@ -117,6 +117,11 @@ function EditorPage() {
       });
     }
   }, [navigate, pageId, pages]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    void fetchPages(projectId);
+  }, [fetchPages, projectId]);
 
   useEffect(() => {
     if (!activePageId) return;
@@ -472,31 +477,21 @@ function EditorPage() {
 
       <div className="flex flex-1">
         {/* Sidebar */}
-        <PageSidebar
-          projectId={projectId}
+        <LeftSidebar
+          projectName={session?.projectName ?? "La Gazette de la Vie"}
+          userId={session?.projectSlug ?? "test123456"}
+          elementCount={elementCount}
+          photoCount={photoCount}
+          pages={pages}
           activePageId={activePageId}
+          isLoading={pagesLoading}
+          error={pagesError}
           onSelectPage={handleSelectPage}
-          onRequestNewPage={() => setIsTemplateDialogOpen(true)}
-          className="editor-sidebar hidden lg:block"
+          onNewPage={() => setIsTemplateDialogOpen(true)}
+          open={isSidebarOpen}
+          onOpenChange={setIsSidebarOpen}
+          className="editor-sidebar"
         />
-
-        {isSidebarOpen ? (
-          <div
-            className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm lg:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            <div className="h-full" onClick={(event) => event.stopPropagation()}>
-              <PageSidebar
-                projectId={projectId}
-                activePageId={activePageId}
-                onSelectPage={handleSelectPage}
-                onRequestNewPage={() => setIsTemplateDialogOpen(true)}
-                onClose={() => setIsSidebarOpen(false)}
-                className="editor-sidebar h-full shadow-xl"
-              />
-            </div>
-          </div>
-        ) : null}
 
         {/* Canvas */}
         <main className="editor-canvas flex flex-1 flex-col bg-cream/40">
@@ -565,16 +560,6 @@ function EditorPage() {
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-sepia/30 bg-parchment/95 px-3 py-2 backdrop-blur md:hidden">
         <div className="flex items-center gap-2 overflow-x-auto">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsSidebarOpen(true)}
-            aria-label="Open pages panel"
-            title="Pages"
-          >
-            <PanelLeft />
-          </Button>
           <Button
             type="button"
             variant="outline"

@@ -117,7 +117,7 @@ export function EditorToolbar({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="md:hidden"
+                className="hidden md:inline-flex lg:hidden"
                 onClick={onOpenSidebar}
                 aria-label="Open pages panel"
                 tooltip="Open pages panel"
