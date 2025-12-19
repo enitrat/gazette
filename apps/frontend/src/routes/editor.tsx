@@ -294,6 +294,8 @@ function EditorPage() {
                     }
                   : null
               }
+              projectName={session?.projectName}
+              showChrome={true}
               className="h-full w-full"
               emptyState={
                 activePageId ? "Click to add elements to your gazette." : "Select a page."
