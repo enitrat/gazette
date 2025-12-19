@@ -10,19 +10,14 @@
 
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as ViewerRouteImport } from "./routes/viewer";
-import { Route as ViewSlugRouteImport } from "./routes/view.$slug";
 import { Route as EditorRouteImport } from "./routes/editor";
 import { Route as AuthRouteImport } from "./routes/auth";
 import { Route as IndexRouteImport } from "./routes/index";
+import { Route as ViewSlugRouteImport } from "./routes/view.$slug";
 
 const ViewerRoute = ViewerRouteImport.update({
   id: "/viewer",
   path: "/viewer",
-  getParentRoute: () => rootRouteImport,
-} as any);
-const ViewSlugRoute = ViewSlugRouteImport.update({
-  id: "/view/$slug",
-  path: "/view/$slug",
   getParentRoute: () => rootRouteImport,
 } as any);
 const EditorRoute = EditorRouteImport.update({
@@ -40,43 +35,48 @@ const IndexRoute = IndexRouteImport.update({
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any);
+const ViewSlugRoute = ViewSlugRouteImport.update({
+  id: "/view/$slug",
+  path: "/view/$slug",
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/auth": typeof AuthRoute;
   "/editor": typeof EditorRoute;
-  "/view/$slug": typeof ViewSlugRoute;
   "/viewer": typeof ViewerRoute;
+  "/view/$slug": typeof ViewSlugRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/auth": typeof AuthRoute;
   "/editor": typeof EditorRoute;
-  "/view/$slug": typeof ViewSlugRoute;
   "/viewer": typeof ViewerRoute;
+  "/view/$slug": typeof ViewSlugRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/auth": typeof AuthRoute;
   "/editor": typeof EditorRoute;
-  "/view/$slug": typeof ViewSlugRoute;
   "/viewer": typeof ViewerRoute;
+  "/view/$slug": typeof ViewSlugRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/auth" | "/editor" | "/view/$slug" | "/viewer";
+  fullPaths: "/" | "/auth" | "/editor" | "/viewer" | "/view/$slug";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/auth" | "/editor" | "/view/$slug" | "/viewer";
-  id: "__root__" | "/" | "/auth" | "/editor" | "/view/$slug" | "/viewer";
+  to: "/" | "/auth" | "/editor" | "/viewer" | "/view/$slug";
+  id: "__root__" | "/" | "/auth" | "/editor" | "/viewer" | "/view/$slug";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   AuthRoute: typeof AuthRoute;
   EditorRoute: typeof EditorRoute;
-  ViewSlugRoute: typeof ViewSlugRoute;
   ViewerRoute: typeof ViewerRoute;
+  ViewSlugRoute: typeof ViewSlugRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -86,13 +86,6 @@ declare module "@tanstack/react-router" {
       path: "/viewer";
       fullPath: "/viewer";
       preLoaderRoute: typeof ViewerRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/view/$slug": {
-      id: "/view/$slug";
-      path: "/view/$slug";
-      fullPath: "/view/$slug";
-      preLoaderRoute: typeof ViewSlugRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/editor": {
@@ -116,6 +109,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/view/$slug": {
+      id: "/view/$slug";
+      path: "/view/$slug";
+      fullPath: "/view/$slug";
+      preLoaderRoute: typeof ViewSlugRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -123,8 +123,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   EditorRoute: EditorRoute,
-  ViewSlugRoute: ViewSlugRoute,
   ViewerRoute: ViewerRoute,
+  ViewSlugRoute: ViewSlugRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
