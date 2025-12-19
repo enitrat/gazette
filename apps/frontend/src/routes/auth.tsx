@@ -143,7 +143,10 @@ function AuthPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-12">
       <div className="mx-auto mb-10 max-w-2xl text-center">
-        <h2 className="font-headline text-ink-effect">Access Your Gazette</h2>
+        <h1 className="mb-4 font-headline text-ink-effect">La Gazette de la Vie</h1>
+        <p className="font-subheading mb-8 text-lg text-muted italic">
+          Where Memories Come to Life
+        </p>
         <p className="mt-3 text-muted">
           Create a new project or return to continue crafting your animated family archive.
         </p>
