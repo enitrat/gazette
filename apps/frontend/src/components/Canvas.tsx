@@ -1,29 +1,6 @@
 import { useMemo, type SyntheticEvent } from "react";
 import { cn } from "@/lib/utils";
-
-export type CanvasPosition = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-export type CanvasElement = {
-  id: string;
-  type: "image" | "headline" | "subheading" | "caption";
-  position: CanvasPosition;
-  content?: string;
-  imageUrl?: string | null;
-  videoUrl?: string | null;
-  videoStatus?: "none" | "pending" | "processing" | "complete" | "failed";
-};
-
-export type CanvasPage = {
-  id: string;
-  title?: string | null;
-  subtitle?: string | null;
-  elements?: CanvasElement[];
-};
+import type { CanvasElement, CanvasPage } from "@/types/editor";
 
 type CanvasProps = {
   page?: CanvasPage | null;
@@ -32,6 +9,9 @@ type CanvasProps = {
   readOnly?: boolean;
   className?: string;
   emptyState?: string;
+  selectedElementId?: string | null;
+  onSelectElement?: (elementId: string) => void;
+  onClearSelection?: () => void;
 };
 
 const VIDEO_LOOP_SECONDS = 5;
@@ -60,7 +40,15 @@ function LoopingVideo({ src, className }: { src: string; className?: string }) {
   );
 }
 
-function CanvasElementView({ element }: { element: CanvasElement }) {
+function CanvasElementView({
+  element,
+  isSelected,
+  onSelect,
+}: {
+  element: CanvasElement;
+  isSelected: boolean;
+  onSelect?: (elementId: string) => void;
+}) {
   const baseStyle: React.CSSProperties = {
     left: element.position.x,
     top: element.position.y,
@@ -74,16 +62,26 @@ function CanvasElementView({ element }: { element: CanvasElement }) {
 
     return (
       <div
-        className="absolute overflow-hidden rounded-sm border border-sepia/30 bg-parchment/70"
+        className={cn(
+          "absolute cursor-pointer overflow-hidden rounded-sm border border-sepia/30 bg-parchment/70 sepia-vintage vintage-shadow",
+          isSelected && "ring-2 ring-gold/70 ring-offset-2 ring-offset-parchment/80"
+        )}
         style={baseStyle}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect?.(element.id);
+        }}
       >
         {hasVideo ? (
-          <LoopingVideo src={element.videoUrl as string} className="h-full w-full object-cover" />
+          <LoopingVideo
+            src={element.videoUrl as string}
+            className="h-full w-full object-cover sepia-vintage"
+          />
         ) : hasImage ? (
           <img
             src={element.imageUrl as string}
             alt=""
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover sepia-vintage"
             loading="lazy"
           />
         ) : (
@@ -110,7 +108,19 @@ function CanvasElementView({ element }: { element: CanvasElement }) {
         : "font-body text-xs text-muted";
 
   return (
-    <div className={cn("absolute leading-snug", textClass)} style={baseStyle}>
+    <div
+      className={cn(
+        "absolute cursor-pointer leading-snug",
+        textClass,
+        isSelected && "rounded-sm border border-gold/60 bg-cream/60 px-1 py-0.5",
+        "ink-bleed"
+      )}
+      style={baseStyle}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect?.(element.id);
+      }}
+    >
       {element.content}
     </div>
   );
@@ -123,12 +133,15 @@ export function Canvas({
   readOnly = false,
   className,
   emptyState = "Nothing to display yet.",
+  selectedElementId,
+  onSelectElement,
+  onClearSelection,
 }: CanvasProps) {
   const elements = useMemo(() => page?.elements ?? [], [page]);
   const hasElements = elements.length > 0;
 
   return (
-    <div className={cn("gazette-page h-full w-full rounded-md p-6", className)}>
+    <div className={cn("gazette-page paper-texture h-full w-full rounded-md p-6", className)}>
       <div className="flex h-full flex-col gap-4">
         {showChrome ? (
           <header className="text-center">
@@ -148,9 +161,16 @@ export function Canvas({
           </header>
         ) : null}
 
-        <div className="relative flex-1 overflow-hidden">
+        <div className="relative flex-1 overflow-hidden" onClick={() => onClearSelection?.()}>
           {hasElements ? (
-            elements.map((element) => <CanvasElementView key={element.id} element={element} />)
+            elements.map((element) => (
+              <CanvasElementView
+                key={element.id}
+                element={element}
+                isSelected={element.id === selectedElementId}
+                onSelect={onSelectElement}
+              />
+            ))
           ) : (
             <div className="flex h-full items-center justify-center text-center text-sm text-muted">
               {emptyState}

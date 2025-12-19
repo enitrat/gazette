@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
-import { Canvas, type CanvasElement } from "@/components/Canvas";
+import { Canvas } from "@/components/Canvas";
 import { PageSidebar } from "@/components/PageSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
 import { TemplateDialog } from "@/components/TemplateDialog";
@@ -9,7 +9,9 @@ import { GenerationProgressDialog } from "@/components/GenerationProgressDialog"
 import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { getAuthSession } from "@/lib/auth";
+import { useElementsStore } from "@/stores/elements-store";
 import { usePagesStore } from "@/stores/pages-store";
+import type { CanvasElement } from "@/types/editor";
 import { Download, ImagePlus, Plus, Save, Share2, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/editor")({
@@ -30,8 +32,11 @@ function EditorPage() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isProgressOpen, setIsProgressOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
-  const [elementsByPage, setElementsByPage] = useState<Record<string, CanvasElement[]>>({});
+  const elementsByPage = useElementsStore((state) => state.elementsByPage);
+  const fetchElements = useElementsStore((state) => state.fetchElements);
+  const setElementsForPage = useElementsStore((state) => state.setElementsForPage);
+  const selectedElementId = useElementsStore((state) => state.selectedElementId);
+  const setSelectedElementId = useElementsStore((state) => state.setSelectedElementId);
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
   const activePage = useMemo(
@@ -53,6 +58,12 @@ function EditorPage() {
       });
     }
   }, [navigate, pageId, pages]);
+
+  useEffect(() => {
+    if (!activePageId) return;
+    void fetchElements(activePageId);
+    setSelectedElementId(null);
+  }, [activePageId, fetchElements, setSelectedElementId]);
 
   const handleSelectPage = (selectedId: string) => {
     navigate({
@@ -78,27 +89,23 @@ function EditorPage() {
   const handleImageUploaded = (result: ImageUploadResult) => {
     if (!activePageId) return;
 
-    setElementsByPage((state) => {
-      const existing = state[activePageId] ?? [];
-      const offset = existing.length * 18;
-      const nextElement: CanvasElement = {
-        id: `image-${result.image.id}`,
-        type: "image",
-        position: {
-          x: 80 + offset,
-          y: 180 + offset,
-          width: 320,
-          height: 240,
-        },
-        imageUrl: result.previewUrl || result.image.url,
-        videoStatus: "none",
-      };
+    const existing = elementsByPage[activePageId] ?? [];
+    const offset = existing.length * 18;
+    const nextElement: CanvasElement = {
+      id: `image-${result.image.id}`,
+      type: "image",
+      position: {
+        x: 80 + offset,
+        y: 180 + offset,
+        width: 320,
+        height: 240,
+      },
+      imageUrl: result.previewUrl || result.image.url,
+      videoStatus: "none",
+    };
 
-      return {
-        ...state,
-        [activePageId]: [...existing, nextElement],
-      };
-    });
+    setElementsForPage(activePageId, [...existing, nextElement]);
+    setSelectedElementId(nextElement.id);
   };
 
   return (
@@ -185,7 +192,6 @@ function EditorPage() {
           </div>
           <div className="mx-auto aspect-[3/4] max-w-2xl">
             <Canvas
-              key={canvasRefreshKey}
               page={
                 activePage
                   ? {
@@ -200,6 +206,9 @@ function EditorPage() {
               emptyState={
                 activePageId ? "Click to add elements to your gazette." : "Select a page."
               }
+              selectedElementId={selectedElementId}
+              onSelectElement={setSelectedElementId}
+              onClearSelection={() => setSelectedElementId(null)}
             />
           </div>
         </main>
@@ -220,7 +229,11 @@ function EditorPage() {
         projectId={projectId}
         open={isProgressOpen}
         onOpenChange={setIsProgressOpen}
-        onComplete={() => setCanvasRefreshKey((prev) => prev + 1)}
+        onComplete={() => {
+          if (activePageId) {
+            void fetchElements(activePageId);
+          }
+        }}
       />
       <ImageUpload
         open={isUploadOpen}

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import ky from "ky";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { CanvasElement, CanvasPage } from "@/components/Canvas";
+import type { CanvasElement, CanvasPage } from "@/types/editor";
 import { GazetteViewer } from "@/components/viewer/GazetteViewer";
 import { parseApiError } from "@/lib/api";
 

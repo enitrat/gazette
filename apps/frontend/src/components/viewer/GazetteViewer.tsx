@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Lock, Share2 } from "lucide-react";
-import { Canvas, type CanvasPage } from "@/components/Canvas";
+import { Canvas } from "@/components/Canvas";
+import type { CanvasPage } from "@/types/editor";
 import { cn } from "@/lib/utils";
 
 type GazetteViewerProps = {
