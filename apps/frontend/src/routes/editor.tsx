@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { PageSidebar } from "@/components/PageSidebar";
 import { TemplateDialog } from "@/components/TemplateDialog";
+import { GenerationProgressDialog } from "@/components/GenerationProgressDialog";
+import { Button } from "@/components/ui/button";
 import { getAuthSession } from "@/lib/auth";
 import { usePagesStore } from "@/stores/pages-store";
 
@@ -21,6 +23,8 @@ function EditorPage() {
   const [session] = useState(() => getAuthSession());
   const projectId = session?.projectId;
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [isProgressOpen, setIsProgressOpen] = useState(false);
+  const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
 
@@ -68,8 +72,19 @@ function EditorPage() {
 
       {/* Canvas */}
       <main className="flex-1 bg-cream/50 p-8">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-ink-effect">Editor Canvas</h2>
+            <p className="font-ui text-xs text-muted">
+              Track generation progress while you keep editing.
+            </p>
+          </div>
+          <Button variant="outline" onClick={() => setIsProgressOpen(true)} disabled={!projectId}>
+            View generation
+          </Button>
+        </div>
         <div className="mx-auto aspect-[3/4] max-w-2xl">
-          <div className="gazette-page h-full w-full rounded-md p-8">
+          <div key={canvasRefreshKey} className="gazette-page h-full w-full rounded-md p-8">
             <p className="text-center font-subheading text-muted">
               {activePageId ? "Click to add elements to your gazette" : "Select a page to begin"}
             </p>
@@ -87,6 +102,13 @@ function EditorPage() {
         open={isTemplateDialogOpen}
         onOpenChange={setIsTemplateDialogOpen}
         onCreate={handleCreatePage}
+      />
+
+      <GenerationProgressDialog
+        projectId={projectId}
+        open={isProgressOpen}
+        onOpenChange={setIsProgressOpen}
+        onComplete={() => setCanvasRefreshKey((prev) => prev + 1)}
       />
     </div>
   );
