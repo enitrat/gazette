@@ -172,6 +172,37 @@ function EditorPage() {
     }
   };
 
+  const handleResizeElement = async (
+    elementId: string,
+    position: { x: number; y: number; width: number; height: number }
+  ) => {
+    if (!activePageId) return;
+
+    const pageElements = elementsByPage[activePageId] ?? [];
+    const nextElements = pageElements.map((element) =>
+      element.id === elementId ? { ...element, position } : element
+    );
+    setElementsForPage(activePageId, nextElements);
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(elementId);
+
+    if (!projectId || !isUuid) {
+      return;
+    }
+
+    try {
+      await api.put(`elements/${elementId}`, {
+        json: {
+          position,
+        },
+      });
+    } catch (error) {
+      const parsed = await parseApiError(error);
+      console.error(parsed.message);
+    }
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-57px)] flex-col pb-20 md:pb-0">
       <header className="editor-toolbar border-b border-sepia/20 bg-parchment/90 px-4 py-2 md:px-6 md:py-3">
@@ -310,6 +341,7 @@ function EditorPage() {
               onSelectElement={setSelectedElementId}
               onClearSelection={() => setSelectedElementId(null)}
               onImageDoubleClick={handleImageDoubleClick}
+              onResizeElement={handleResizeElement}
               enableGestures
             />
           </div>

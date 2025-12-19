@@ -3,7 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type PointerEvent,
+  type PointerEvent as ReactPointerEvent,
   type SyntheticEvent,
 } from "react";
 import { cn } from "@/lib/utils";
@@ -20,12 +20,27 @@ type CanvasProps = {
   onSelectElement?: (elementId: string) => void;
   onClearSelection?: () => void;
   onImageDoubleClick?: (element: CanvasElement) => void;
+  onResizeElement?: (elementId: string, position: CanvasElement["position"]) => void;
   enableGestures?: boolean;
 };
 
 const VIDEO_LOOP_SECONDS = 5;
 const MIN_SCALE = 0.7;
 const MAX_SCALE = 2.5;
+const GRID_SIZE = 10;
+const MIN_TEXT_SIZE = 40;
+const MIN_IMAGE_SIZE = 80;
+
+type ResizeHandle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+type ResizeState = {
+  elementId: string;
+  handle: ResizeHandle;
+  startPointer: { x: number; y: number };
+  startPosition: CanvasElement["position"];
+  aspectRatio: number | null;
+  startScale: number;
+  elementType: CanvasElement["type"];
+};
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -65,23 +80,175 @@ function getCoverScale(
   return Math.max(frameWidth / imageWidth, frameHeight / imageHeight);
 }
 
+const snapValue = (value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE;
+
+const clampSize = (value: number, min: number) => Math.max(value, min);
+
+const getMinSize = (elementType: CanvasElement["type"]) =>
+  elementType === "image" ? MIN_IMAGE_SIZE : MIN_TEXT_SIZE;
+
+const applyRatioWithAnchor = (
+  width: number,
+  height: number,
+  ratio: number,
+  handle: ResizeHandle,
+  start: CanvasElement["position"]
+) => {
+  const widthDelta = Math.abs(width - start.width);
+  const heightDelta = Math.abs(height - start.height);
+  let nextWidth = width;
+  let nextHeight = height;
+
+  if (widthDelta >= heightDelta) {
+    nextHeight = nextWidth / ratio;
+  } else {
+    nextWidth = nextHeight * ratio;
+  }
+
+  const anchorX = handle.includes("w") ? start.x + start.width : start.x;
+  const anchorY = handle.includes("n") ? start.y + start.height : start.y;
+
+  const nextX = handle.includes("w") ? anchorX - nextWidth : anchorX;
+  const nextY = handle.includes("n") ? anchorY - nextHeight : anchorY;
+
+  return { x: nextX, y: nextY, width: nextWidth, height: nextHeight };
+};
+
+const computeResize = (
+  state: ResizeState,
+  pointer: { x: number; y: number }
+): CanvasElement["position"] => {
+  const scale = state.startScale || 1;
+  const dx = (pointer.x - state.startPointer.x) / scale;
+  const dy = (pointer.y - state.startPointer.y) / scale;
+  const start = state.startPosition;
+  const minSize = getMinSize(state.elementType);
+
+  let nextX = start.x;
+  let nextY = start.y;
+  let nextWidth = start.width;
+  let nextHeight = start.height;
+
+  if (state.handle.includes("e")) {
+    nextWidth = start.width + dx;
+  }
+  if (state.handle.includes("s")) {
+    nextHeight = start.height + dy;
+  }
+  if (state.handle.includes("w")) {
+    nextWidth = start.width - dx;
+    nextX = start.x + dx;
+  }
+  if (state.handle.includes("n")) {
+    nextHeight = start.height - dy;
+    nextY = start.y + dy;
+  }
+
+  if (state.aspectRatio && state.aspectRatio > 0) {
+    const ratio = state.aspectRatio;
+    if (state.handle === "e" || state.handle === "w") {
+      nextWidth = clampSize(nextWidth, minSize);
+      nextHeight = nextWidth / ratio;
+      nextY = start.y + (start.height - nextHeight) / 2;
+      if (state.handle === "w") {
+        nextX = start.x + (start.width - nextWidth);
+      }
+    } else if (state.handle === "n" || state.handle === "s") {
+      nextHeight = clampSize(nextHeight, minSize);
+      nextWidth = nextHeight * ratio;
+      nextX = start.x + (start.width - nextWidth) / 2;
+      if (state.handle === "n") {
+        nextY = start.y + (start.height - nextHeight);
+      }
+    } else {
+      const adjusted = applyRatioWithAnchor(nextWidth, nextHeight, ratio, state.handle, start);
+      nextX = adjusted.x;
+      nextY = adjusted.y;
+      nextWidth = adjusted.width;
+      nextHeight = adjusted.height;
+    }
+  }
+
+  nextWidth = clampSize(nextWidth, minSize);
+  nextHeight = clampSize(nextHeight, minSize);
+
+  if (state.handle.includes("w")) {
+    nextX = start.x + (start.width - nextWidth);
+  }
+  if (state.handle.includes("n")) {
+    nextY = start.y + (start.height - nextHeight);
+  }
+
+  const snapped = {
+    x: snapValue(nextX),
+    y: snapValue(nextY),
+    width: snapValue(nextWidth),
+    height: snapValue(nextHeight),
+  };
+  const finalWidth = clampSize(snapped.width, minSize);
+  const finalHeight = clampSize(snapped.height, minSize);
+
+  let finalX = snapped.x;
+  let finalY = snapped.y;
+
+  if (state.aspectRatio && state.aspectRatio > 0) {
+    if (state.handle === "e" || state.handle === "w") {
+      finalX = state.handle === "w" ? start.x + (start.width - finalWidth) : start.x;
+      finalY = start.y + (start.height - finalHeight) / 2;
+    } else if (state.handle === "n" || state.handle === "s") {
+      finalY = state.handle === "n" ? start.y + (start.height - finalHeight) : start.y;
+      finalX = start.x + (start.width - finalWidth) / 2;
+    } else {
+      const anchorX = state.handle.includes("w") ? start.x + start.width : start.x;
+      const anchorY = state.handle.includes("n") ? start.y + start.height : start.y;
+      finalX = state.handle.includes("w") ? anchorX - finalWidth : anchorX;
+      finalY = state.handle.includes("n") ? anchorY - finalHeight : anchorY;
+    }
+  } else {
+    const anchorX = state.handle.includes("w") ? start.x + start.width : start.x;
+    const anchorY = state.handle.includes("n") ? start.y + start.height : start.y;
+    finalX = state.handle.includes("w") ? anchorX - finalWidth : anchorX;
+    finalY = state.handle.includes("n") ? anchorY - finalHeight : anchorY;
+  }
+
+  return {
+    x: snapValue(finalX),
+    y: snapValue(finalY),
+    width: finalWidth,
+    height: finalHeight,
+  };
+};
+
 function CanvasElementView({
   element,
   isSelected,
   onSelect,
   onImageDoubleClick,
+  onResizeStart,
+  showHandles,
+  positionOverride,
+  isResizing,
 }: {
   element: CanvasElement;
   isSelected: boolean;
   onSelect?: (elementId: string) => void;
   onImageDoubleClick?: (element: CanvasElement) => void;
+  onResizeStart?: (
+    event: ReactPointerEvent<HTMLDivElement>,
+    element: CanvasElement,
+    handle: ResizeHandle
+  ) => void;
+  showHandles?: boolean;
+  positionOverride?: CanvasElement["position"];
+  isResizing?: boolean;
 }) {
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const position = positionOverride ?? element.position;
   const baseStyle: React.CSSProperties = {
-    left: element.position.x,
-    top: element.position.y,
-    width: element.position.width,
-    height: element.position.height,
+    left: position.x,
+    top: position.y,
+    width: position.width,
+    height: position.height,
   };
 
   if (element.type === "image") {
@@ -98,19 +265,12 @@ function CanvasElementView({
     const hasDimensions = resolvedWidth > 0 && resolvedHeight > 0;
     const cropData = element.cropData ?? { x: 0, y: 0, zoom: 1 };
     const coverScale = hasDimensions
-      ? getCoverScale(
-          resolvedWidth,
-          resolvedHeight,
-          element.position.width,
-          element.position.height
-        )
+      ? getCoverScale(resolvedWidth, resolvedHeight, position.width, position.height)
       : 1;
-    const scaledWidth = hasDimensions
-      ? resolvedWidth * coverScale * cropData.zoom
-      : element.position.width;
+    const scaledWidth = hasDimensions ? resolvedWidth * coverScale * cropData.zoom : position.width;
     const scaledHeight = hasDimensions
       ? resolvedHeight * coverScale * cropData.zoom
-      : element.position.height;
+      : position.height;
     const imageStyle: React.CSSProperties = hasDimensions
       ? {
           width: scaledWidth,
@@ -125,7 +285,9 @@ function CanvasElementView({
       <div
         className={cn(
           "absolute cursor-pointer overflow-hidden rounded-sm border border-sepia/30 bg-parchment/70 sepia-vintage vintage-shadow",
-          isSelected && "ring-2 ring-gold/70 ring-offset-2 ring-offset-parchment/80"
+          isSelected && "ring-2 ring-gold/70 ring-offset-2 ring-offset-parchment/80",
+          "relative",
+          isResizing && "ring-2 ring-amber-500/60"
         )}
         style={baseStyle}
         onClick={(event) => {
@@ -178,6 +340,27 @@ function CanvasElementView({
             Video {element.videoStatus}
           </div>
         ) : null}
+        {showHandles && onResizeStart ? (
+          <div className="pointer-events-none absolute inset-0">
+            {(["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const).map((handle) => (
+              <div
+                key={handle}
+                className={cn(
+                  "pointer-events-auto absolute h-2 w-2 rounded-full border border-parchment bg-gold shadow-sm",
+                  handle === "nw" && "-left-1 -top-1 cursor-nwse-resize",
+                  handle === "n" && "left-1/2 -top-1 -translate-x-1/2 cursor-ns-resize",
+                  handle === "ne" && "-right-1 -top-1 cursor-nesw-resize",
+                  handle === "e" && "top-1/2 -right-1 -translate-y-1/2 cursor-ew-resize",
+                  handle === "se" && "-right-1 -bottom-1 cursor-nwse-resize",
+                  handle === "s" && "left-1/2 -bottom-1 -translate-x-1/2 cursor-ns-resize",
+                  handle === "sw" && "-left-1 -bottom-1 cursor-nesw-resize",
+                  handle === "w" && "top-1/2 -left-1 -translate-y-1/2 cursor-ew-resize"
+                )}
+                onPointerDown={(event) => onResizeStart(event, element, handle)}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -192,10 +375,11 @@ function CanvasElementView({
   return (
     <div
       className={cn(
-        "absolute cursor-pointer leading-snug",
+        "absolute cursor-pointer leading-snug relative",
         textClass,
         isSelected && "rounded-sm border border-gold/60 bg-cream/60 px-1 py-0.5",
-        "ink-bleed"
+        "ink-bleed",
+        isResizing && "ring-2 ring-amber-500/60"
       )}
       style={baseStyle}
       onClick={(event) => {
@@ -204,6 +388,27 @@ function CanvasElementView({
       }}
     >
       {element.content}
+      {showHandles && onResizeStart ? (
+        <div className="pointer-events-none absolute inset-0">
+          {(["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const).map((handle) => (
+            <div
+              key={handle}
+              className={cn(
+                "pointer-events-auto absolute h-2 w-2 rounded-full border border-parchment bg-gold shadow-sm",
+                handle === "nw" && "-left-1 -top-1 cursor-nwse-resize",
+                handle === "n" && "left-1/2 -top-1 -translate-x-1/2 cursor-ns-resize",
+                handle === "ne" && "-right-1 -top-1 cursor-nesw-resize",
+                handle === "e" && "top-1/2 -right-1 -translate-y-1/2 cursor-ew-resize",
+                handle === "se" && "-right-1 -bottom-1 cursor-nwse-resize",
+                handle === "s" && "left-1/2 -bottom-1 -translate-x-1/2 cursor-ns-resize",
+                handle === "sw" && "-left-1 -bottom-1 cursor-nesw-resize",
+                handle === "w" && "top-1/2 -left-1 -translate-y-1/2 cursor-ew-resize"
+              )}
+              onPointerDown={(event) => onResizeStart(event, element, handle)}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -234,14 +439,63 @@ export function Canvas({
   });
   const didPanRef = useRef(false);
   const gesturesActive = enableGestures || readOnly;
+  const resizeStateRef = useRef<ResizeState | null>(null);
+  const [resizePreview, setResizePreview] = useState<{
+    elementId: string;
+    position: CanvasElement["position"];
+  } | null>(null);
+  const resizePreviewRef = useRef<{
+    elementId: string;
+    position: CanvasElement["position"];
+  } | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     setTransform({ scale: 1, x: 0, y: 0 });
     pointersRef.current.clear();
     didPanRef.current = false;
+    resizeStateRef.current = null;
+    setResizePreview(null);
+    resizePreviewRef.current = null;
+    setIsResizing(false);
   }, [page?.id]);
 
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMove = (event: globalThis.PointerEvent) => {
+      const state = resizeStateRef.current;
+      if (!state) return;
+      const nextPosition = computeResize(state, { x: event.clientX, y: event.clientY });
+      const nextPreview = { elementId: state.elementId, position: nextPosition };
+      resizePreviewRef.current = nextPreview;
+      setResizePreview(nextPreview);
+    };
+
+    const handleEnd = () => {
+      const state = resizeStateRef.current;
+      const preview = resizePreviewRef.current;
+      resizeStateRef.current = null;
+      setResizePreview(null);
+      resizePreviewRef.current = null;
+      setIsResizing(false);
+      if (state && preview) {
+        onResizeElement?.(state.elementId, preview.position);
+      }
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleEnd);
+    window.addEventListener("pointercancel", handleEnd);
+
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleEnd);
+      window.removeEventListener("pointercancel", handleEnd);
+    };
+  }, [isResizing, onResizeElement]);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!gesturesActive || event.pointerType === "mouse") return;
     event.currentTarget.setPointerCapture(event.pointerId);
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -265,7 +519,7 @@ export function Canvas({
     }
   };
 
-  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!gesturesActive || event.pointerType === "mouse") return;
     if (!pointersRef.current.has(event.pointerId)) return;
 
@@ -313,7 +567,7 @@ export function Canvas({
     }
   };
 
-  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!gesturesActive || event.pointerType === "mouse") return;
     pointersRef.current.delete(event.pointerId);
     if (pointersRef.current.size < 2) {
@@ -340,6 +594,32 @@ export function Canvas({
       return;
     }
     onClearSelection?.();
+  };
+
+  const handleResizeStart = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    element: CanvasElement,
+    handle: ResizeHandle
+  ) => {
+    if (readOnly) return;
+    event.stopPropagation();
+    event.preventDefault();
+    didPanRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeStateRef.current = {
+      elementId: element.id,
+      handle,
+      startPointer: { x: event.clientX, y: event.clientY },
+      startPosition: { ...element.position },
+      aspectRatio:
+        element.type === "image" ? element.position.width / element.position.height : null,
+      startScale: transform.scale,
+      elementType: element.type,
+    };
+    const preview = { elementId: element.id, position: { ...element.position } };
+    resizePreviewRef.current = preview;
+    setResizePreview(preview);
+    setIsResizing(true);
   };
 
   return (
@@ -392,6 +672,12 @@ export function Canvas({
                   isSelected={element.id === selectedElementId}
                   onSelect={handleSelectElement}
                   onImageDoubleClick={onImageDoubleClick}
+                  onResizeStart={handleResizeStart}
+                  showHandles={!readOnly && element.id === selectedElementId}
+                  positionOverride={
+                    resizePreview?.elementId === element.id ? resizePreview.position : undefined
+                  }
+                  isResizing={resizePreview?.elementId === element.id}
                 />
               ))
             ) : (
