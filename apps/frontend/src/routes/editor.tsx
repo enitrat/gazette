@@ -227,6 +227,8 @@ function EditorPage() {
         </div>
       </header>
 
+      <hr className="divider-vintage m-0" />
+
       <div className="flex flex-1">
         {/* Sidebar */}
         <PageSidebar
@@ -312,6 +314,7 @@ function EditorPage() {
         {/* Properties Panel */}
         <aside className="editor-properties hidden w-72 border-l border-sepia/20 bg-parchment p-4 lg:block">
           <h3 className="mb-4 text-ink-effect">Properties</h3>
+          <hr className="divider-vintage" />
           <p className="font-ui text-sm text-muted">Select an element to edit its properties</p>
         </aside>
       </div>

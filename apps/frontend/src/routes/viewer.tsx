@@ -31,6 +31,8 @@ function ViewerPage() {
           </div>
         </div>
 
+        <hr className="divider-double" />
+
         {/* Gazette Display */}
         <div className="aspect-[3/4]">
           <div className="gazette-page h-full w-full rounded-md p-12">
@@ -45,6 +47,8 @@ function ViewerPage() {
             </div>
           </div>
         </div>
+
+        <hr className="divider-vintage" />
 
         {/* Action Buttons */}
         <div className="mt-6 flex justify-center gap-4">
