@@ -24,23 +24,23 @@ export type TemplateOption = {
 export const TEMPLATE_OPTIONS: TemplateOption[] = [
   {
     id: TEMPLATES.MASTHEAD,
-    name: "Masthead",
-    description: "Bold masthead with a hero image and subheading.",
+    name: "Classic Front Page",
+    description: "Lead story with a hero image and stacked headlines.",
   },
   {
     id: TEMPLATES.FULL_PAGE,
-    name: "Full Page",
-    description: "Single hero image with headline and caption.",
+    name: "Magazine Spread",
+    description: "Immersive full-bleed feature for longform reads.",
   },
   {
     id: TEMPLATES.TWO_COLUMNS,
-    name: "Two Columns",
-    description: "Two-column photo spread with captions.",
+    name: "Two Column Feature",
+    description: "Balanced layout for photo + narrative pairing.",
   },
   {
     id: TEMPLATES.THREE_GRID,
-    name: "Three Grid",
-    description: "Three photo grid with captions.",
+    name: "Grid Gallery",
+    description: "Gallery-forward grid for multi-image stories.",
   },
 ];
 
@@ -60,16 +60,26 @@ function TemplatePreview({ templateId }: { templateId: string }) {
         <div className={previewShellClasses}>
           <div className="mb-2 h-3 w-3/4 rounded-sm bg-ink/30" />
           <div className="mb-2 h-2 w-2/3 rounded-sm bg-ink/20" />
-          <div className="mb-2 h-16 w-full rounded-sm bg-ink/10" />
-          <div className="h-2 w-1/2 rounded-sm bg-ink/15" />
+          <div className="mb-2 h-12 w-full rounded-sm bg-ink/10" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-8 rounded-sm bg-ink/15" />
+            <div className="h-8 rounded-sm bg-ink/10" />
+          </div>
         </div>
       );
     case TEMPLATES.FULL_PAGE:
       return (
         <div className={previewShellClasses}>
           <div className="mb-2 h-3 w-2/3 rounded-sm bg-ink/25" />
-          <div className="h-20 w-full rounded-sm bg-ink/10" />
-          <div className="mt-2 h-2 w-1/2 rounded-sm bg-ink/15" />
+          <div className="grid h-24 grid-cols-[2fr_1fr] gap-2">
+            <div className="rounded-sm bg-ink/10" />
+            <div className="flex flex-col gap-2">
+              <div className="h-3 w-full rounded-sm bg-ink/20" />
+              <div className="h-3 w-4/5 rounded-sm bg-ink/15" />
+              <div className="h-3 w-2/3 rounded-sm bg-ink/10" />
+              <div className="mt-auto h-6 rounded-sm bg-ink/15" />
+            </div>
+          </div>
         </div>
       );
     case TEMPLATES.TWO_COLUMNS:
@@ -90,11 +100,12 @@ function TemplatePreview({ templateId }: { templateId: string }) {
       return (
         <div className={previewShellClasses}>
           <div className="mb-2 h-3 w-3/5 rounded-sm bg-ink/25" />
-          <div className="grid h-24 grid-cols-3 gap-2">
+          <div className="grid h-14 grid-cols-3 gap-2">
             <div className="rounded-sm bg-ink/10" />
             <div className="rounded-sm bg-ink/15" />
             <div className="rounded-sm bg-ink/20" />
           </div>
+          <div className="mt-2 h-10 w-full rounded-sm bg-ink/10" />
         </div>
       );
     default:
@@ -162,7 +173,7 @@ export function TemplateDialog({ open, onOpenChange, onCreate }: TemplateDialogP
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2" role="radiogroup">
           {TEMPLATE_OPTIONS.map((template) => {
             const isSelected = template.id === selectedId;
             return (
@@ -170,11 +181,27 @@ export function TemplateDialog({ open, onOpenChange, onCreate }: TemplateDialogP
                 key={template.id}
                 type="button"
                 onClick={() => setSelectedId(template.id)}
+                role="radio"
+                aria-checked={isSelected}
                 className={cn(
-                  "group rounded-sm border border-sepia/20 bg-card p-4 text-left shadow-sm transition-all hover:border-gold hover:shadow-md",
+                  "group relative rounded-sm border border-sepia/20 bg-card p-4 text-left shadow-sm transition-all duration-200 hover:border-gold hover:shadow-md hover:scale-[1.01]",
                   isSelected && "border-gold ring-2 ring-gold/40"
                 )}
               >
+                <span
+                  className={cn(
+                    "absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border border-sepia/30 bg-cream/80 transition-colors",
+                    isSelected && "border-gold bg-gold/20"
+                  )}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={cn(
+                      "h-2.5 w-2.5 rounded-full bg-transparent transition-colors",
+                      isSelected && "bg-gold"
+                    )}
+                  />
+                </span>
                 <TemplatePreview templateId={template.id} />
                 <div className="mt-3 space-y-1">
                   <p className="font-ui text-sm font-semibold text-ink">{template.name}</p>
