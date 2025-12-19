@@ -207,7 +207,7 @@ function EditorPage() {
       activePageId,
       result.image.id,
       position,
-      result.previewUrl || result.image.url,
+      result.image.url || result.previewUrl,
       result.image.width,
       result.image.height
     );
