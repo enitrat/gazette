@@ -5,7 +5,22 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
   type SyntheticEvent,
+  type CSSProperties,
 } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
+  type Modifier,
+} from "@dnd-kit/core";
+import { CSS, type Transform } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import type { CanvasElement, CanvasPage } from "@/types/editor";
 
@@ -22,6 +37,7 @@ type CanvasProps = {
   onImageDoubleClick?: (element: CanvasElement) => void;
   onResizeElement?: (elementId: string, position: CanvasElement["position"]) => void;
   enableGestures?: boolean;
+  onElementPositionChange?: (elementId: string, position: CanvasElement["position"]) => void;
 };
 
 const VIDEO_LOOP_SECONDS = 5;
@@ -228,6 +244,14 @@ function CanvasElementView({
   showHandles,
   positionOverride,
   isResizing,
+  dragAttributes,
+  dragListeners,
+  setNodeRef,
+  dragTransform,
+  isDragging,
+  isPreview = false,
+  isDraggable = false,
+  disableInteractions = false,
 }: {
   element: CanvasElement;
   isSelected: boolean;
@@ -241,15 +265,30 @@ function CanvasElementView({
   showHandles?: boolean;
   positionOverride?: CanvasElement["position"];
   isResizing?: boolean;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: DraggableSyntheticListeners;
+  setNodeRef?: (node: HTMLDivElement | null) => void;
+  dragTransform?: Transform | null;
+  isDragging?: boolean;
+  isPreview?: boolean;
+  isDraggable?: boolean;
+  disableInteractions?: boolean;
 }) {
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const position = positionOverride ?? element.position;
-  const baseStyle: React.CSSProperties = {
-    left: position.x,
-    top: position.y,
-    width: position.width,
-    height: position.height,
-  };
+  const baseStyle: CSSProperties = isPreview
+    ? {
+        width: position.width,
+        height: position.height,
+      }
+    : {
+        left: position.x,
+        top: position.y,
+        width: position.width,
+        height: position.height,
+      };
+  const dragStyle =
+    dragTransform && !isPreview ? { transform: CSS.Translate.toString(dragTransform) } : undefined;
 
   if (element.type === "image") {
     const hasVideo = element.videoUrl && element.videoStatus === "complete";
@@ -271,7 +310,7 @@ function CanvasElementView({
     const scaledHeight = hasDimensions
       ? resolvedHeight * coverScale * cropData.zoom
       : position.height;
-    const imageStyle: React.CSSProperties = hasDimensions
+    const imageStyle: CSSProperties = hasDimensions
       ? {
           width: scaledWidth,
           height: scaledHeight,
@@ -284,22 +323,29 @@ function CanvasElementView({
     return (
       <div
         className={cn(
-          "absolute cursor-pointer overflow-hidden rounded-sm border border-sepia/30 bg-parchment/70 sepia-vintage vintage-shadow",
+          "overflow-hidden rounded-sm border border-sepia/30 bg-parchment/70 sepia-vintage vintage-shadow",
+          isPreview ? "relative" : "absolute",
+          isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
           isSelected && "ring-2 ring-gold/70 ring-offset-2 ring-offset-parchment/80",
-          "relative",
+          isDragging && "opacity-60",
           isResizing && "ring-2 ring-amber-500/60"
         )}
-        style={baseStyle}
+        ref={setNodeRef}
+        style={{ ...baseStyle, ...dragStyle }}
         onClick={(event) => {
+          if (disableInteractions) return;
           event.stopPropagation();
           onSelect?.(element.id);
         }}
         onDoubleClick={(event) => {
+          if (disableInteractions) return;
           event.stopPropagation();
           if (onImageDoubleClick && hasImage) {
             onImageDoubleClick(element);
           }
         }}
+        {...dragAttributes}
+        {...dragListeners}
       >
         {hasVideo ? (
           <LoopingVideo
@@ -375,17 +421,24 @@ function CanvasElementView({
   return (
     <div
       className={cn(
-        "absolute cursor-pointer leading-snug relative",
+        "leading-snug",
+        isPreview ? "relative" : "absolute",
+        isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         textClass,
         isSelected && "rounded-sm border border-gold/60 bg-cream/60 px-1 py-0.5",
         "ink-bleed",
+        isDragging && "opacity-60",
         isResizing && "ring-2 ring-amber-500/60"
       )}
-      style={baseStyle}
+      ref={setNodeRef}
+      style={{ ...baseStyle, ...dragStyle }}
       onClick={(event) => {
+        if (disableInteractions) return;
         event.stopPropagation();
         onSelect?.(element.id);
       }}
+      {...dragAttributes}
+      {...dragListeners}
     >
       {element.content}
       {showHandles && onResizeStart ? (
@@ -425,10 +478,14 @@ export function Canvas({
   onClearSelection,
   onImageDoubleClick,
   enableGestures = false,
+  onElementPositionChange,
+  onResizeElement,
 }: CanvasProps) {
   const elements = useMemo(() => page?.elements ?? [], [page]);
   const hasElements = elements.length > 0;
   const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const gestureRef = useRef({
     startScale: 1,
@@ -438,6 +495,7 @@ export function Canvas({
     startPointer: { x: 0, y: 0 },
   });
   const didPanRef = useRef(false);
+  const didDragRef = useRef(false);
   const gesturesActive = enableGestures || readOnly;
   const resizeStateRef = useRef<ResizeState | null>(null);
   const [resizePreview, setResizePreview] = useState<{
@@ -449,11 +507,20 @@ export function Canvas({
     position: CanvasElement["position"];
   } | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 4,
+      },
+    })
+  );
 
   useEffect(() => {
     setTransform({ scale: 1, x: 0, y: 0 });
     pointersRef.current.clear();
     didPanRef.current = false;
+    didDragRef.current = false;
+    setActiveDragId(null);
     resizeStateRef.current = null;
     setResizePreview(null);
     resizePreviewRef.current = null;
@@ -593,6 +660,10 @@ export function Canvas({
       didPanRef.current = false;
       return;
     }
+    if (didDragRef.current) {
+      didDragRef.current = false;
+      return;
+    }
     onClearSelection?.();
   };
 
@@ -621,6 +692,78 @@ export function Canvas({
     setResizePreview(preview);
     setIsResizing(true);
   };
+
+  const activeDragElement = useMemo(
+    () => elements.find((element) => element.id === activeDragId) ?? null,
+    [activeDragId, elements]
+  );
+
+  const getCanvasBounds = () => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    const scale = transform.scale || 1;
+    return {
+      width: rect.width / scale,
+      height: rect.height / scale,
+    };
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const nextId = String(event.active.id);
+    setActiveDragId(nextId);
+    didDragRef.current = true;
+    onSelectElement?.(nextId);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, delta } = event;
+    setActiveDragId(null);
+    if (!active) return;
+
+    const elementId = String(active.id);
+    const element = elements.find((item) => item.id === elementId);
+    if (!element) return;
+
+    const scale = transform.scale || 1;
+    const nextX = element.position.x + delta.x / scale;
+    const nextY = element.position.y + delta.y / scale;
+    const bounds = getCanvasBounds();
+    const maxX = bounds ? Math.max(0, bounds.width - element.position.width) : null;
+    const maxY = bounds ? Math.max(0, bounds.height - element.position.height) : null;
+    const clampedX = bounds ? clamp(nextX, 0, maxX ?? nextX) : nextX;
+    const clampedY = bounds ? clamp(nextY, 0, maxY ?? nextY) : nextY;
+
+    if (clampedX === element.position.x && clampedY === element.position.y) {
+      return;
+    }
+
+    onElementPositionChange?.(elementId, {
+      ...element.position,
+      x: clampedX,
+      y: clampedY,
+    });
+  };
+
+  const handleDragCancel = () => {
+    setActiveDragId(null);
+    didDragRef.current = false;
+  };
+
+  const restrictToCanvas: Modifier = ({ transform: dragTransform, activeNodeRect }) => {
+    if (!canvasRef.current || !activeNodeRect) return dragTransform;
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const minX = canvasRect.left - activeNodeRect.left;
+    const minY = canvasRect.top - activeNodeRect.top;
+    const maxX = canvasRect.right - activeNodeRect.right;
+    const maxY = canvasRect.bottom - activeNodeRect.bottom;
+    return {
+      ...dragTransform,
+      x: clamp(dragTransform.x, minX, maxX),
+      y: clamp(dragTransform.y, minY, maxY),
+    };
+  };
+
+  const isDragEnabled = !readOnly && !isResizing;
 
   return (
     <div
@@ -657,37 +800,114 @@ export function Canvas({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          <div
-            className="h-full w-full"
-            style={{
-              transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
-              transformOrigin: "top left",
-            }}
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+            modifiers={isDragEnabled ? [restrictToCanvas] : undefined}
           >
-            {hasElements ? (
-              elements.map((element) => (
-                <CanvasElementView
-                  key={element.id}
-                  element={element}
-                  isSelected={element.id === selectedElementId}
-                  onSelect={handleSelectElement}
-                  onImageDoubleClick={onImageDoubleClick}
-                  onResizeStart={handleResizeStart}
-                  showHandles={!readOnly && element.id === selectedElementId}
-                  positionOverride={
-                    resizePreview?.elementId === element.id ? resizePreview.position : undefined
-                  }
-                  isResizing={resizePreview?.elementId === element.id}
-                />
-              ))
-            ) : (
-              <div className="flex h-full items-center justify-center text-center text-sm text-muted">
-                {emptyState}
-              </div>
-            )}
-          </div>
+            <div
+              ref={canvasRef}
+              className="h-full w-full"
+              style={{
+                transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
+                transformOrigin: "top left",
+              }}
+            >
+              {hasElements ? (
+                elements.map((element) => (
+                  <DraggableCanvasElement
+                    key={element.id}
+                    element={element}
+                    isSelected={element.id === selectedElementId}
+                    onSelect={handleSelectElement}
+                    onImageDoubleClick={onImageDoubleClick}
+                    onResizeStart={handleResizeStart}
+                    showHandles={!readOnly && element.id === selectedElementId}
+                    positionOverride={
+                      resizePreview?.elementId === element.id ? resizePreview.position : undefined
+                    }
+                    isResizing={resizePreview?.elementId === element.id}
+                    isDragEnabled={isDragEnabled}
+                    isActiveDrag={element.id === activeDragId}
+                  />
+                ))
+              ) : (
+                <div className="flex h-full items-center justify-center text-center text-sm text-muted">
+                  {emptyState}
+                </div>
+              )}
+            </div>
+            <DragOverlay>
+              {activeDragElement ? (
+                <div className="pointer-events-none opacity-80">
+                  <CanvasElementView
+                    element={activeDragElement}
+                    isSelected={false}
+                    isPreview
+                    isDraggable={false}
+                    disableInteractions
+                  />
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       </div>
     </div>
+  );
+}
+
+function DraggableCanvasElement({
+  element,
+  isSelected,
+  onSelect,
+  onImageDoubleClick,
+  onResizeStart,
+  showHandles,
+  positionOverride,
+  isResizing,
+  isDragEnabled,
+  isActiveDrag,
+}: {
+  element: CanvasElement;
+  isSelected: boolean;
+  onSelect?: (elementId: string) => void;
+  onImageDoubleClick?: (element: CanvasElement) => void;
+  onResizeStart?: (
+    event: ReactPointerEvent<HTMLDivElement>,
+    element: CanvasElement,
+    handle: ResizeHandle
+  ) => void;
+  showHandles?: boolean;
+  positionOverride?: CanvasElement["position"];
+  isResizing?: boolean;
+  isDragEnabled: boolean;
+  isActiveDrag: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: element.id,
+    disabled: !isDragEnabled,
+  });
+
+  return (
+    <CanvasElementView
+      element={element}
+      isSelected={isSelected}
+      onSelect={onSelect}
+      onImageDoubleClick={onImageDoubleClick}
+      onResizeStart={onResizeStart}
+      showHandles={showHandles}
+      positionOverride={positionOverride}
+      isResizing={isResizing}
+      dragAttributes={attributes}
+      dragListeners={listeners}
+      setNodeRef={setNodeRef}
+      dragTransform={transform}
+      isDragging={isDragging}
+      isDraggable={isDragEnabled}
+      disableInteractions={isDragging || isActiveDrag}
+    />
   );
 }

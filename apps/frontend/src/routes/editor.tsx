@@ -172,9 +172,9 @@ function EditorPage() {
     }
   };
 
-  const handleResizeElement = async (
+  const handleElementPositionChange = async (
     elementId: string,
-    position: { x: number; y: number; width: number; height: number }
+    position: CanvasElement["position"]
   ) => {
     if (!activePageId) return;
 
@@ -183,6 +183,7 @@ function EditorPage() {
       element.id === elementId ? { ...element, position } : element
     );
     setElementsForPage(activePageId, nextElements);
+    setSelectedElementId(elementId);
 
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(elementId);
@@ -341,7 +342,8 @@ function EditorPage() {
               onSelectElement={setSelectedElementId}
               onClearSelection={() => setSelectedElementId(null)}
               onImageDoubleClick={handleImageDoubleClick}
-              onResizeElement={handleResizeElement}
+              onElementPositionChange={handleElementPositionChange}
+              onResizeElement={handleElementPositionChange}
               enableGestures
             />
           </div>
