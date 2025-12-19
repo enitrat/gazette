@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
+    "dev:worker": "bun run --hot src/queue/worker.ts",
     "build": "bun build src/index.ts --outdir ./dist --target bun",
     "start": "bun run dist/index.js",
+    "worker": "bun run src/queue/worker.ts",
     "test": "bun test",
     "lint": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
@@ -19,8 +21,10 @@
   "dependencies": {
     "@gazette/shared": "workspace:*",
     "@hono/zod-validator": "^0.7.6",
+    "bullmq": "^5.25.0",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.1",
+    "ioredis": "^5.4.1",
     "sharp": "^0.33.5",
     "zod": "^4.2.1"
   },

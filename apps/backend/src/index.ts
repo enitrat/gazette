@@ -9,6 +9,7 @@ import { projectsRouter } from "./routes/projects";
 import { imagesRouter } from "./routes/images";
 import { elementsRouter } from "./routes/elements";
 import { templatesRouter } from "./routes/templates";
+import { generationRouter } from "./routes/generation";
 import pagesRouter from "./routes/pages";
 import { systemRouter } from "./features/system/router";
 import { viewRouter } from "./routes/view";
@@ -44,6 +45,7 @@ app.route("/api", templatesRouter);
 app.route("/api", imagesRouter);
 app.route("/api", elementsRouter);
 app.route("/api", viewRouter);
+app.route("/api", generationRouter);
 app.route("/", systemRouter);
 
 // 404 handler
