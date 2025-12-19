@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
+import { Canvas } from "@/components/Canvas";
 import { PageSidebar } from "@/components/PageSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
 import { TemplateDialog } from "@/components/TemplateDialog";
@@ -30,6 +31,10 @@ function EditorPage() {
   const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
+  const activePage = useMemo(
+    () => pages.find((page) => page.id === activePageId) ?? null,
+    [activePageId, pages]
+  );
 
   useEffect(() => {
     if (!pageId && pages.length > 0) {
@@ -132,11 +137,23 @@ function EditorPage() {
             </Button>
           </div>
           <div className="mx-auto aspect-[3/4] max-w-2xl">
-            <div key={canvasRefreshKey} className="gazette-page h-full w-full rounded-md p-8">
-              <p className="text-center font-subheading text-muted">
-                {activePageId ? "Click to add elements to your gazette" : "Select a page to begin"}
-              </p>
-            </div>
+            <Canvas
+              key={canvasRefreshKey}
+              page={
+                activePage
+                  ? {
+                      id: activePage.id,
+                      title: activePage.title,
+                      subtitle: activePage.subtitle,
+                      elements: [],
+                    }
+                  : null
+              }
+              className="h-full w-full"
+              emptyState={
+                activePageId ? "Click to add elements to your gazette." : "Select a page."
+              }
+            />
           </div>
         </main>
 
