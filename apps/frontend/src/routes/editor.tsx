@@ -118,7 +118,7 @@ function EditorPage() {
         width: 320,
         height: 240,
       },
-      imageUrl: result.previewUrl || result.image.url,
+      imageUrl: result.image.url,
       imageWidth: result.image.width,
       imageHeight: result.image.height,
       videoStatus: "none",
