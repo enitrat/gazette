@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { Canvas } from "@/components/Canvas";
+import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { PageSidebar } from "@/components/PageSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -10,7 +11,6 @@ import { GenerationProgressDialog } from "@/components/GenerationProgressDialog"
 import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
 import { ImageEditDialog } from "@/components/ImageEditDialog";
 import { Button } from "@/components/ui/button";
-import { api, parseApiError } from "@/lib/api";
 import { getAuthSession } from "@/lib/auth";
 import { useElementsStore } from "@/stores/elements-store";
 import { usePagesStore } from "@/stores/pages-store";
@@ -49,10 +49,11 @@ function EditorPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const elementsByPage = useElementsStore((state) => state.elementsByPage);
   const fetchElements = useElementsStore((state) => state.fetchElements);
-  const setElementsForPage = useElementsStore((state) => state.setElementsForPage);
   const createImageElement = useElementsStore((state) => state.createImageElement);
   const selectedElementId = useElementsStore((state) => state.selectedElementId);
   const setSelectedElementId = useElementsStore((state) => state.setSelectedElementId);
+  const selectElement = useElementsStore((state) => state.selectElement);
+  const updateElement = useElementsStore((state) => state.updateElement);
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
   const activePage = useMemo(
@@ -152,29 +153,7 @@ function EditorPage() {
   ) => {
     if (!activePageId) return;
 
-    const pageElements = elementsByPage[activePageId] ?? [];
-    const nextElements = pageElements.map((element) =>
-      element.id === elementId ? { ...element, cropData } : element
-    );
-    setElementsForPage(activePageId, nextElements);
-
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(elementId);
-
-    if (!projectId || !isUuid) {
-      return;
-    }
-
-    try {
-      await api.put(`elements/${elementId}`, {
-        json: {
-          cropData,
-        },
-      });
-    } catch (error) {
-      const parsed = await parseApiError(error);
-      throw new Error(parsed.message);
-    }
+    updateElement(activePageId, elementId, { cropData }, { immediate: true });
   };
 
   const handleElementPositionChange = async (
@@ -183,30 +162,8 @@ function EditorPage() {
   ) => {
     if (!activePageId) return;
 
-    const pageElements = elementsByPage[activePageId] ?? [];
-    const nextElements = pageElements.map((element) =>
-      element.id === elementId ? { ...element, position } : element
-    );
-    setElementsForPage(activePageId, nextElements);
-    setSelectedElementId(elementId);
-
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(elementId);
-
-    if (!projectId || !isUuid) {
-      return;
-    }
-
-    try {
-      await api.put(`elements/${elementId}`, {
-        json: {
-          position,
-        },
-      });
-    } catch (error) {
-      const parsed = await parseApiError(error);
-      console.error(parsed.message);
-    }
+    updateElement(activePageId, elementId, { position });
+    selectElement(elementId);
   };
 
   return (
@@ -349,8 +306,8 @@ function EditorPage() {
                   : "Every story begins with a blank page. Add your first."
               }
               selectedElementId={selectedElementId}
-              onSelectElement={setSelectedElementId}
-              onClearSelection={() => setSelectedElementId(null)}
+              onSelectElement={selectElement}
+              onClearSelection={() => selectElement(null)}
               onImageDoubleClick={handleImageDoubleClick}
               onElementPositionChange={handleElementPositionChange}
               onResizeElement={handleElementPositionChange}
@@ -360,11 +317,11 @@ function EditorPage() {
         </main>
 
         {/* Properties Panel */}
-        <aside className="editor-properties hidden w-72 border-l border-sepia/20 bg-parchment p-4 lg:block">
-          <h3 className="mb-4 font-headline text-ink-effect">Properties</h3>
-          <hr className="divider-vintage" />
-          <p className="font-ui text-sm text-muted">Select an element to edit its properties</p>
-        </aside>
+        <PropertiesPanel
+          pageId={activePageId}
+          elements={activeElements}
+          onEditImage={handleImageDoubleClick}
+        />
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-sepia/30 bg-parchment/95 px-3 py-2 backdrop-blur md:hidden">
