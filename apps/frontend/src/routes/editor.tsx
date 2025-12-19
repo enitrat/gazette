@@ -4,7 +4,7 @@ import type { Template } from "@gazette/shared";
 import { CanvasHeader } from "@/components/editor/CanvasHeader";
 import { CanvasViewport } from "@/components/editor/CanvasViewport";
 import { TopNavbar } from "@/components/editor/TopNavbar";
-import { EditorToolbar } from "@/components/EditorToolbar";
+import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { LeftSidebar } from "@/components/editor/LeftSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
@@ -471,6 +471,7 @@ function EditorPage() {
         disableAddText={!activePageId}
         disableGenerate={!projectId || isGeneratingAll}
         disableSave={!projectId}
+        isGenerating={isGeneratingAll}
       />
 
       <hr className="divider-vintage m-0" />
