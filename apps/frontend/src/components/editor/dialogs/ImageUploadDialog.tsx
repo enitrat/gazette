@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { IMAGE_CONSTRAINTS } from "@gazette/shared/constants";
+import { UploadCloud } from "lucide-react";
 import { apiBaseUrl } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,15 @@ type ImageUploadDialogProps = {
 };
 
 const MAX_MB = Math.round(IMAGE_CONSTRAINTS.MAX_FILE_SIZE / (1024 * 1024));
+
+const formatFileSize = (bytes: number) => {
+  if (!Number.isFinite(bytes)) return "0KB";
+  if (bytes < 1024) return `${bytes}B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)}KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)}MB`;
+};
 
 export function ImageUploadDialog({
   open,
@@ -260,59 +270,97 @@ export function ImageUploadDialog({
                 setIsDragging(true);
               }
             }}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              setIsDragging(true);
+            }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             className={cn(
-              "relative flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-[8px] border-2 border-dashed border-sepia/40 bg-cream/70 p-6 text-center transition",
+              "relative flex min-h-[260px] flex-col items-center justify-center gap-3 overflow-hidden rounded-[8px] border-2 border-dashed border-sepia/40 bg-cream/70 p-6 text-center transition-all duration-300",
               !isUploading && "cursor-pointer",
-              isDragging && "border-gold bg-parchment/90"
+              isDragging && "border-gold bg-parchment/90 shadow-[0_0_0_1px_rgba(160,120,10,0.25)]"
             )}
           >
+            <div
+              className={cn(
+                "pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300",
+                isDragging && "opacity-100"
+              )}
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.22),transparent_60%)] animate-pulse" />
+              <div className="absolute -inset-12 bg-[conic-gradient(from_180deg,rgba(212,175,55,0.14),transparent_40%,rgba(212,175,55,0.14))] opacity-60" />
+            </div>
+
             {showPreview ? (
-              <div className="flex w-full flex-col items-center gap-3">
+              <div className="relative z-10 flex w-full flex-col items-center gap-3">
                 <img
                   src={previewUrl}
                   alt="Selected upload preview"
                   className="max-h-56 w-full rounded-[6px] object-contain shadow-sm"
                 />
                 <div className="text-xs text-muted">
-                  {selectedFile?.name} • {selectedFile ? Math.round(selectedFile.size / 1024) : 0}KB
+                  {selectedFile?.name} • {selectedFile ? formatFileSize(selectedFile.size) : "0KB"}
                 </div>
                 {!isUploading ? (
                   <div className="text-xs text-sepia">Click to choose another image</div>
                 ) : null}
               </div>
             ) : (
-              <>
-                <div className="text-4xl" aria-hidden="true">
-                  📷
-                </div>
-                <div className="text-base font-semibold text-ink">
-                  Drop image here or click to browse
-                </div>
+              <div className="relative z-10 flex flex-col items-center gap-2">
+                <UploadCloud
+                  className={cn(
+                    "h-10 w-10 text-sepia transition-transform duration-300",
+                    isDragging && "scale-110 text-gold"
+                  )}
+                  aria-hidden="true"
+                />
+                <div className="text-base text-ink">Drop image here</div>
+                <div className="text-xs text-muted">or click to browse</div>
                 <div className="text-xs text-muted">
                   Supports: JPG, PNG, WebP | Max size: {MAX_MB}MB
                 </div>
-              </>
+              </div>
             )}
           </div>
 
+          <div className="text-xs text-muted">
+            You can also paste an image from clipboard (Ctrl+V)
+          </div>
+
           {isUploading ? (
-            <div className="space-y-2 rounded-[8px] border border-sepia/20 bg-cream/70 p-3">
+            <div className="space-y-2 rounded-sm border border-sepia/20 bg-white/70 p-3">
               <div className="flex items-center justify-between text-xs text-muted">
-                <span>Uploading image...</span>
+                <span className="text-ink">
+                  Uploading {selectedFile ? selectedFile.name : "image"}
+                </span>
                 <span>{progress}%</span>
               </div>
-              <Progress value={progress} />
+              <div className="text-[11px] text-muted">
+                {selectedFile ? formatFileSize(selectedFile.size) : "0KB"}
+              </div>
+              <Progress
+                value={progress}
+                className="h-2 bg-sepia/20 [&>div]:bg-gold [&>div]:transition-all [&>div]:duration-500"
+              />
             </div>
           ) : null}
 
           {errorMessage ? (
             <div
               role="alert"
-              className="rounded-[8px] border border-aged-red/40 bg-white/60 p-3 text-xs text-aged-red"
+              className="flex items-center justify-between gap-3 rounded-sm border border-aged-red/40 bg-aged-red/10 p-3 text-xs text-aged-red"
             >
-              {errorMessage}
+              <span>{errorMessage}</span>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-aged-red/40 text-aged-red hover:bg-aged-red/10"
+                onClick={handleUpload}
+                disabled={!selectedFile || isUploading}
+              >
+                Retry
+              </Button>
             </div>
           ) : null}
 
