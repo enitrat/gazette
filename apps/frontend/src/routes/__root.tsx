@@ -1,5 +1,5 @@
 import { createRootRoute, Link, Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/router-devtools";
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useState } from "react";
 import { getAuthSession, clearAuthSession } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,7 @@ function RootLayout() {
       <main>
         <Outlet />
       </main>
-      <TanStackRouterDevtools />
+      {import.meta.env.DEV ? <TanStackRouterDevtools /> : null}
     </div>
   );
 }
