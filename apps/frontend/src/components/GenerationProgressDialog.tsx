@@ -12,7 +12,9 @@ import { Button } from "@/components/ui/button";
 import { api, parseApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const POLL_INTERVAL_MS = 3000;
+// Polling intervals based on activity state
+const POLL_INTERVAL_ACTIVE_MS = 5000; // 5 seconds when there are active jobs
+const POLL_INTERVAL_IDLE_MS = 30000; // 30 seconds as fallback (rarely used)
 
 type GenerationProgressDialogProps = {
   projectId?: string;
@@ -135,18 +137,28 @@ export function GenerationProgressDialog({
     }
   };
 
-  const shouldPoll = Boolean(projectId) && (open || autoOpen);
+  const hasActiveJobs = Boolean(status && (status.processing > 0 || status.queued > 0));
+
+  // Only poll when:
+  // 1. We have a projectId
+  // 2. Dialog is open or autoOpen is enabled
+  // 3. There are active jobs (queued or processing)
+  const shouldPoll = Boolean(projectId) && (open || autoOpen) && hasActiveJobs;
 
   useEffect(() => {
-    if (!shouldPoll) return;
+    // Always fetch status once when projectId or dialog visibility changes
+    if (!projectId || !(open || autoOpen)) return;
     void fetchStatus();
+
+    // Only set up polling interval if there are active jobs
+    if (!shouldPoll) return;
+
+    const pollInterval = hasActiveJobs ? POLL_INTERVAL_ACTIVE_MS : POLL_INTERVAL_IDLE_MS;
     const id = window.setInterval(() => {
       void fetchStatus();
-    }, POLL_INTERVAL_MS);
+    }, pollInterval);
     return () => window.clearInterval(id);
-  }, [projectId, shouldPoll]);
-
-  const hasActiveJobs = Boolean(status && (status.processing > 0 || status.queued > 0));
+  }, [projectId, shouldPoll, hasActiveJobs]);
   const isComplete = isGenerationComplete(status);
 
   useEffect(() => {
