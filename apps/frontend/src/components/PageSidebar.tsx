@@ -12,6 +12,7 @@ type PageSidebarProps = {
   activePageId?: string | null;
   onSelectPage: (pageId: string) => void;
   onRequestNewPage?: () => void;
+  className?: string;
 };
 
 const TEMPLATE_PREVIEW_STYLES: Record<Template, string> = {
@@ -64,6 +65,7 @@ export function PageSidebar({
   activePageId,
   onSelectPage,
   onRequestNewPage,
+  className,
 }: PageSidebarProps) {
   const { pages, isLoading, error, fetchPages, createPage } = usePagesStore();
   const [isCreating, setIsCreating] = useState(false);
@@ -97,7 +99,7 @@ export function PageSidebar({
   };
 
   return (
-    <aside className="w-72 border-r border-sepia/20 bg-parchment/95 p-4">
+    <aside className={cn("w-72 border-r border-sepia/20 bg-parchment/95 p-4", className)}>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-ink-effect">Pages</h3>
         <span className="font-ui text-xs text-muted">{sortedPages.length} total</span>
