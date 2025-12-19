@@ -17,9 +17,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Loader2, Plus, X } from "lucide-react";
+import { GripVertical, Loader2, Newspaper, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { usePagesStore, type PageSummary } from "@/stores/pages-store";
 import { toast } from "@/components/ui/use-toast";
@@ -36,41 +38,82 @@ type PageSidebarProps = {
 const TEMPLATE_PREVIEW_STYLES: Record<Template, string> = {
   [TEMPLATES.MASTHEAD]: "grid-rows-[auto_auto_1fr_auto]",
   [TEMPLATES.FULL_PAGE]: "grid-rows-[auto_1fr_auto]",
-  [TEMPLATES.TWO_COLUMNS]: "grid-cols-2",
-  [TEMPLATES.THREE_GRID]: "grid-cols-3",
+  [TEMPLATES.TWO_COLUMNS]: "grid-cols-2 grid-rows-[auto_1fr]",
+  [TEMPLATES.THREE_GRID]: "grid-cols-3 grid-rows-[auto_1fr]",
 };
 
-function PagePreview({ templateId }: { templateId: Template }) {
+const TEMPLATE_ACCENTS: Record<Template, string> = {
+  [TEMPLATES.MASTHEAD]: "bg-gold/70",
+  [TEMPLATES.FULL_PAGE]: "bg-sepia/40",
+  [TEMPLATES.TWO_COLUMNS]: "bg-sepia/30",
+  [TEMPLATES.THREE_GRID]: "bg-sepia/25",
+};
+
+function PagePreview({
+  templateId,
+  title,
+  subtitle,
+}: {
+  templateId: Template;
+  title?: string;
+  subtitle?: string;
+}) {
   const layout = TEMPLATE_PREVIEW_STYLES[templateId];
+  const previewTitle = title?.trim() || "Untitled";
+  const previewSubtitle = subtitle?.trim() || TEMPLATE_NAMES[templateId];
+  const titleSnippet = previewTitle.slice(0, 18);
+  const subtitleSnippet = previewSubtitle.slice(0, 20);
 
   return (
-    <div className="h-14 w-10 rounded-sm border border-sepia/30 bg-cream p-1 shadow-[inset_0_0_0_1px_rgba(92,64,51,0.08)]">
+    <div className="relative h-20 w-14 overflow-hidden rounded-md border border-sepia/30 bg-cream/95 p-1 shadow-[inset_0_0_0_1px_rgba(92,64,51,0.08)]">
+      <span
+        className={cn(
+          "absolute right-1 top-1 h-1.5 w-1.5 rounded-full shadow-[0_0_0_1px_rgba(92,64,51,0.18)]",
+          TEMPLATE_ACCENTS[templateId]
+        )}
+        aria-hidden="true"
+      />
       <div className={cn("grid h-full w-full gap-1", layout)}>
-        <div className="h-1.5 rounded-[1px] bg-sepia/40" />
+        <div className="col-span-full rounded-[2px] bg-sepia/30 px-0.5 py-0.5 text-[5px] leading-[1.1] text-ink/70">
+          {titleSnippet}
+        </div>
         {templateId === TEMPLATES.MASTHEAD && (
           <>
-            <div className="h-1 rounded-[1px] bg-sepia/30" />
-            <div className="rounded-[1px] bg-sepia/15" />
-            <div className="h-1 rounded-[1px] bg-sepia/20" />
+            <div className="rounded-[2px] bg-sepia/20 px-0.5 py-0.5 text-[5px] leading-[1.1] text-ink/60">
+              {subtitleSnippet}
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              <div className="rounded-[2px] bg-sepia/15" />
+              <div className="rounded-[2px] bg-sepia/20" />
+            </div>
+            <div className="h-1.5 rounded-[2px] bg-sepia/25" />
           </>
         )}
         {templateId === TEMPLATES.FULL_PAGE && (
           <>
-            <div className="rounded-[1px] bg-sepia/15" />
-            <div className="h-1 rounded-[1px] bg-sepia/30" />
+            <div className="rounded-[2px] bg-sepia/15" />
+            <div className="rounded-[2px] bg-sepia/25 px-0.5 py-0.5 text-[5px] leading-[1.1] text-ink/60">
+              {subtitleSnippet}
+            </div>
           </>
         )}
         {templateId === TEMPLATES.TWO_COLUMNS && (
           <>
-            <div className="rounded-[1px] bg-sepia/15" />
-            <div className="rounded-[1px] bg-sepia/20" />
+            <div className="grid grid-rows-[1fr_auto] gap-1 rounded-[2px] bg-sepia/15 p-0.5">
+              <div className="rounded-[2px] bg-sepia/10" />
+              <div className="text-[5px] leading-[1.1] text-ink/60">{subtitleSnippet}</div>
+            </div>
+            <div className="grid grid-rows-[auto_1fr] gap-1 rounded-[2px] bg-sepia/20 p-0.5">
+              <div className="text-[5px] leading-[1.1] text-ink/60">{titleSnippet}</div>
+              <div className="rounded-[2px] bg-sepia/10" />
+            </div>
           </>
         )}
         {templateId === TEMPLATES.THREE_GRID && (
           <>
-            <div className="rounded-[1px] bg-sepia/15" />
-            <div className="rounded-[1px] bg-sepia/25" />
-            <div className="rounded-[1px] bg-sepia/25" />
+            <div className="rounded-[2px] bg-sepia/15" />
+            <div className="rounded-[2px] bg-sepia/25" />
+            <div className="rounded-[2px] bg-sepia/20" />
           </>
         )}
       </div>
@@ -107,8 +150,8 @@ function SortablePageRow({ page, isActive, onSelectPage }: SortablePageRowProps)
       className={cn(
         "flex items-center gap-2 rounded-md border px-3 py-2 transition-all",
         isActive
-          ? "border-gold bg-cream shadow-[0_0_0_1px_rgba(193,154,107,0.35)]"
-          : "border-sepia/30 bg-cream/80 hover:border-gold/60 hover:bg-cream",
+          ? "border-gold bg-cream shadow-[0_0_0_2px_rgba(201,162,39,0.35),0_10px_20px_-16px_rgba(60,40,28,0.8)] ring-2 ring-gold/30 motion-safe:animate-[pulse_0.6s_ease-out_1]"
+          : "border-sepia/30 bg-cream/80 hover:border-gold/60 hover:bg-cream hover:shadow-[0_6px_14px_-12px_rgba(60,40,28,0.7)]",
         isDragging && "opacity-60"
       )}
     >
@@ -118,7 +161,7 @@ function SortablePageRow({ page, isActive, onSelectPage }: SortablePageRowProps)
         type="button"
         className="h-auto flex-1 justify-start gap-3 px-0 py-0 text-left"
       >
-        <PagePreview templateId={page.templateId} />
+        <PagePreview templateId={page.templateId} title={page.title} subtitle={page.subtitle} />
         <div className="flex flex-1 flex-col justify-center">
           <p className="font-ui text-sm font-medium text-ink">
             {page.title.trim() || `Page ${page.order + 1}`}
@@ -126,9 +169,12 @@ function SortablePageRow({ page, isActive, onSelectPage }: SortablePageRowProps)
           <p className="font-ui text-xs text-muted">
             {page.subtitle.trim() || TEMPLATE_NAMES[page.templateId]}
           </p>
+          <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-full border border-sepia/30 bg-parchment px-2 py-0.5 font-ui text-[10px] uppercase tracking-[0.12em] text-sepia/70">
+            {TEMPLATE_NAMES[page.templateId]}
+          </span>
         </div>
         <span className="flex items-start font-ui text-[11px] text-muted">
-          {page.elementCount ?? 0}
+          {(page.elementCount ?? 0).toString()}
         </span>
       </Button>
       <button
@@ -262,12 +308,20 @@ export function PageSidebar({
       {projectId && (
         <div className="space-y-3">
           {isLoading && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, index) => (
-                <Card
+                <div
                   key={`page-skeleton-${index}`}
-                  className="h-16 animate-pulse border-sepia/20 bg-cream/70 shadow-none"
-                />
+                  className="flex items-center gap-3 rounded-md border border-sepia/20 bg-cream/70 px-3 py-2"
+                >
+                  <Skeleton className="h-20 w-14 rounded-md bg-sepia/15" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-28 bg-sepia/20" />
+                    <Skeleton className="h-2 w-20 bg-sepia/15" />
+                    <Skeleton className="h-2 w-16 bg-sepia/15" />
+                  </div>
+                  <Skeleton className="h-4 w-8 bg-sepia/15" />
+                </div>
               ))}
             </div>
           )}
@@ -280,30 +334,40 @@ export function PageSidebar({
 
           {!isLoading && sortedPages.length === 0 && (
             <Card className="border-dashed border-muted/60 bg-cream/60 shadow-none">
-              <CardContent className="p-3 font-ui text-xs text-muted">
-                Every story begins with a blank page. Add your first.
+              <CardContent className="flex flex-col items-center gap-3 p-4 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-sepia/30 bg-parchment/70 text-sepia shadow-[inset_0_0_0_1px_rgba(92,64,51,0.08)]">
+                  <Newspaper className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-ui text-xs text-muted">
+                    Every story begins with a blank page. Add your first.
+                  </p>
+                  <div className="mx-auto h-px w-12 bg-sepia/30" aria-hidden="true" />
+                </div>
               </CardContent>
             </Card>
           )}
 
           {!isLoading && sortedPages.length > 0 && (
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-              <SortableContext
-                items={sortedPages.map((page) => page.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-3">
-                  {sortedPages.map((page) => (
-                    <SortablePageRow
-                      key={page.id}
-                      page={page}
-                      isActive={page.id === activePageId}
-                      onSelectPage={onSelectPage}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+            <ScrollArea className="max-h-[60vh] pr-2">
+              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                <SortableContext
+                  items={sortedPages.map((page) => page.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3 pb-2">
+                    {sortedPages.map((page) => (
+                      <SortablePageRow
+                        key={page.id}
+                        page={page}
+                        isActive={page.id === activePageId}
+                        onSelectPage={onSelectPage}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </ScrollArea>
           )}
         </div>
       )}
@@ -312,8 +376,8 @@ export function PageSidebar({
         type="button"
         onClick={handleCreatePage}
         disabled={!projectId || isCreating}
-        variant="ghost"
-        className="mt-4 w-full gap-2 border border-dashed border-muted/60 bg-transparent px-3 py-2 text-muted hover:border-gold hover:text-sepia"
+        variant="outline"
+        className="mt-4 w-full gap-2 border-2 border-dashed border-sepia/40 bg-cream/70 px-3 py-3 text-sepia transition-all hover:-translate-y-0.5 hover:border-gold hover:bg-cream hover:text-ink hover:shadow-[0_8px_16px_-12px_rgba(60,40,28,0.8)]"
       >
         {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         {isCreating ? "Creating..." : "New Page"}
