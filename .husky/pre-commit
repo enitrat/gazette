@@ -1,2 +1,3 @@
+bun install
 bunx lint-staged
 bun run typecheck
