@@ -12,6 +12,7 @@ import { db } from "../../db";
 import { images, projects } from "../../db/schema";
 import { ERROR_CODES, IMAGE_CONSTRAINTS } from "@gazette/shared";
 import { errorResponse } from "../shared/http";
+import { analyzeImage } from "../../lib/gemini-client";
 
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
@@ -89,6 +90,8 @@ const safeUnlink = async (filePath: string) => {
 export const imagesRouter = new Hono();
 
 imagesRouter.use("/projects/:id/images", requireAuth);
+imagesRouter.use("/images/:id/analyze", requireAuth);
+imagesRouter.use("/images/:id/analyze", requireAuth);
 
 // Upload an image
 imagesRouter.post("/projects/:id/images", async (c) => {
@@ -295,4 +298,37 @@ imagesRouter.get("/images/:id/file", requireAuth, async (c) => {
   return c.body(file.stream(), 200, {
     "Content-Type": image.mimeType,
   });
+});
+
+// Analyze image for animation suggestions
+imagesRouter.post("/images/:id/analyze", async (c) => {
+  const imageId = c.req.param("id");
+  const projectId = c.get("projectId");
+  const image = db.select().from(images).where(eq(images.id, imageId)).get();
+
+  if (!image) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
+  }
+
+  if (image.projectId !== projectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const normalizedPath = image.storagePath.startsWith("/")
+    ? image.storagePath.slice(1)
+    : image.storagePath;
+  const filePath = join(appRoot, normalizedPath);
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
+  }
+
+  const imageData = Buffer.from(await file.arrayBuffer());
+  const analysis = await analyzeImage({
+    imageId,
+    mimeType: image.mimeType,
+    imageData,
+  });
+
+  return c.json(analysis);
 });

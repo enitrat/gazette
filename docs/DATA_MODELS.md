@@ -224,7 +224,7 @@ export const AnimationSuggestionSchema = z.object({
 export const ImageAnalysisResultSchema = z.object({
   imageId: z.string().uuid(),
   sceneDescription: z.string().max(500),
-  suggestions: z.array(AnimationSuggestionSchema).min(1).max(4),
+  suggestions: z.array(AnimationSuggestionSchema).min(0).max(5),
 });
 
 // Types

@@ -46,7 +46,7 @@
               │   (Image-to-Video)      │
               └─────────────────────────┘
               ┌─────────────────────────┐
-              │   Gemini 2.0 Flash      │
+              │ Gemini 3 Flash Preview  │
               │  (Animation Suggest)    │
               └─────────────────────────┘
 ```
@@ -96,10 +96,10 @@
 
 ### 2.4 External Services
 
-| Service        | Provider                  | Purpose                           |
-| -------------- | ------------------------- | --------------------------------- |
-| Image-to-Video | WAN 2.x API (Alibaba)     | Core video generation (~5s clips) |
-| Image Analysis | Gemini 2.0 Flash (Google) | Animation suggestions             |
+| Service        | Provider                        | Purpose                           |
+| -------------- | ------------------------------- | --------------------------------- |
+| Image-to-Video | WAN 2.x API (Alibaba)           | Core video generation (~5s clips) |
+| Image Analysis | Gemini 3 Flash Preview (Google) | Animation suggestions             |
 
 ---
 
@@ -275,7 +275,7 @@ User → Select image → Frontend validates format/size
                               ↓
                      POST /api/images/:id/analyze
                               ↓
-                     Server calls Gemini 2.0 Flash
+                     Server calls Gemini 3 Flash Preview
                               ↓
                      Returns animation suggestions
                               ↓

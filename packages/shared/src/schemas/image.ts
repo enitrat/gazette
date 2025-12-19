@@ -1,7 +1,7 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Supported mime types
-export const ImageMimeType = z.enum(['image/jpeg', 'image/png', 'image/webp']);
+export const ImageMimeType = z.enum(["image/jpeg", "image/png", "image/webp"]);
 
 // Database record
 export const ImageSchema = z.object({
@@ -26,7 +26,7 @@ export const AnimationSuggestionSchema = z.object({
 export const ImageAnalysisResultSchema = z.object({
   imageId: z.string().uuid(),
   sceneDescription: z.string().max(500),
-  suggestions: z.array(AnimationSuggestionSchema).min(1).max(4),
+  suggestions: z.array(AnimationSuggestionSchema).min(0).max(5),
 });
 
 // Types

@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@gazette/shared": "workspace:*",
+    "@google/genai": "^1.17.1",
     "@hono/zod-validator": "^0.7.6",
     "bullmq": "^5.25.0",
     "drizzle-orm": "^0.45.1",

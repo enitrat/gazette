@@ -86,9 +86,9 @@ The system analyzes uploaded images to suggest contextual animations:
 
 #### Implementation
 
-- Use **Gemini 2.0 Flash** to analyze image content
-- Generate 2-3 contextual suggestions
-- Fallback suggestions if analysis fails: "Gentle movement", "Subtle animation"
+- Use **Gemini 3 Flash Preview** to analyze image content
+- Generate 3-5 contextual suggestions
+- If analysis fails or Gemini is not configured, return no suggestions
 
 ---
 
@@ -155,7 +155,7 @@ The system analyzes uploaded images to suggest contextual animations:
 #### Tasks:
 
 1. **Image Analysis**
-   - Gemini 2.0 Flash API integration
+   - Gemini 3 Flash Preview API integration
    - Scene description generation
    - Animation prompt suggestions
 

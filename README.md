@@ -88,6 +88,20 @@ WAN_PUBLIC_BASE_URL=http://localhost:3000
 WAN_IMAGE_TOKEN=dev-token-change-me
 ```
 
+### Gemini 3 Flash Preview (Image Analysis)
+
+The backend image analysis endpoint (`POST /api/images/:id/analyze`) uses Gemini 3 Flash Preview. To enable it, set these environment variables (e.g. in `apps/backend/.env`):
+
+```bash
+# Required
+GEMINI_API_KEY=your-gemini-api-key
+
+# Optional: override model name (defaults to gemini-3-flash-preview)
+GEMINI_MODEL=gemini-3-flash-preview
+```
+
+If `GEMINI_API_KEY` is not set (or the Gemini call fails), the endpoint returns an empty `suggestions` array.
+
 ### Building for Production
 
 Build all packages:

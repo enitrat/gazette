@@ -560,7 +560,7 @@ Get the actual image file.
 
 ### POST /api/images/:id/analyze
 
-Get AI-generated animation suggestions.
+Get AI-generated animation suggestions (3-5 prompts). If Gemini is not configured or fails, `suggestions` may be empty.
 
 **Headers:** `Authorization: Bearer <token>`
 
