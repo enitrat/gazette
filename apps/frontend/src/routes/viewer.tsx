@@ -19,7 +19,7 @@ function ViewerPage() {
       <div className="mx-auto max-w-4xl">
         {/* Viewer Controls */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-ink-effect">Gazette Viewer</h2>
+          <h2 className="font-headline text-ink-effect">Gazette Viewer</h2>
           <div className="flex gap-2">
             <button className="rounded-sm border border-sepia/30 bg-parchment px-4 py-2 font-ui text-sm text-sepia transition-colors hover:bg-sepia hover:text-parchment">
               Previous

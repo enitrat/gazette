@@ -143,7 +143,7 @@ function AuthPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-12">
       <div className="mx-auto mb-10 max-w-2xl text-center">
-        <h2 className="text-ink-effect">Access Your Gazette</h2>
+        <h2 className="font-headline text-ink-effect">Access Your Gazette</h2>
         <p className="mt-3 text-muted">
           Create a new project or return to continue crafting your animated family archive.
         </p>

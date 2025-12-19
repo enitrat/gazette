@@ -105,7 +105,7 @@ export function PageSidebar({
       className={cn("w-72 border-r border-sepia/20 bg-parchment/95 p-4", "max-w-[85vw]", className)}
     >
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-ink-effect">Pages</h3>
+        <h3 className="font-headline text-ink-effect">Pages</h3>
         <div className="flex items-center gap-2">
           <span className="font-ui text-xs text-muted">{sortedPages.length} total</span>
           {onClose ? (
