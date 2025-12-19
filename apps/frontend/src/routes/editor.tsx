@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { Canvas } from "@/components/Canvas";
+import { TopNavbar } from "@/components/editor/TopNavbar";
 import { EditorToolbar } from "@/components/EditorToolbar";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { PageSidebar } from "@/components/PageSidebar";
@@ -440,7 +441,8 @@ function EditorPage() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-57px)] flex-col pb-20 md:pb-0">
+    <div className="flex min-h-screen flex-col pb-20 md:pb-0">
+      <TopNavbar />
       <EditorToolbar
         projectName={session?.projectName}
         elementCount={elementCount}
