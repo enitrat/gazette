@@ -13,6 +13,7 @@ import { generationRouter } from "./routes/generation";
 import pagesRouter from "./routes/pages";
 import { systemRouter } from "./features/system/router";
 import { viewRouter } from "./routes/view";
+import { exportRouter } from "./routes/export";
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -46,6 +47,7 @@ app.route("/api", imagesRouter);
 app.route("/api", elementsRouter);
 app.route("/api", viewRouter);
 app.route("/api", generationRouter);
+app.route("/api", exportRouter);
 app.route("/", systemRouter);
 
 // 404 handler
