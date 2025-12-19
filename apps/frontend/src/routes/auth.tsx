@@ -152,7 +152,7 @@ function AuthPage() {
       <hr className="divider-vintage" />
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="gazette-page paper-texture ornament-corners border-sepia/30">
+        <Card className="gazette-page paper-texture ornament-corners vintage-shadow border-sepia/30">
           <CardHeader>
             <CardTitle>Create a Project</CardTitle>
             <CardDescription>Start a new gazette with a shared project password.</CardDescription>
@@ -231,7 +231,7 @@ function AuthPage() {
           </CardFooter>
         </Card>
 
-        <Card className="gazette-page paper-texture ornament-corners border-sepia/30">
+        <Card className="gazette-page paper-texture ornament-corners vintage-shadow border-sepia/30">
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
             <CardDescription>Return to a project you have already created.</CardDescription>
