@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { Move, Ruler, Layers, Image as ImageIcon, Type } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -133,6 +141,9 @@ export function PropertiesPanel({
   const position = selectedElement.position;
   const canSendBackward = elementIndex > 0;
   const canBringForward = elementIndex >= 0 && elementIndex < elements.length - 1;
+  const previewText =
+    selectedElement.content?.trim() || (isImage ? "Selected image" : `${label} text`);
+  const previewImage = selectedElement.imageUrl || selectedElement.videoUrl;
 
   return (
     <aside
@@ -141,168 +152,213 @@ export function PropertiesPanel({
         className
       )}
     >
-      <div className="mb-4">
+      <div className="mb-4 space-y-3">
         <h3 className="font-headline text-ink-effect">{label} Properties</h3>
         <p className="font-ui text-xs text-muted">Selected: {label}</p>
+        <div className="rounded-sm border border-sepia/30 bg-ivory/60 p-3 shadow-sm">
+          <div className="text-[10px] font-ui font-semibold uppercase tracking-[0.2em] text-muted">
+            Preview
+          </div>
+          <div className="mt-2 flex h-16 items-center justify-center overflow-hidden rounded-sm border border-sepia/20 bg-parchment/70 p-2">
+            {previewImage ? (
+              <img
+                src={previewImage}
+                alt={`${label} preview`}
+                className="h-full w-full rounded-sm object-cover"
+              />
+            ) : (
+              <p className="text-center text-xs font-ui text-ink-effect">{previewText}</p>
+            )}
+          </div>
+        </div>
       </div>
       <hr className="divider-vintage" />
 
-      <div className="mt-4 space-y-4">
-        <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+      <Accordion
+        type="multiple"
+        defaultValue={["position", "size", "content"]}
+        className="mt-4 space-y-1"
+      >
+        <AccordionItem value="position">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <Move className="h-4 w-4 text-muted" />
               Position
-            </h4>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="position-x">X</Label>
-              <Input
-                id="position-x"
-                type="number"
-                step={GRID_SIZE}
-                value={Math.round(position.x)}
-                onChange={(event) =>
-                  handlePositionChange("x", toNumber(event.target.value, position.x))
-                }
-              />
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="position-x">X</Label>
+                <Input
+                  id="position-x"
+                  className="input-vintage"
+                  type="number"
+                  step={GRID_SIZE}
+                  value={Math.round(position.x)}
+                  onChange={(event) =>
+                    handlePositionChange("x", toNumber(event.target.value, position.x))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="position-y">Y</Label>
+                <Input
+                  id="position-y"
+                  className="input-vintage"
+                  type="number"
+                  step={GRID_SIZE}
+                  value={Math.round(position.y)}
+                  onChange={(event) =>
+                    handlePositionChange("y", toNumber(event.target.value, position.y))
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="position-y">Y</Label>
-              <Input
-                id="position-y"
-                type="number"
-                step={GRID_SIZE}
-                value={Math.round(position.y)}
-                onChange={(event) =>
-                  handlePositionChange("y", toNumber(event.target.value, position.y))
-                }
+            <div className="flex items-center gap-2 text-xs font-ui text-muted">
+              <Checkbox
+                id="snap-grid"
+                checked={snapToGrid}
+                onCheckedChange={(checked) => setSnapToGrid(checked === true)}
+                className="border-sepia data-[state=checked]:bg-gold"
               />
+              <Label htmlFor="snap-grid" className="cursor-pointer text-xs font-ui text-muted">
+                Snap to grid ({GRID_SIZE}px)
+              </Label>
             </div>
-          </div>
-          <label className="flex items-center gap-2 text-xs font-ui text-muted">
-            <input
-              type="checkbox"
-              className="h-3 w-3 accent-gold"
-              checked={snapToGrid}
-              onChange={(event) => setSnapToGrid(event.target.checked)}
-            />
-            Snap to grid ({GRID_SIZE}px)
-          </label>
-        </section>
+          </AccordionContent>
+        </AccordionItem>
 
-        <section className="space-y-2">
-          <h4 className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-            Size
-          </h4>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="size-width">Width</Label>
-              <Input
-                id="size-width"
-                type="number"
-                value={Math.round(position.width)}
-                onChange={(event) =>
-                  handleSizeChange("width", toNumber(event.target.value, position.width))
-                }
-              />
+        <AccordionItem value="size">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <Ruler className="h-4 w-4 text-muted" />
+              Size
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="size-width">Width</Label>
+                <Input
+                  id="size-width"
+                  className="input-vintage"
+                  type="number"
+                  value={Math.round(position.width)}
+                  onChange={(event) =>
+                    handleSizeChange("width", toNumber(event.target.value, position.width))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="size-height">Height</Label>
+                <Input
+                  id="size-height"
+                  className="input-vintage"
+                  type="number"
+                  value={Math.round(position.height)}
+                  onChange={(event) =>
+                    handleSizeChange("height", toNumber(event.target.value, position.height))
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="size-height">Height</Label>
-              <Input
-                id="size-height"
-                type="number"
-                value={Math.round(position.height)}
-                onChange={(event) =>
-                  handleSizeChange("height", toNumber(event.target.value, position.height))
-                }
-              />
-            </div>
-          </div>
-          <label
-            className={cn(
-              "flex items-center gap-2 text-xs font-ui text-muted",
-              !isImage && "opacity-60"
-            )}
-          >
-            <input
-              type="checkbox"
-              className="h-3 w-3 accent-gold"
-              checked={lockAspectRatio}
-              onChange={(event) => setLockAspectRatio(event.target.checked)}
-              disabled={!isImage}
-            />
-            Lock aspect ratio
-          </label>
-        </section>
-
-        <section className="space-y-2">
-          <h4 className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-            Layer
-          </h4>
-          <div className="flex flex-col gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!canBringForward}
-              onClick={() =>
-                selectedElement && pageId
-                  ? reorderElement(pageId, selectedElement.id, "forward")
-                  : null
-              }
+            <div
+              className={cn(
+                "flex items-center gap-2 text-xs font-ui text-muted",
+                !isImage && "opacity-60"
+              )}
             >
-              Bring Forward
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!canSendBackward}
-              onClick={() =>
-                selectedElement && pageId
-                  ? reorderElement(pageId, selectedElement.id, "backward")
-                  : null
-              }
-            >
-              Send Backward
-            </Button>
-          </div>
-        </section>
+              <Checkbox
+                id="lock-aspect"
+                checked={lockAspectRatio}
+                onCheckedChange={(checked) => setLockAspectRatio(checked === true)}
+                disabled={!isImage}
+                className="border-sepia data-[state=checked]:bg-gold"
+              />
+              <Label htmlFor="lock-aspect" className="cursor-pointer text-xs font-ui text-muted">
+                Lock aspect ratio
+              </Label>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
-        {isImage ? (
-          <section className="space-y-2">
-            <h4 className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-              Image
-            </h4>
+        <AccordionItem value="layer">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-muted" />
+              Layer
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3 pt-2">
             <div className="flex flex-col gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => (onEditImage ? onEditImage(selectedElement) : null)}
+                disabled={!canBringForward}
+                onClick={() =>
+                  selectedElement && pageId
+                    ? reorderElement(pageId, selectedElement.id, "forward")
+                    : null
+                }
               >
-                Edit Crop
+                Bring Forward
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!canSendBackward}
+                onClick={() =>
+                  selectedElement && pageId
+                    ? reorderElement(pageId, selectedElement.id, "backward")
+                    : null
+                }
+              >
+                Send Backward
               </Button>
             </div>
-          </section>
-        ) : (
-          <section className="space-y-2">
-            <h4 className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-              Text
-            </h4>
-            <div className="space-y-2">
-              <Label htmlFor="text-content">Content</Label>
-              <Textarea
-                id="text-content"
-                value={selectedElement.content ?? ""}
-                onChange={(event) => handleContentChange(event.target.value)}
-                rows={4}
-              />
-            </div>
-          </section>
-        )}
-      </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="content" className="border-b-0">
+          <AccordionTrigger>
+            <span className="flex items-center gap-2">
+              {isImage ? (
+                <ImageIcon className="h-4 w-4 text-muted" />
+              ) : (
+                <Type className="h-4 w-4 text-muted" />
+              )}
+              {isImage ? "Image" : "Text"}
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-3 pt-2">
+            {isImage ? (
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => (onEditImage ? onEditImage(selectedElement) : null)}
+                >
+                  Edit Crop
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="text-content">Content</Label>
+                <Textarea
+                  id="text-content"
+                  value={selectedElement.content ?? ""}
+                  onChange={(event) => handleContentChange(event.target.value)}
+                  rows={4}
+                />
+              </div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </aside>
   );
 }
