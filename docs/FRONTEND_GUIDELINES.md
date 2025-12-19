@@ -75,14 +75,25 @@ The newspaper itself: the content users are creating.
 
 Located in `src/components/ui/`:
 
-| Component  | File           | Primary Use                |
-| ---------- | -------------- | -------------------------- |
-| `Button`   | `button.tsx`   | All clickable actions      |
-| `Card`     | `card.tsx`     | Content containers, panels |
-| `Input`    | `input.tsx`    | Text fields                |
-| `Label`    | `label.tsx`    | Form labels                |
-| `Dialog`   | `dialog.tsx`   | Modals, popups             |
-| `Textarea` | `textarea.tsx` | Multi-line text            |
+| Component      | File                | Primary Use                    |
+| -------------- | ------------------- | ------------------------------ |
+| `Accordion`    | `accordion.tsx`     | Collapsible sections           |
+| `AlertDialog`  | `alert-dialog.tsx`  | Confirmations, destructive UX  |
+| `Button`       | `button.tsx`        | All clickable actions          |
+| `Card`         | `card.tsx`          | Content containers, panels     |
+| `Dialog`       | `dialog.tsx`        | Modals, popups                 |
+| `DropdownMenu` | `dropdown-menu.tsx` | Overflow actions, menus        |
+| `Input`        | `input.tsx`         | Text fields                    |
+| `Label`        | `label.tsx`         | Form labels                    |
+| `Progress`     | `progress.tsx`      | Loading states, uploads        |
+| `Separator`    | `separator.tsx`     | Dividers, button groups        |
+| `Sheet`        | `sheet.tsx`         | Mobile navigation, side panels |
+| `Tabs`         | `tabs.tsx`          | View switching, navigation     |
+| `Textarea`     | `textarea.tsx`      | Multi-line text                |
+| `Toast`        | `toast.tsx`         | Notifications                  |
+| `Tooltip`      | `tooltip.tsx`       | Icon button labels, hints      |
+| `Toaster`      | `toaster.tsx`       | Toast viewport                 |
+| `useToast`     | `use-toast.ts`      | Toast hook                     |
 
 ### 2.2 Button Variants
 
@@ -147,6 +158,96 @@ import { Label } from "@/components/ui/label";
     Project name
   </Label>
   <Input id="name" placeholder="e.g. Famille Dupont 1950-2024" className="input-vintage" />
+</div>;
+```
+
+### 2.5 Tooltip for Icon Buttons
+
+Always pair icon-only buttons with tooltips for accessibility.
+
+```tsx
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sparkles } from "lucide-react";
+
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button variant="ghost" size="icon" aria-label="Generate">
+        <Sparkles className="h-4 w-4" />
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent side="bottom">Generate</TooltipContent>
+  </Tooltip>
+</TooltipProvider>;
+```
+
+### 2.6 Accordion for Collapsible Sections
+
+Use accordions for grouped settings in side panels.
+
+```tsx
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+
+<Accordion type="single" collapsible className="w-full">
+  <AccordionItem value="layout">
+    <AccordionTrigger>Layout</AccordionTrigger>
+    <AccordionContent>{/* layout controls */}</AccordionContent>
+  </AccordionItem>
+  <AccordionItem value="typography">
+    <AccordionTrigger>Typography</AccordionTrigger>
+    <AccordionContent>{/* typography controls */}</AccordionContent>
+  </AccordionItem>
+</Accordion>;
+```
+
+### 2.7 Tabs for Navigation
+
+Tabs are preferred for switching between editor modes or sub-panels.
+
+```tsx
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+<Tabs defaultValue="details" className="w-full">
+  <TabsList>
+    <TabsTrigger value="details">Details</TabsTrigger>
+    <TabsTrigger value="assets">Assets</TabsTrigger>
+  </TabsList>
+  <TabsContent value="details">{/* details panel */}</TabsContent>
+  <TabsContent value="assets">{/* assets panel */}</TabsContent>
+</Tabs>;
+```
+
+### 2.8 Progress for Loading States
+
+Use `Progress` for uploads, exports, and generation steps.
+
+```tsx
+import { Progress } from "@/components/ui/progress";
+
+<div className="space-y-2">
+  <div className="font-ui text-xs text-muted">Uploading...</div>
+  <Progress value={62} />
+</div>;
+```
+
+### 2.9 Separator for Toolbar Grouping
+
+Use separators in toolbars or control clusters.
+
+```tsx
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+
+<div className="flex items-center gap-2">
+  <Button>Undo</Button>
+  <Separator orientation="vertical" className="h-6" />
+  <Button>Redo</Button>
 </div>;
 ```
 
@@ -304,6 +405,70 @@ Use poetic, on-brand copy for empty states:
 />
 ```
 
+### 4.6 Button Group Pattern
+
+Use a vertical separator to cluster related toolbar actions.
+
+```tsx
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+
+<div className="flex items-center gap-2">
+  <Button>...</Button>
+  <Separator orientation="vertical" className="h-6" />
+  <Button>...</Button>
+</div>;
+```
+
+### 4.7 Radio Card Pattern
+
+Use the custom `RadioCard` component for visual option selection (located in `src/components/RadioCard.tsx`).
+
+```tsx
+import { RadioCardGroup, RadioCardItem } from "@/components/RadioCard";
+
+<RadioCardGroup value={layout} onValueChange={setLayout} className="grid gap-3 sm:grid-cols-2">
+  <RadioCardItem value="classic" title="Classic" description="Traditional gazette layout." />
+  <RadioCardItem value="modern" title="Modern" description="Simplified spacing and typography." />
+</RadioCardGroup>;
+```
+
+### 4.8 Mobile Patterns
+
+Use responsive shadcn/ui components for mobile-first navigation and overflow actions.
+
+```tsx
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+
+<Sheet>
+  <SheetTrigger asChild>
+    <Button variant="outline">Open Menu</Button>
+  </SheetTrigger>
+  <SheetContent side="left">{/* mobile nav */}</SheetContent>
+</Sheet>;
+```
+
+```tsx
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="ghost">More</Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end">
+    <DropdownMenuItem>Duplicate</DropdownMenuItem>
+    <DropdownMenuItem>Archive</DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>;
+```
+
 ---
 
 ## 5. Icons
@@ -360,12 +525,20 @@ import {
 src/
 ├── components/
 │   ├── ui/              # shadcn/ui components (DO NOT MODIFY)
+│   │   ├── accordion.tsx
+│   │   ├── alert-dialog.tsx
 │   │   ├── button.tsx
 │   │   ├── card.tsx
+│   │   ├── dialog.tsx
+│   │   ├── dropdown-menu.tsx
 │   │   ├── input.tsx
 │   │   ├── label.tsx
-│   │   ├── dialog.tsx
-│   │   └── textarea.tsx
+│   │   ├── progress.tsx
+│   │   ├── separator.tsx
+│   │   ├── sheet.tsx
+│   │   ├── tabs.tsx
+│   │   ├── textarea.tsx
+│   │   └── tooltip.tsx
 │   ├── Canvas.tsx       # Gazette canvas (brand design)
 │   └── ...              # Feature components
 ├── styles/
@@ -389,4 +562,4 @@ If you need a new shadcn/ui component:
 ---
 
 _Frontend Guidelines v1.0_
-_Last Updated: December 19, 2024_
+_Last Updated: December 19, 2025_
