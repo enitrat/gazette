@@ -61,6 +61,33 @@ bun run dev:frontend
 bun run dev:backend
 ```
 
+### WAN Video Generation Setup
+
+To enable WAN 2.x image-to-video generation, set the following environment variables for the backend:
+
+- `WAN_API_KEY` (required): Alibaba Cloud Model Studio / DashScope API key.
+- `WAN_BASE_URL` (optional): Defaults to `https://dashscope-intl.aliyuncs.com/api/v1`.
+- `WAN_MODEL` (optional): Defaults to `wan2.1-i2v-turbo`.
+- `WAN_POLL_INTERVAL_MS` (optional): Polling interval in ms (default 15000).
+- `WAN_MAX_POLL_MS` (optional): Max polling time in ms (default 12 minutes).
+- `WAN_PUBLIC_BASE_URL` (optional): Public base URL of your backend (e.g. `https://api.example.com`).
+- `WAN_IMAGE_TOKEN` (optional): Shared token used to grant WAN access to source images.
+
+Notes:
+
+- If `WAN_PUBLIC_BASE_URL` + `WAN_IMAGE_TOKEN` are set, WAN will fetch images from
+  `/api/images/:id/public?token=...`. Otherwise, images are sent as base64 data URLs.
+- Generated videos are stored under `apps/backend/uploads/videos/` and served via
+  `/api/videos/:jobId/file` (auth required).
+
+Example env (local):
+
+```bash
+WAN_API_KEY=your_dashscope_key
+WAN_PUBLIC_BASE_URL=http://localhost:3000
+WAN_IMAGE_TOKEN=dev-token-change-me
+```
+
 ### Building for Production
 
 Build all packages:

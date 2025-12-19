@@ -16,6 +16,7 @@ import { errorResponse } from "../shared/http";
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
 const IMAGE_SUBDIR = "images";
+const WAN_IMAGE_TOKEN = process.env.WAN_IMAGE_TOKEN || "";
 const MAX_IMAGE_WIDTH = 2048;
 const MAX_UPLOAD_BYTES = IMAGE_CONSTRAINTS.MAX_FILE_SIZE;
 type SupportedMimeType = (typeof IMAGE_CONSTRAINTS.SUPPORTED_MIME_TYPES)[number];
@@ -88,8 +89,6 @@ const safeUnlink = async (filePath: string) => {
 export const imagesRouter = new Hono();
 
 imagesRouter.use("/projects/:id/images", requireAuth);
-imagesRouter.use("/images/:id", requireAuth);
-imagesRouter.use("/images/:id/file", requireAuth);
 
 // Upload an image
 imagesRouter.post("/projects/:id/images", async (c) => {
@@ -215,7 +214,7 @@ imagesRouter.post("/projects/:id/images", async (c) => {
 });
 
 // Get image metadata
-imagesRouter.get("/images/:id", async (c) => {
+imagesRouter.get("/images/:id", requireAuth, async (c) => {
   const imageId = c.req.param("id");
   const projectId = c.get("projectId");
   const image = db.select().from(images).where(eq(images.id, imageId)).get();
@@ -240,8 +239,39 @@ imagesRouter.get("/images/:id", async (c) => {
   });
 });
 
+// Public image file access for WAN (token-protected)
+imagesRouter.get("/images/:id/public", async (c) => {
+  if (!WAN_IMAGE_TOKEN) {
+    return errorResponse(c, 403, ERROR_CODES.UNAUTHORIZED, "Public image access is disabled");
+  }
+
+  const token = c.req.query("token");
+  if (!token || token !== WAN_IMAGE_TOKEN) {
+    return errorResponse(c, 403, ERROR_CODES.UNAUTHORIZED, "Invalid image access token");
+  }
+
+  const imageId = c.req.param("id");
+  const image = db.select().from(images).where(eq(images.id, imageId)).get();
+
+  if (!image) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
+  }
+
+  const normalizedPath = image.storagePath.startsWith("/")
+    ? image.storagePath.slice(1)
+    : image.storagePath;
+  const file = Bun.file(join(appRoot, normalizedPath));
+  if (!(await file.exists())) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
+  }
+
+  return c.body(file.stream(), 200, {
+    "Content-Type": image.mimeType,
+  });
+});
+
 // Get image file
-imagesRouter.get("/images/:id/file", async (c) => {
+imagesRouter.get("/images/:id/file", requireAuth, async (c) => {
   const imageId = c.req.param("id");
   const projectId = c.get("projectId");
   const image = db.select().from(images).where(eq(images.id, imageId)).get();
