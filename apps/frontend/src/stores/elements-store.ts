@@ -219,6 +219,27 @@ export const useElementsStore = create<ElementsState>((set) => ({
       return null;
     }
 
+    const optimisticId = `temp-${crypto.randomUUID()}`;
+    const optimisticElement: CanvasElement = {
+      id: optimisticId,
+      type: "image",
+      position,
+      imageUrl,
+      imageWidth,
+      imageHeight,
+      cropData: null,
+      videoUrl: null,
+      videoStatus: "none",
+      isOptimistic: true,
+    };
+
+    set((state) => ({
+      elementsByPage: {
+        ...state.elementsByPage,
+        [pageId]: [...(state.elementsByPage[pageId] ?? []), optimisticElement],
+      },
+    }));
+
     try {
       const data = await api
         .post(`pages/${pageId}/elements`, {
@@ -242,19 +263,30 @@ export const useElementsStore = create<ElementsState>((set) => ({
         animationPrompt: data.animationPrompt ?? null,
         videoUrl: normalizeAssetUrl(data.videoUrl),
         videoStatus: data.videoStatus ?? "none",
+        isOptimistic: false,
       };
 
       set((state) => ({
         elementsByPage: {
           ...state.elementsByPage,
-          [pageId]: [...(state.elementsByPage[pageId] ?? []), normalized],
+          [pageId]: (state.elementsByPage[pageId] ?? []).map((element) =>
+            element.id === optimisticId ? normalized : element
+          ),
         },
       }));
 
       return normalized;
     } catch (error) {
       const parsed = await parseApiError(error);
-      set({ error: parsed.message });
+      set((state) => ({
+        error: parsed.message,
+        elementsByPage: {
+          ...state.elementsByPage,
+          [pageId]: (state.elementsByPage[pageId] ?? []).filter(
+            (element) => element.id !== optimisticId
+          ),
+        },
+      }));
       return null;
     }
   },

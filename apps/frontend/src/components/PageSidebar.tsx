@@ -17,11 +17,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, X } from "lucide-react";
+import { GripVertical, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { usePagesStore, type PageSummary } from "@/stores/pages-store";
+import { toast } from "@/components/ui/use-toast";
 
 type PageSidebarProps = {
   projectId?: string;
@@ -171,6 +172,15 @@ export function PageSidebar({
     void fetchPages(projectId);
   }, [projectId, fetchPages]);
 
+  useEffect(() => {
+    if (!error) return;
+    toast({
+      title: "Unable to load pages",
+      description: error,
+      variant: "destructive",
+    });
+  }, [error, toast]);
+
   const handleCreatePage = async () => {
     if (!projectId || isCreating) {
       return;
@@ -186,6 +196,17 @@ export function PageSidebar({
     const created = await createPage(projectId, TEMPLATES.MASTHEAD, lastPage?.id);
     if (created) {
       onSelectPage(created.id);
+      toast({
+        title: "Page created",
+        description: "Your new page is ready to edit.",
+        variant: "success",
+      });
+    } else {
+      toast({
+        title: "Unable to create page",
+        description: "Please try again.",
+        variant: "destructive",
+      });
     }
     setIsCreating(false);
   };
@@ -294,7 +315,7 @@ export function PageSidebar({
         variant="ghost"
         className="mt-4 w-full gap-2 border border-dashed border-muted/60 bg-transparent px-3 py-2 text-muted hover:border-gold hover:text-sepia"
       >
-        <Plus className="h-4 w-4" />
+        {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         {isCreating ? "Creating..." : "New Page"}
       </Button>
     </aside>

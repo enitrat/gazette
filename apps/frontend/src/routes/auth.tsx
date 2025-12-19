@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CreateProjectSchema } from "@gazette/shared/schemas/project";
 import { VALIDATION } from "@gazette/shared/constants";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, parseApiError } from "@/lib/api";
 import { setAuthSession } from "@/lib/auth";
+import { toast } from "@/components/ui/use-toast";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -78,10 +80,20 @@ function AuthPage() {
         projectSlug: response.slug,
       });
 
+      toast({
+        title: "Project created",
+        description: `Welcome to ${response.name}.`,
+        variant: "success",
+      });
       navigate({ to: "/editor" });
     } catch (error) {
       const parsed = await parseApiError(error);
       setCreateFormError(parsed.message);
+      toast({
+        title: "Create project failed",
+        description: parsed.message,
+        variant: "destructive",
+      });
       if (parsed.fieldErrors) {
         setCreateErrors({
           name: parsed.fieldErrors.name,
@@ -125,10 +137,20 @@ function AuthPage() {
         projectSlug: response.slug,
       });
 
+      toast({
+        title: "Signed in",
+        description: `Welcome back to ${response.name}.`,
+        variant: "success",
+      });
       navigate({ to: "/editor" });
     } catch (error) {
       const parsed = await parseApiError(error);
       setLoginFormError(parsed.message);
+      toast({
+        title: "Sign in failed",
+        description: parsed.message,
+        variant: "destructive",
+      });
       if (parsed.fieldErrors) {
         setLoginErrors({
           name: parsed.fieldErrors.name,
@@ -225,7 +247,14 @@ function AuthPage() {
                 disabled={createSubmitting}
                 aria-busy={createSubmitting}
               >
-                {createSubmitting ? "Creating..." : "Create project"}
+                {createSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create project"
+                )}
               </Button>
             </form>
           </CardContent>
@@ -303,7 +332,14 @@ function AuthPage() {
                 disabled={loginSubmitting}
                 aria-busy={loginSubmitting}
               >
-                {loginSubmitting ? "Signing in..." : "Sign in"}
+                {loginSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign in"
+                )}
               </Button>
             </form>
           </CardContent>

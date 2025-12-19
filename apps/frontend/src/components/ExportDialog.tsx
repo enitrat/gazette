@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Download, Film, Printer, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Download, Film, Loader2, Printer, TriangleAlert } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { apiBaseUrl, type ApiErrorPayload } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
 
 type ExportDialogProps = {
   open: boolean;
@@ -137,9 +138,20 @@ export function ExportDialog({ open, onOpenChange, projectId }: ExportDialogProp
 
       setStatus("success");
       setMessage(`${EXPORT_LABELS[format]} is ready. Your download should begin shortly.`);
+      toast({
+        title: "Export ready",
+        description: `${EXPORT_LABELS[format]} is ready.`,
+        variant: "success",
+      });
     } catch (error) {
+      const description = error instanceof Error ? error.message : "Unable to export right now.";
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Unable to export right now.");
+      setMessage(description);
+      toast({
+        title: "Export failed",
+        description,
+        variant: "destructive",
+      });
     }
   };
 
@@ -178,7 +190,11 @@ export function ExportDialog({ open, onOpenChange, projectId }: ExportDialogProp
                 onClick={() => handleDownload("html")}
                 disabled={isBusy}
               >
-                <Download />
+                {status === "downloading" && activeExport === "html" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download />
+                )}
                 HTML ZIP
               </Button>
             </div>
@@ -196,7 +212,11 @@ export function ExportDialog({ open, onOpenChange, projectId }: ExportDialogProp
                 onClick={() => handleDownload("videos")}
                 disabled={isBusy}
               >
-                <Film />
+                {status === "downloading" && activeExport === "videos" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Film />
+                )}
                 Video ZIP
               </Button>
             </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Copy, Info } from "lucide-react";
+import { Check, Copy, Info, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, parseApiError } from "@/lib/api";
+import { toast } from "@/components/ui/use-toast";
 
 type ShareDialogProps = {
   open: boolean;
@@ -53,13 +54,18 @@ export function ShareDialog({ open, onOpenChange, projectId, projectName }: Shar
       } catch (err) {
         const parsed = await parseApiError(err);
         setError(parsed.message);
+        toast({
+          title: "Unable to load share link",
+          description: parsed.message,
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
     void fetchProjectSlug();
-  }, [open, projectId]);
+  }, [open, projectId, toast]);
 
   const handleCopyLink = async () => {
     if (!shareUrl) return;
@@ -79,8 +85,18 @@ export function ShareDialog({ open, onOpenChange, projectId, projectName }: Shar
         document.body.removeChild(textarea);
       }
       setCopyStatus("copied");
+      toast({
+        title: "Link copied",
+        description: "Share link copied to clipboard.",
+        variant: "success",
+      });
     } catch {
       setCopyStatus("error");
+      toast({
+        title: "Copy failed",
+        description: "Please copy the link manually.",
+        variant: "destructive",
+      });
     }
 
     // Reset copy status after 2 seconds
@@ -99,7 +115,10 @@ export function ShareDialog({ open, onOpenChange, projectId, projectName }: Shar
 
         {isLoading ? (
           <div className="py-6 text-center">
-            <p className="font-ui text-sm text-muted">Loading share link...</p>
+            <p className="flex items-center justify-center gap-2 font-ui text-sm text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading share link...
+            </p>
           </div>
         ) : error ? (
           <div className="rounded-md border border-aged-red/40 bg-aged-red/10 px-4 py-3">

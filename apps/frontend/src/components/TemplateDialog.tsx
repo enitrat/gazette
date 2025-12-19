@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
+import { Loader2 } from "lucide-react";
 
 export type TemplateOption = {
   id: Template;
@@ -130,10 +132,20 @@ export function TemplateDialog({ open, onOpenChange, onCreate }: TemplateDialogP
 
     try {
       await onCreate(selectedTemplate.id);
+      toast({
+        title: "Page created",
+        description: "Your new page is ready to edit.",
+        variant: "success",
+      });
       onOpenChange(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to create page.";
       setError(message);
+      toast({
+        title: "Unable to create page",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setIsCreating(false);
     }
@@ -184,7 +196,14 @@ export function TemplateDialog({ open, onOpenChange, onCreate }: TemplateDialogP
             Cancel
           </Button>
           <Button onClick={handleCreate} disabled={!selectedTemplate || isCreating}>
-            {isCreating ? "Creating..." : "Create page"}
+            {isCreating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              "Create page"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -9,8 +9,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { api, parseApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
 
 // Polling intervals based on activity state
 const POLL_INTERVAL_ACTIVE_MS = 5000; // 5 seconds when there are active jobs
@@ -118,6 +129,8 @@ export function GenerationProgressDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [cancelingJobId, setCancelingJobId] = useState<string | null>(null);
   const [isCancelingAll, setIsCancelingAll] = useState(false);
+  const [confirmCancelJobId, setConfirmCancelJobId] = useState<string | null>(null);
+  const [confirmCancelAllOpen, setConfirmCancelAllOpen] = useState(false);
   const completionNotified = useRef(false);
 
   const fetchStatus = async () => {
@@ -132,6 +145,11 @@ export function GenerationProgressDialog({
     } catch (err) {
       const parsed = await parseApiError(err);
       setError(parsed.message);
+      toast({
+        title: "Unable to load progress",
+        description: parsed.message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -189,6 +207,11 @@ export function GenerationProgressDialog({
     } catch (err) {
       const parsed = await parseApiError(err);
       setError(parsed.message);
+      toast({
+        title: "Cancellation failed",
+        description: parsed.message,
+        variant: "destructive",
+      });
     } finally {
       setCancelingJobId(null);
     }
@@ -203,9 +226,20 @@ export function GenerationProgressDialog({
     const hasFailure = results.some((result) => result.status === "rejected");
     if (hasFailure) {
       setError("Some queued jobs could not be cancelled.");
+      toast({
+        title: "Partial cancellation",
+        description: "Some queued jobs could not be cancelled.",
+        variant: "destructive",
+      });
     }
     setIsCancelingAll(false);
     await fetchStatus();
+  };
+
+  const confirmCancelJob = async () => {
+    if (!confirmCancelJobId) return;
+    await handleCancelJob(confirmCancelJobId);
+    setConfirmCancelJobId(null);
   };
 
   return (
@@ -259,7 +293,14 @@ export function GenerationProgressDialog({
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={fetchStatus} disabled={isLoading}>
-              {isLoading ? "Refreshing..." : "Refresh"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                "Refresh"
+              )}
             </Button>
           </div>
 
@@ -291,10 +332,17 @@ export function GenerationProgressDialog({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleCancelJob(job.id)}
+                          onClick={() => setConfirmCancelJobId(job.id)}
                           disabled={cancelingJobId === job.id}
                         >
-                          {cancelingJobId === job.id ? "Canceling..." : "Cancel"}
+                          {cancelingJobId === job.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Canceling...
+                            </>
+                          ) : (
+                            "Cancel"
+                          )}
                         </Button>
                       ) : null}
                     </div>
@@ -343,12 +391,60 @@ export function GenerationProgressDialog({
             <Button
               variant="destructive"
               disabled={queuedJobs.length === 0 || isCancelingAll}
-              onClick={handleCancelAll}
+              onClick={() => setConfirmCancelAllOpen(true)}
             >
-              {isCancelingAll ? "Canceling..." : "Cancel generation"}
+              {isCancelingAll ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Canceling...
+                </>
+              ) : (
+                "Cancel generation"
+              )}
             </Button>
           </div>
         </div>
+
+        <AlertDialog
+          open={Boolean(confirmCancelJobId)}
+          onOpenChange={(open) => !open && setConfirmCancelJobId(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel this job?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove the queued generation job. You can restart it later if needed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep job</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmCancelJob}>Cancel job</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={confirmCancelAllOpen} onOpenChange={setConfirmCancelAllOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel all queued jobs?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Queued jobs will be removed immediately. Processing jobs will continue until they
+                finish.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep jobs</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  setConfirmCancelAllOpen(false);
+                  await handleCancelAll();
+                }}
+              >
+                Cancel queued jobs
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

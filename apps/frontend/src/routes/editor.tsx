@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { Canvas } from "@/components/Canvas";
 import { EditorToolbar } from "@/components/EditorToolbar";
@@ -21,6 +21,7 @@ import type { CanvasElement } from "@/types/editor";
 import {
   Download,
   ImagePlus,
+  Loader2,
   PanelLeft,
   Plus,
   Save,
@@ -29,6 +30,7 @@ import {
   Trash2,
   Type,
 } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 export const Route = createFileRoute("/editor")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -49,6 +51,8 @@ function EditorPage() {
   const { pageId } = Route.useSearch();
   const navigate = Route.useNavigate();
   const pages = usePagesStore((state) => state.pages);
+  const pagesError = usePagesStore((state) => state.error);
+  const pagesLoading = usePagesStore((state) => state.isLoading);
   const createPage = usePagesStore((state) => state.createPage);
   const [session] = useState(() => getAuthSession());
   const projectId = session?.projectId;
@@ -78,6 +82,9 @@ function EditorPage() {
   const setSelectedElementId = useElementsStore((state) => state.setSelectedElementId);
   const selectElement = useElementsStore((state) => state.selectElement);
   const updateElement = useElementsStore((state) => state.updateElement);
+  const elementsError = useElementsStore((state) => state.error);
+  const elementsLoading = useElementsStore((state) => state.isLoading);
+  const lastErrorRef = useRef<string | null>(null);
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
   const activePage = useMemo(
@@ -134,6 +141,17 @@ function EditorPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedElementId]);
 
+  useEffect(() => {
+    const combinedError = elementsError || pagesError;
+    if (!combinedError || combinedError === lastErrorRef.current) return;
+    lastErrorRef.current = combinedError;
+    toast({
+      title: "Something went wrong",
+      description: combinedError,
+      variant: "destructive",
+    });
+  }, [elementsError, pagesError, toast]);
+
   const handleSelectPage = (selectedId: string) => {
     navigate({
       search: {
@@ -145,14 +163,31 @@ function EditorPage() {
 
   const handleCreatePage = async (templateId: Template) => {
     if (!projectId) {
-      throw new Error("Missing project ID.");
+      const message = "Missing project ID.";
+      toast({
+        title: "Unable to create page",
+        description: message,
+        variant: "destructive",
+      });
+      throw new Error(message);
     }
 
     const lastPage = pages[pages.length - 1];
     const created = await createPage(projectId, templateId, lastPage?.id);
     if (!created) {
-      throw new Error("Unable to create page.");
+      const message = "Unable to create page.";
+      toast({
+        title: "Unable to create page",
+        description: message,
+        variant: "destructive",
+      });
+      throw new Error(message);
     }
+    toast({
+      title: "Page created",
+      description: "Your new page is ready to edit.",
+      variant: "success",
+    });
     handleSelectPage(created.id);
   };
 
@@ -181,6 +216,12 @@ function EditorPage() {
       setSelectedElementId(createdElement.id);
       setAnimationElementId(createdElement.id);
       setIsAnimationOpen(true);
+    } else {
+      toast({
+        title: "Image upload failed",
+        description: "We couldn't place the image. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -247,6 +288,7 @@ function EditorPage() {
     if (!activePageId) return;
 
     const pageElements = elementsByPage[activePageId] ?? [];
+    const previousElements = pageElements;
     const nextElements = pageElements.map((element) =>
       element.id === elementId ? { ...element, animationPrompt: prompt } : element
     );
@@ -267,6 +309,12 @@ function EditorPage() {
       });
     } catch (error) {
       const parsed = await parseApiError(error);
+      setElementsForPage(activePageId, previousElements);
+      toast({
+        title: "Unable to save crop",
+        description: parsed.message,
+        variant: "destructive",
+      });
       throw new Error(parsed.message);
     }
   };
@@ -275,6 +323,7 @@ function EditorPage() {
     if (!activePageId) return;
 
     const pageElements = elementsByPage[activePageId] ?? [];
+    const previousElements = pageElements;
     const nextElements = pageElements.map((element) =>
       element.id === elementId ? { ...element, content } : element
     );
@@ -296,7 +345,12 @@ function EditorPage() {
       });
     } catch (error) {
       const parsed = await parseApiError(error);
-      console.error(parsed.message);
+      setElementsForPage(activePageId, previousElements);
+      toast({
+        title: "Unable to save changes",
+        description: parsed.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -453,34 +507,66 @@ function EditorPage() {
             </div>
           </div>
           <div className="mx-auto aspect-[3/4] max-w-2xl">
-            <Canvas
-              page={
-                activePage
-                  ? {
-                      id: activePage.id,
-                      title: activePage.title,
-                      subtitle: activePage.subtitle,
-                      elements: activeElements,
-                    }
-                  : null
-              }
-              projectName={session?.projectName}
-              showChrome={true}
-              className="h-full w-full"
-              emptyState={
-                activePageId
-                  ? "This page awaits your memories. Click to add a photograph and bring the past to life."
-                  : "Every story begins with a blank page. Add your first."
-              }
-              selectedElementId={selectedElementId}
-              onSelectElement={selectElement}
-              onClearSelection={() => selectElement(null)}
-              onImageDoubleClick={handleImageDoubleClick}
-              onTextCommit={handleTextCommit}
-              onElementPositionChange={handleElementPositionChange}
-              onResizeElement={handleElementPositionChange}
-              enableGestures
-            />
+            {pagesLoading ? (
+              <div className="flex h-full items-center justify-center rounded-sm border border-sepia/20 bg-cream/70">
+                <span className="inline-flex items-center gap-2 text-sm text-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading pages...
+                </span>
+              </div>
+            ) : pages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-4 rounded-sm border border-dashed border-sepia/30 bg-cream/60 p-6 text-center">
+                <div>
+                  <p className="font-headline text-ink-effect">Start your first page</p>
+                  <p className="mt-1 text-sm text-muted">
+                    Choose a template to begin building your gazette.
+                  </p>
+                </div>
+                <Button type="button" onClick={() => setIsTemplateDialogOpen(true)}>
+                  <Plus />
+                  Add your first page
+                </Button>
+              </div>
+            ) : (
+              <div className="relative h-full w-full">
+                <Canvas
+                  page={
+                    activePage
+                      ? {
+                          id: activePage.id,
+                          title: activePage.title,
+                          subtitle: activePage.subtitle,
+                          elements: activeElements,
+                        }
+                      : null
+                  }
+                  projectName={session?.projectName}
+                  showChrome={true}
+                  className="h-full w-full"
+                  emptyState={
+                    activePageId
+                      ? "This page awaits your memories. Click to add a photograph and bring the past to life."
+                      : "Every story begins with a blank page. Add your first."
+                  }
+                  selectedElementId={selectedElementId}
+                  onSelectElement={selectElement}
+                  onClearSelection={() => selectElement(null)}
+                  onImageDoubleClick={handleImageDoubleClick}
+                  onTextCommit={handleTextCommit}
+                  onElementPositionChange={handleElementPositionChange}
+                  onResizeElement={handleElementPositionChange}
+                  enableGestures
+                />
+                {elementsLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-sm bg-cream/60">
+                    <span className="inline-flex items-center gap-2 text-sm text-muted">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading elements...
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
         </main>
 

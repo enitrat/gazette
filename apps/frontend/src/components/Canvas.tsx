@@ -21,6 +21,7 @@ import {
   type Modifier,
 } from "@dnd-kit/core";
 import { CSS, type Transform } from "@dnd-kit/utilities";
+import { Clock, Loader2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CanvasElement, CanvasPage } from "@/types/editor";
 
@@ -103,6 +104,28 @@ const clampSize = (value: number, min: number) => Math.max(value, min);
 
 const getMinSize = (elementType: CanvasElement["type"]) =>
   elementType === "image" ? MIN_IMAGE_SIZE : MIN_TEXT_SIZE;
+
+const VIDEO_STATUS_META: Record<
+  Exclude<CanvasElement["videoStatus"], "complete" | "none" | undefined>,
+  { label: string; icon: typeof Loader2; className: string; animate?: boolean }
+> = {
+  pending: {
+    label: "Queued",
+    icon: Clock,
+    className: "text-muted",
+  },
+  processing: {
+    label: "Processing",
+    icon: Loader2,
+    className: "text-gold",
+    animate: true,
+  },
+  failed: {
+    label: "Failed",
+    icon: XCircle,
+    className: "text-aged-red",
+  },
+};
 
 const applyRatioWithAnchor = (
   width: number,
@@ -384,11 +407,36 @@ function CanvasElementView({
             Image pending
           </div>
         )}
+        {element.isOptimistic ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-parchment/70 text-xs font-ui text-muted">
+            <span className="inline-flex items-center gap-2 rounded-full border border-sepia/30 bg-cream/90 px-3 py-1">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Saving image...
+            </span>
+          </div>
+        ) : null}
         {element.videoStatus &&
         element.videoStatus !== "complete" &&
         element.videoStatus !== "none" ? (
           <div className="absolute inset-0 flex items-center justify-center bg-parchment/60 text-xs font-ui text-muted">
-            Video {element.videoStatus}
+            {(() => {
+              const meta = VIDEO_STATUS_META[element.videoStatus];
+              const Icon = meta?.icon;
+              if (!meta || !Icon) {
+                return <span>Video {element.videoStatus}</span>;
+              }
+              return (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full border border-sepia/30 bg-cream/90 px-3 py-1",
+                    meta.className
+                  )}
+                >
+                  <Icon className={cn("h-3.5 w-3.5", meta.animate && "animate-spin")} />
+                  {meta.label}
+                </span>
+              );
+            })()}
           </div>
         ) : null}
         {showHandles && onResizeStart ? (

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { IMAGE_CONSTRAINTS } from "@gazette/shared/constants";
-import { UploadCloud } from "lucide-react";
+import { Loader2, UploadCloud } from "lucide-react";
 import { apiBaseUrl } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
 
 type UploadedImage = {
   id: string;
@@ -142,9 +143,19 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
               image: { ...response, url: normalizedUrl },
               previewUrl,
             });
+            toast({
+              title: "Image uploaded",
+              description: "Your photo is ready to place on the page.",
+              variant: "success",
+            });
             onOpenChange(false);
           } catch {
             setErrorMessage("Upload succeeded but response was invalid.");
+            toast({
+              title: "Upload error",
+              description: "Upload succeeded but the response was invalid.",
+              variant: "destructive",
+            });
           } finally {
             setIsUploading(false);
             resolve();
@@ -155,8 +166,18 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
         try {
           const response = JSON.parse(xhr.responseText) as { error?: { message?: string } };
           setErrorMessage(response?.error?.message || "Upload failed. Please try again.");
+          toast({
+            title: "Upload failed",
+            description: response?.error?.message || "Upload failed. Please try again.",
+            variant: "destructive",
+          });
         } catch {
           setErrorMessage("Upload failed. Please try again.");
+          toast({
+            title: "Upload failed",
+            description: "Upload failed. Please try again.",
+            variant: "destructive",
+          });
         } finally {
           setIsUploading(false);
           resolve();
@@ -165,6 +186,11 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
 
       xhr.onerror = () => {
         setErrorMessage("Network error during upload. Please try again.");
+        toast({
+          title: "Network error",
+          description: "Network error during upload. Please try again.",
+          variant: "destructive",
+        });
         setIsUploading(false);
         resolve();
       };
@@ -260,7 +286,14 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
               Cancel
             </Button>
             <Button type="button" onClick={handleUpload} disabled={!selectedFile || isUploading}>
-              {isUploading ? "Uploading..." : "Upload photo"}
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                "Upload photo"
+              )}
             </Button>
           </div>
         </div>

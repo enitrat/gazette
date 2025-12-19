@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import ky from "ky";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Loader2 } from "lucide-react";
 import type { CanvasElement, CanvasPage } from "@/types/editor";
 import { GazetteViewer } from "@/components/viewer/GazetteViewer";
 import { parseApiError } from "@/lib/api";
+import { toast } from "@/components/ui/use-toast";
 
 const VIEW_TOKEN_PREFIX = "gazette.view.token";
 
@@ -95,13 +97,18 @@ function ViewerRoute() {
         setViewerData(null);
         clearViewToken(slug);
         setViewToken(null);
+        toast({
+          title: "Unable to load gazette",
+          description: parsed.message,
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
     void fetchView();
-  }, [slug, viewToken]);
+  }, [slug, viewToken, toast]);
 
   const pages = useMemo(() => {
     if (!viewerData?.pages) return [] as ViewerPage[];
@@ -136,6 +143,11 @@ function ViewerRoute() {
     } catch (error) {
       const parsed = await parseApiError(error);
       setStatusMessage(parsed.message);
+      toast({
+        title: "Unlock failed",
+        description: parsed.message,
+        variant: "destructive",
+      });
     } finally {
       setIsAuthenticating(false);
     }
@@ -160,8 +172,18 @@ function ViewerRoute() {
         document.body.removeChild(textarea);
       }
       setShareStatus("Link copied");
+      toast({
+        title: "Link copied",
+        description: "Share link copied to clipboard.",
+        variant: "success",
+      });
     } catch {
       setShareStatus("Copy failed");
+      toast({
+        title: "Copy failed",
+        description: "Please copy the link manually.",
+        variant: "destructive",
+      });
     }
 
     window.setTimeout(() => setShareStatus(null), 2000);
@@ -196,7 +218,14 @@ function ViewerRoute() {
               disabled={isAuthenticating}
               className="w-full rounded-sm bg-gold px-4 py-2 text-xs font-ui font-semibold text-ink transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isAuthenticating ? "Checking..." : "Unlock Gazette"}
+              {isAuthenticating ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Checking...
+                </span>
+              ) : (
+                "Unlock Gazette"
+              )}
             </button>
           </form>
         </div>
@@ -207,7 +236,10 @@ function ViewerRoute() {
   if (isLoading && !viewerData) {
     return (
       <div className="min-h-[calc(100vh-57px)] bg-cream/70 px-4 py-12 sm:px-8">
-        <div className="mx-auto max-w-md text-center text-sm text-muted">Loading gazette...</div>
+        <div className="mx-auto flex max-w-md items-center justify-center gap-2 text-center text-sm text-muted">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading gazette...
+        </div>
       </div>
     );
   }

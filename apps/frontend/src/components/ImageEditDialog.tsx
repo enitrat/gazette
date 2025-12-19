@@ -5,7 +5,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Crop, Move, ZoomIn } from "lucide-react";
+import { Crop, Loader2, Move, ZoomIn } from "lucide-react";
 import type { CanvasElement } from "@/components/Canvas";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
 
 type CropData = {
   x: number;
@@ -293,7 +294,13 @@ export function ImageEditDialog({ open, element, onOpenChange, onSave }: ImageEd
       });
       onOpenChange(false);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to save changes.");
+      const message = error instanceof Error ? error.message : "Unable to save changes.";
+      setErrorMessage(message);
+      toast({
+        title: "Unable to save changes",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -431,7 +438,14 @@ export function ImageEditDialog({ open, element, onOpenChange, onSave }: ImageEd
             Cancel
           </Button>
           <Button type="button" onClick={handleSave} disabled={!canEdit || isSaving}>
-            {isSaving ? "Saving..." : "Apply changes"}
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Apply changes"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

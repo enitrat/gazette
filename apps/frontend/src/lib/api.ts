@@ -43,6 +43,10 @@ export type ParsedApiError = {
 export async function parseApiError(error: unknown): Promise<ParsedApiError> {
   const fallbackMessage = "Something went wrong. Please try again.";
 
+  if (error instanceof TypeError) {
+    return { message: "Network error. Check your connection and try again." };
+  }
+
   if (error instanceof HTTPError) {
     const statusMessage = `Request failed (${error.response.status})`;
 
@@ -69,6 +73,9 @@ export async function parseApiError(error: unknown): Promise<ParsedApiError> {
   }
 
   if (error instanceof Error) {
+    if (/network|failed to fetch|load failed/i.test(error.message)) {
+      return { message: "Network error. Check your connection and try again." };
+    }
     return { message: error.message || fallbackMessage };
   }
 

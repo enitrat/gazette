@@ -22,6 +22,7 @@ export type CanvasElement = {
   animationPrompt?: string | null;
   videoUrl?: string | null;
   videoStatus?: "none" | "pending" | "processing" | "complete" | "failed";
+  isOptimistic?: boolean;
 };
 
 export type CanvasPage = {
