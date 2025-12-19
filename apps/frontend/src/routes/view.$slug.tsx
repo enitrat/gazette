@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import ky from "ky";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import type { CanvasElement, CanvasPage } from "@/types/editor";
 import { GazetteViewer } from "@/components/viewer/GazetteViewer";
@@ -119,7 +119,20 @@ function ViewerRoute() {
     if (activeIndex >= pages.length) {
       setActiveIndex(0);
     }
+    if (activeIndex < 0) {
+      setActiveIndex(0);
+    }
   }, [activeIndex, pages.length]);
+
+  const handleNavigate = useCallback(
+    (nextIndex: number) => {
+      setActiveIndex(() => {
+        if (pages.length === 0) return 0;
+        return Math.min(Math.max(nextIndex, 0), pages.length - 1);
+      });
+    },
+    [pages.length]
+  );
 
   const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -261,7 +274,7 @@ function ViewerRoute() {
       shareUrl={shareUrl}
       pages={pages}
       activeIndex={activeIndex}
-      onNavigate={setActiveIndex}
+      onNavigate={handleNavigate}
       onShare={handleShare}
       shareStatus={shareStatus}
     />
