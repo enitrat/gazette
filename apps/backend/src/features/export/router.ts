@@ -4,7 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { requireProjectAuth } from "../../auth/middleware";
 import { ERROR_CODES } from "@gazette/shared";
 import { errorResponse } from "../shared/http";
-import { buildHtmlExportZip } from "../../services/export.service";
+import { buildHtmlExportZip, buildVideoExportZip } from "../../services/export.service";
 
 const router = new Hono();
 
@@ -30,6 +30,17 @@ const handleValidationError = (result: unknown) => {
   return null;
 };
 
+const streamBuffer = (buffer: Uint8Array) =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      const chunkSize = 64 * 1024;
+      for (let offset = 0; offset < buffer.length; offset += chunkSize) {
+        controller.enqueue(buffer.slice(offset, offset + chunkSize));
+      }
+      controller.close();
+    },
+  });
+
 router.get(
   "/projects/:id/export/html",
   requireProjectAuth,
@@ -48,9 +59,33 @@ router.get(
     }
 
     const encoded = encodeURIComponent(result.filename);
-    const body = new Uint8Array(result.buffer.byteLength);
-    body.set(result.buffer);
-    return c.body(body, 200, {
+    return c.body(streamBuffer(result.buffer), 200, {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${result.filename}"; filename*=UTF-8''${encoded}`,
+      "Cache-Control": "no-store",
+    });
+  }
+);
+
+router.get(
+  "/projects/:id/export/videos",
+  requireProjectAuth,
+  zValidator("param", projectIdParams, (result, c) => {
+    const payload = handleValidationError(result);
+    if (payload) {
+      return c.json(payload, 400);
+    }
+  }),
+  async (c) => {
+    const projectId = c.req.param("id");
+
+    const result = await buildVideoExportZip(projectId);
+    if (!result) {
+      return errorResponse(c, 404, ERROR_CODES.PROJECT_NOT_FOUND, "Project not found");
+    }
+
+    const encoded = encodeURIComponent(result.filename);
+    return c.body(streamBuffer(result.buffer), 200, {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${result.filename}"; filename*=UTF-8''${encoded}`,
       "Cache-Control": "no-store",

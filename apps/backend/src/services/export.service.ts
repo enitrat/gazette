@@ -35,6 +35,7 @@ type ExportElement = {
   cropData?: { x: number; y: number; zoom: number } | null;
   videoUrl?: string | null;
   videoStatus?: string | null;
+  animationPrompt?: string | null;
 };
 
 type ExportPage = {
@@ -51,6 +52,12 @@ type ExportProject = {
   slug: string;
 };
 
+type BaseExportPayload = {
+  project: ExportProject;
+  pages: ExportPage[];
+  elementsByPage: Map<string, ExportElement[]>;
+};
+
 type HtmlExportPayload = {
   project: ExportProject;
   pages: ExportPage[];
@@ -60,6 +67,12 @@ type HtmlExportPayload = {
 
 let cachedFontCss: string | null = null;
 let pendingFontCss: Promise<string> | null = null;
+
+const sanitizeFilename = (value: string, fallback = "export") => {
+  const sanitized = value.trim().replace(/[^a-z0-9._-]+/gi, "_");
+  const normalized = sanitized.replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+};
 
 const escapeHtml = (value: string) =>
   value
@@ -495,7 +508,7 @@ ${baseCss}
 </html>`;
 };
 
-const fetchExportData = async (projectId: string): Promise<HtmlExportPayload | null> => {
+const fetchBaseExportData = async (projectId: string): Promise<BaseExportPayload | null> => {
   const project = await db
     .select({ id: schema.projects.id, name: schema.projects.name, slug: schema.projects.slug })
     .from(schema.projects)
@@ -527,7 +540,6 @@ const fetchExportData = async (projectId: string): Promise<HtmlExportPayload | n
       : [];
 
   const elementsByPage = new Map<string, ExportElement[]>();
-  const imageIds = new Set<string>();
 
   for (const record of elementRecords) {
     const position = {
@@ -557,11 +569,8 @@ const fetchExportData = async (projectId: string): Promise<HtmlExportPayload | n
         cropData,
         videoUrl: record.videoUrl ?? null,
         videoStatus: record.videoStatus ?? "none",
+        animationPrompt: record.animationPrompt ?? null,
       };
-
-      if (record.imageId) {
-        imageIds.add(record.imageId);
-      }
 
       const list = elementsByPage.get(record.pageId) ?? [];
       list.push(element);
@@ -580,6 +589,26 @@ const fetchExportData = async (projectId: string): Promise<HtmlExportPayload | n
     const list = elementsByPage.get(record.pageId) ?? [];
     list.push(element);
     elementsByPage.set(record.pageId, list);
+  }
+
+  return {
+    project,
+    pages,
+    elementsByPage,
+  };
+};
+
+const fetchHtmlExportData = async (projectId: string): Promise<HtmlExportPayload | null> => {
+  const base = await fetchBaseExportData(projectId);
+  if (!base) return null;
+
+  const imageIds = new Set<string>();
+  for (const elements of base.elementsByPage.values()) {
+    for (const element of elements) {
+      if (element.imageId) {
+        imageIds.add(element.imageId);
+      }
+    }
   }
 
   const imageRecords =
@@ -602,15 +631,13 @@ const fetchExportData = async (projectId: string): Promise<HtmlExportPayload | n
   }
 
   return {
-    project,
-    pages,
-    elementsByPage,
+    ...base,
     imageDataById,
   };
 };
 
 export const buildHtmlExportZip = async (projectId: string) => {
-  const payload = await fetchExportData(projectId);
+  const payload = await fetchHtmlExportData(projectId);
   if (!payload) return null;
 
   const zip = new JSZip();
@@ -637,8 +664,97 @@ export const buildHtmlExportZip = async (projectId: string) => {
   zip.file("index.html", html);
 
   const buffer = await zip.generateAsync({ type: "uint8array" });
-  const safeSlug = payload.project.slug.replace(/[^a-z0-9._-]/gi, "_");
-  const rawName = `gazette-${safeSlug || "export"}.html.zip`;
+  const safeSlug = sanitizeFilename(payload.project.slug, "export");
+  const rawName = `gazette-${safeSlug}.html.zip`;
+
+  return { buffer, filename: rawName };
+};
+
+type VideoExportMetadata = {
+  page: { id: string; order: number; title: string | null; subtitle: string | null };
+  element: { id: string; index: number; imageId: string | null };
+  prompt: string | null;
+  videoUrl: string | null;
+  file: string | null;
+  missing: boolean;
+  missingReason: string | null;
+};
+
+export const buildVideoExportZip = async (projectId: string) => {
+  const payload = await fetchBaseExportData(projectId);
+  if (!payload) return null;
+
+  const zip = new JSZip();
+  const metadata: VideoExportMetadata[] = [];
+  let videoCounter = 0;
+
+  for (const [pageIndex, page] of payload.pages.entries()) {
+    const elements = payload.elementsByPage.get(page.id) ?? [];
+    for (const [elementIndex, element] of elements.entries()) {
+      if (element.type !== ELEMENT_TYPES.IMAGE) continue;
+      if (!element.videoUrl) continue;
+      if (element.videoStatus && element.videoStatus !== "complete") continue;
+
+      const jobId = extractVideoJobId(element.videoUrl);
+      const safeBase = sanitizeFilename(
+        `page-${page.order + 1}-element-${elementIndex + 1}`,
+        `video-${pageIndex + 1}-${elementIndex + 1}`
+      );
+      const zipPath = `videos/${safeBase}.mp4`;
+
+      if (!jobId) {
+        metadata.push({
+          page,
+          element: { id: element.id, index: elementIndex + 1, imageId: element.imageId ?? null },
+          prompt: element.animationPrompt ?? null,
+          videoUrl: element.videoUrl ?? null,
+          file: null,
+          missing: true,
+          missingReason: "missing_job_id",
+        });
+        continue;
+      }
+
+      const filePath = join(videoRoot, `${jobId}.mp4`);
+      const file = Bun.file(filePath);
+      if (!(await file.exists())) {
+        metadata.push({
+          page,
+          element: { id: element.id, index: elementIndex + 1, imageId: element.imageId ?? null },
+          prompt: element.animationPrompt ?? null,
+          videoUrl: element.videoUrl ?? null,
+          file: null,
+          missing: true,
+          missingReason: "missing_file",
+        });
+        continue;
+      }
+
+      zip.file(zipPath, await file.arrayBuffer());
+      metadata.push({
+        page,
+        element: { id: element.id, index: elementIndex + 1, imageId: element.imageId ?? null },
+        prompt: element.animationPrompt ?? null,
+        videoUrl: element.videoUrl ?? null,
+        file: zipPath,
+        missing: false,
+        missingReason: null,
+      });
+      videoCounter += 1;
+    }
+  }
+
+  const metadataPayload = {
+    project: payload.project,
+    generatedAt: new Date().toISOString(),
+    totalVideos: videoCounter,
+    videos: metadata,
+  };
+  zip.file("metadata.json", JSON.stringify(metadataPayload, null, 2));
+
+  const buffer = await zip.generateAsync({ type: "uint8array" });
+  const safeSlug = sanitizeFilename(payload.project.slug, "export");
+  const rawName = `gazette-${safeSlug}.videos.zip`;
 
   return { buffer, filename: rawName };
 };
