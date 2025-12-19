@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { validateAccessProject, validateCreateProject } from "@gazette/shared";
-import { signProjectToken } from "../../auth";
+import { requireProjectAuth, signProjectToken } from "../../auth";
 import { db, schema } from "../../db";
 import {
   getProjectById,
@@ -28,6 +28,31 @@ async function readJsonBody<T>(c: { req: { json: () => Promise<T> } }): Promise<
 }
 
 export const projectsRouter = new Hono();
+
+projectsRouter.get("/:id", requireProjectAuth, async (c) => {
+  const projectId = c.req.param("id");
+  const project = await getProjectById(projectId);
+
+  if (!project) {
+    return c.json(
+      {
+        error: {
+          code: "PROJECT_NOT_FOUND",
+          message: "Project not found",
+        },
+      },
+      404
+    );
+  }
+
+  return c.json({
+    id: project.id,
+    name: project.name,
+    slug: project.slug,
+    createdAt: toIsoTimestamp(project.createdAt),
+    updatedAt: toIsoTimestamp(project.updatedAt),
+  });
+});
 
 projectsRouter.post("/", async (c) => {
   const body = await readJsonBody(c);
