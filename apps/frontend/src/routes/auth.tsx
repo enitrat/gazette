@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CreateProjectSchema } from "@gazette/shared/schemas/project";
 import { VALIDATION } from "@gazette/shared/constants";
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { api, parseApiError } from "@/lib/api";
 import { setAuthSession } from "@/lib/auth";
 import { toast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -35,6 +36,45 @@ type AuthResponse = {
 type FieldErrors = Partial<Record<"name" | "password", string>>;
 
 const passwordHint = `Password must be ${VALIDATION.PASSWORD_MIN}-${VALIDATION.PASSWORD_MAX} characters.`;
+const minimumStrongLength = VALIDATION.PASSWORD_MIN + 4;
+
+const getPasswordStrength = (password: string) => {
+  if (!password) {
+    return null;
+  }
+
+  const hasNumber = /\d/.test(password);
+  const hasSymbol = /[^A-Za-z0-9]/.test(password);
+  const hasMixedCase = /[a-z]/.test(password) && /[A-Z]/.test(password);
+  const meetsMin = password.length >= VALIDATION.PASSWORD_MIN;
+  const longEnough = password.length >= minimumStrongLength;
+
+  if (!meetsMin) {
+    return {
+      label: "Weak",
+      score: 1,
+      barClass: "bg-aged-red/70",
+      textClass: "text-aged-red",
+    };
+  }
+
+  const score = Number(longEnough) + Number(hasNumber || hasSymbol) + Number(hasMixedCase);
+  if (score >= 2) {
+    return {
+      label: "Strong",
+      score: 3,
+      barClass: "bg-emerald-500/70",
+      textClass: "text-emerald-700",
+    };
+  }
+
+  return {
+    label: "Medium",
+    score: 2,
+    barClass: "bg-gold/70",
+    textClass: "text-gold",
+  };
+};
 
 function AuthPage() {
   const navigate = useNavigate();
@@ -42,11 +82,15 @@ function AuthPage() {
   const [createErrors, setCreateErrors] = useState<FieldErrors>({});
   const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createPasswordVisible, setCreatePasswordVisible] = useState(false);
 
   const [loginValues, setLoginValues] = useState({ name: "", password: "" });
   const [loginErrors, setLoginErrors] = useState<FieldErrors>({});
   const [loginFormError, setLoginFormError] = useState<string | null>(null);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [loginPasswordVisible, setLoginPasswordVisible] = useState(false);
+
+  const createPasswordStrength = getPasswordStrength(createValues.password);
 
   const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -183,7 +227,14 @@ function AuthPage() {
             <CardDescription>Start a new gazette with a shared project password.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={handleCreateSubmit}>
+            <form
+              className={cn(
+                "space-y-4 transition-opacity",
+                createSubmitting && "pointer-events-none opacity-75"
+              )}
+              onSubmit={handleCreateSubmit}
+              aria-busy={createSubmitting}
+            >
               {createFormError ? (
                 <div className="rounded-sm border border-aged-red/30 bg-aged-red/10 px-3 py-2 font-ui text-sm text-aged-red">
                   {createFormError}
@@ -199,6 +250,7 @@ function AuthPage() {
                   autoComplete="off"
                   placeholder="e.g. Famille Dupont 1950-2024"
                   value={createValues.name}
+                  disabled={createSubmitting}
                   onChange={(event) => {
                     setCreateValues((prev) => ({ ...prev, name: event.target.value }));
                     if (createErrors.name) {
@@ -208,7 +260,7 @@ function AuthPage() {
                       setCreateFormError(null);
                     }
                   }}
-                  className="input-vintage"
+                  className="input-vintage focus-visible:border-gold focus-visible:ring-gold/50 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment/70"
                 />
                 {createErrors.name ? (
                   <p className="font-ui text-xs text-aged-red">{createErrors.name}</p>
@@ -218,25 +270,64 @@ function AuthPage() {
                 <Label htmlFor="create-password" className="font-ui text-sm text-muted">
                   Project password
                 </Label>
-                <Input
-                  id="create-password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Choose a password"
-                  value={createValues.password}
-                  onChange={(event) => {
-                    setCreateValues((prev) => ({ ...prev, password: event.target.value }));
-                    if (createErrors.password) {
-                      setCreateErrors((prev) => ({ ...prev, password: undefined }));
-                    }
-                    if (createFormError) {
-                      setCreateFormError(null);
-                    }
-                  }}
-                  className="input-vintage"
-                />
+                <div className="relative">
+                  <Input
+                    id="create-password"
+                    name="password"
+                    type={createPasswordVisible ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="Choose a password"
+                    value={createValues.password}
+                    disabled={createSubmitting}
+                    onChange={(event) => {
+                      setCreateValues((prev) => ({ ...prev, password: event.target.value }));
+                      if (createErrors.password) {
+                        setCreateErrors((prev) => ({ ...prev, password: undefined }));
+                      }
+                      if (createFormError) {
+                        setCreateFormError(null);
+                      }
+                    }}
+                    className="input-vintage pr-10 focus-visible:border-gold focus-visible:ring-gold/50 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment/70"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={createSubmitting}
+                    className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 text-muted hover:text-ink"
+                    onClick={() => setCreatePasswordVisible((prev) => !prev)}
+                    aria-label={createPasswordVisible ? "Hide password" : "Show password"}
+                    aria-pressed={createPasswordVisible}
+                  >
+                    {createPasswordVisible ? <EyeOff /> : <Eye />}
+                  </Button>
+                </div>
                 <p className="font-ui text-xs text-muted">{passwordHint}</p>
+                {createValues.password ? (
+                  <div className="space-y-1">
+                    <div className="flex gap-1">
+                      {Array.from({ length: 3 }).map((_, index) => {
+                        return (
+                          <span
+                            key={`strength-${index}`}
+                            className={cn(
+                              "h-1.5 flex-1 rounded-full bg-sepia/20",
+                              createPasswordStrength &&
+                                index < createPasswordStrength.score &&
+                                createPasswordStrength.barClass
+                            )}
+                          />
+                        );
+                      })}
+                    </div>
+                    {createPasswordStrength ? (
+                      <p className={cn("font-ui text-xs", createPasswordStrength.textClass)}>
+                        {createPasswordStrength.label} password
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {createErrors.password ? (
                   <p className="font-ui text-xs text-aged-red">{createErrors.password}</p>
                 ) : null}
@@ -269,7 +360,14 @@ function AuthPage() {
             <CardDescription>Return to a project you have already created.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={handleLoginSubmit}>
+            <form
+              className={cn(
+                "space-y-4 transition-opacity",
+                loginSubmitting && "pointer-events-none opacity-75"
+              )}
+              onSubmit={handleLoginSubmit}
+              aria-busy={loginSubmitting}
+            >
               {loginFormError ? (
                 <div className="rounded-sm border border-aged-red/30 bg-aged-red/10 px-3 py-2 font-ui text-sm text-aged-red">
                   {loginFormError}
@@ -285,6 +383,7 @@ function AuthPage() {
                   autoComplete="off"
                   placeholder="Enter your project name"
                   value={loginValues.name}
+                  disabled={loginSubmitting}
                   onChange={(event) => {
                     setLoginValues((prev) => ({ ...prev, name: event.target.value }));
                     if (loginErrors.name) {
@@ -294,7 +393,7 @@ function AuthPage() {
                       setLoginFormError(null);
                     }
                   }}
-                  className="input-vintage"
+                  className="input-vintage focus-visible:border-gold focus-visible:ring-gold/50 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment/70"
                 />
                 {loginErrors.name ? (
                   <p className="font-ui text-xs text-aged-red">{loginErrors.name}</p>
@@ -304,24 +403,39 @@ function AuthPage() {
                 <Label htmlFor="login-password" className="font-ui text-sm text-muted">
                   Project password
                 </Label>
-                <Input
-                  id="login-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  value={loginValues.password}
-                  onChange={(event) => {
-                    setLoginValues((prev) => ({ ...prev, password: event.target.value }));
-                    if (loginErrors.password) {
-                      setLoginErrors((prev) => ({ ...prev, password: undefined }));
-                    }
-                    if (loginFormError) {
-                      setLoginFormError(null);
-                    }
-                  }}
-                  className="input-vintage"
-                />
+                <div className="relative">
+                  <Input
+                    id="login-password"
+                    name="password"
+                    type={loginPasswordVisible ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    value={loginValues.password}
+                    disabled={loginSubmitting}
+                    onChange={(event) => {
+                      setLoginValues((prev) => ({ ...prev, password: event.target.value }));
+                      if (loginErrors.password) {
+                        setLoginErrors((prev) => ({ ...prev, password: undefined }));
+                      }
+                      if (loginFormError) {
+                        setLoginFormError(null);
+                      }
+                    }}
+                    className="input-vintage pr-10 focus-visible:border-gold focus-visible:ring-gold/50 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment/70"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={loginSubmitting}
+                    className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 text-muted hover:text-ink"
+                    onClick={() => setLoginPasswordVisible((prev) => !prev)}
+                    aria-label={loginPasswordVisible ? "Hide password" : "Show password"}
+                    aria-pressed={loginPasswordVisible}
+                  >
+                    {loginPasswordVisible ? <EyeOff /> : <Eye />}
+                  </Button>
+                </div>
                 {loginErrors.password ? (
                   <p className="font-ui text-xs text-aged-red">{loginErrors.password}</p>
                 ) : null}
