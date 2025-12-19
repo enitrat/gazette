@@ -75,25 +75,39 @@ The newspaper itself: the content users are creating.
 
 Located in `src/components/ui/`:
 
-| Component      | File                | Primary Use                    |
-| -------------- | ------------------- | ------------------------------ |
-| `Accordion`    | `accordion.tsx`     | Collapsible sections           |
-| `AlertDialog`  | `alert-dialog.tsx`  | Confirmations, destructive UX  |
-| `Button`       | `button.tsx`        | All clickable actions          |
-| `Card`         | `card.tsx`          | Content containers, panels     |
-| `Dialog`       | `dialog.tsx`        | Modals, popups                 |
-| `DropdownMenu` | `dropdown-menu.tsx` | Overflow actions, menus        |
-| `Input`        | `input.tsx`         | Text fields                    |
-| `Label`        | `label.tsx`         | Form labels                    |
-| `Progress`     | `progress.tsx`      | Loading states, uploads        |
-| `Separator`    | `separator.tsx`     | Dividers, button groups        |
-| `Sheet`        | `sheet.tsx`         | Mobile navigation, side panels |
-| `Tabs`         | `tabs.tsx`          | View switching, navigation     |
-| `Textarea`     | `textarea.tsx`      | Multi-line text                |
-| `Toast`        | `toast.tsx`         | Notifications                  |
-| `Tooltip`      | `tooltip.tsx`       | Icon button labels, hints      |
-| `Toaster`      | `toaster.tsx`       | Toast viewport                 |
-| `useToast`     | `use-toast.ts`      | Toast hook                     |
+| Component        | File                | Primary Use                    |
+| ---------------- | ------------------- | ------------------------------ |
+| `Accordion`      | `accordion.tsx`     | Collapsible sections           |
+| `AlertDialog`    | `alert-dialog.tsx`  | Confirmations, destructive UX  |
+| `Avatar`         | `avatar.tsx`        | User profile pictures          |
+| `Badge`          | `badge.tsx`         | Count indicators, labels       |
+| `Button`         | `button.tsx`        | All clickable actions          |
+| `Card`           | `card.tsx`          | Content containers, panels     |
+| `Command`        | `command.tsx`       | Search palettes, command menus |
+| `ContextMenu`    | `context-menu.tsx`  | Right-click menus              |
+| `Dialog`         | `dialog.tsx`        | Modals, popups                 |
+| `DropdownMenu`   | `dropdown-menu.tsx` | Overflow actions, menus        |
+| `HoverCard`      | `hover-card.tsx`    | Rich tooltips on hover         |
+| `Input`          | `input.tsx`         | Text fields                    |
+| `Label`          | `label.tsx`         | Form labels                    |
+| `Popover`        | `popover.tsx`       | Floating panels, color pickers |
+| `Progress`       | `progress.tsx`      | Loading states, uploads        |
+| `RadioGroup`     | `radio-group.tsx`   | Radio selections               |
+| `ResizablePanel` | `resizable.tsx`     | Adjustable panel widths        |
+| `ScrollArea`     | `scroll-area.tsx`   | Custom scrollable regions      |
+| `Select`         | `select.tsx`        | Dropdown selectors             |
+| `Separator`      | `separator.tsx`     | Dividers, button groups        |
+| `Sheet`          | `sheet.tsx`         | Mobile navigation, side panels |
+| `Slider`         | `slider.tsx`        | Range inputs, numeric controls |
+| `Switch`         | `switch.tsx`        | Toggle switches                |
+| `Tabs`           | `tabs.tsx`          | View switching, navigation     |
+| `Textarea`       | `textarea.tsx`      | Multi-line text                |
+| `Toast`          | `toast.tsx`         | Notifications                  |
+| `Toggle`         | `toggle.tsx`        | Single toggle buttons          |
+| `ToggleGroup`    | `toggle-group.tsx`  | Grouped toggle buttons         |
+| `Tooltip`        | `tooltip.tsx`       | Icon button labels, hints      |
+| `Toaster`        | `toaster.tsx`       | Toast viewport                 |
+| `useToast`       | `use-toast.ts`      | Toast hook                     |
 
 ### 2.2 Button Variants
 
@@ -249,6 +263,236 @@ import { Separator } from "@/components/ui/separator";
   <Separator orientation="vertical" className="h-6" />
   <Button>Redo</Button>
 </div>;
+```
+
+### 2.10 Slider with Numeric Input
+
+Use for precise numeric controls like font size, spacing, etc.
+
+```tsx
+import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+<div className="space-y-2">
+  <div className="flex items-center justify-between">
+    <Label className="font-ui text-sm">Font Size</Label>
+    <Input
+      type="number"
+      value={fontSize}
+      onChange={(e) => setFontSize(Number(e.target.value))}
+      className="h-8 w-16 text-right"
+      min={8}
+      max={72}
+    />
+  </div>
+  <Slider value={[fontSize]} onValueChange={([v]) => setFontSize(v)} min={8} max={72} step={1} />
+</div>;
+```
+
+### 2.11 Avatar with Dropdown
+
+Use for user profile in navbar.
+
+```tsx
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Avatar className="h-8 w-8 cursor-pointer">
+      <AvatarImage src="/user.jpg" alt="User" />
+      <AvatarFallback>JD</AvatarFallback>
+    </Avatar>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end">
+    <DropdownMenuItem>Profile</DropdownMenuItem>
+    <DropdownMenuItem>Settings</DropdownMenuItem>
+    <DropdownMenuItem>Sign Out</DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>;
+```
+
+### 2.12 Badge for Counts
+
+Use for notification counts, page counts, etc.
+
+```tsx
+import { Badge } from "@/components/ui/badge";
+import { Bell } from "lucide-react";
+
+// Notification badge
+<div className="relative">
+  <Bell className="h-5 w-5" />
+  <Badge className="absolute -right-1 -top-1 h-4 min-w-4 p-0 text-xs">3</Badge>
+</div>;
+
+// Count badge
+<div className="flex items-center gap-2">
+  <span className="font-ui text-sm">Pages</span>
+  <Badge variant="secondary">5</Badge>
+</div>;
+```
+
+### 2.13 Select Dropdown
+
+Use for font family, editor mode, and other dropdown selections.
+
+```tsx
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+<Select value={fontFamily} onValueChange={setFontFamily}>
+  <SelectTrigger className="w-full">
+    <SelectValue placeholder="Select font" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="inter">Inter</SelectItem>
+    <SelectItem value="serif">Serif</SelectItem>
+    <SelectItem value="playfair">Playfair Display</SelectItem>
+  </SelectContent>
+</Select>;
+```
+
+### 2.14 Switch for Settings
+
+Use for dark mode toggle and other on/off settings.
+
+```tsx
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Moon, Sun } from "lucide-react";
+
+<div className="flex items-center gap-2">
+  <Sun className="h-4 w-4" />
+  <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+  <Moon className="h-4 w-4" />
+</div>;
+```
+
+### 2.15 Toggle Group for Alignment
+
+Use for text alignment, view modes, and mutually exclusive options.
+
+```tsx
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from "lucide-react";
+
+<ToggleGroup type="single" value={alignment} onValueChange={setAlignment}>
+  <ToggleGroupItem value="left" aria-label="Align left">
+    <AlignLeft className="h-4 w-4" />
+  </ToggleGroupItem>
+  <ToggleGroupItem value="center" aria-label="Align center">
+    <AlignCenter className="h-4 w-4" />
+  </ToggleGroupItem>
+  <ToggleGroupItem value="right" aria-label="Align right">
+    <AlignRight className="h-4 w-4" />
+  </ToggleGroupItem>
+  <ToggleGroupItem value="justify" aria-label="Justify">
+    <AlignJustify className="h-4 w-4" />
+  </ToggleGroupItem>
+</ToggleGroup>;
+```
+
+### 2.16 Toggle for Text Styling
+
+Use for bold, italic, underline, strikethrough buttons.
+
+```tsx
+import { Toggle } from "@/components/ui/toggle";
+import { Bold, Italic, Underline, Strikethrough } from "lucide-react";
+
+<div className="flex gap-1">
+  <Toggle pressed={bold} onPressedChange={setBold} aria-label="Toggle bold">
+    <Bold className="h-4 w-4" />
+  </Toggle>
+  <Toggle pressed={italic} onPressedChange={setItalic} aria-label="Toggle italic">
+    <Italic className="h-4 w-4" />
+  </Toggle>
+  <Toggle pressed={underline} onPressedChange={setUnderline} aria-label="Toggle underline">
+    <Underline className="h-4 w-4" />
+  </Toggle>
+  <Toggle
+    pressed={strikethrough}
+    onPressedChange={setStrikethrough}
+    aria-label="Toggle strikethrough"
+  >
+    <Strikethrough className="h-4 w-4" />
+  </Toggle>
+</div>;
+```
+
+### 2.17 Popover for Color Picker
+
+Use for color selection and other floating panels.
+
+```tsx
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+
+<Popover>
+  <PopoverTrigger asChild>
+    <Button variant="outline" className="h-10 w-full justify-start gap-2">
+      <div className="h-6 w-6 rounded border border-sepia/30" style={{ backgroundColor: color }} />
+      <span className="font-ui text-sm">{color}</span>
+    </Button>
+  </PopoverTrigger>
+  <PopoverContent className="w-64">
+    {/* Color picker component (e.g., react-colorful) */}
+  </PopoverContent>
+</Popover>;
+```
+
+### 2.18 ScrollArea for Lists
+
+Use for page lists, media libraries, and scrollable content.
+
+```tsx
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+<ScrollArea className="h-[400px] w-full">
+  <div className="space-y-2 p-4">
+    {pages.map((page) => (
+      <PageCard key={page.id} page={page} />
+    ))}
+  </div>
+</ScrollArea>;
+```
+
+### 2.19 RadioGroup for Options
+
+Use for animation suggestions, template selection, etc.
+
+```tsx
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+
+<RadioGroup value={selectedAnimation} onValueChange={setSelectedAnimation}>
+  <div className="flex items-start space-x-2">
+    <RadioGroupItem value="waltz" id="waltz" />
+    <Label htmlFor="waltz" className="font-body">
+      <div className="font-semibold">Dancing a slow waltz together</div>
+      <div className="text-sm text-muted">The couple begins to dance...</div>
+    </Label>
+  </div>
+  <div className="flex items-start space-x-2">
+    <RadioGroupItem value="conversation" id="conversation" />
+    <Label htmlFor="conversation" className="font-body">
+      <div className="font-semibold">Having a warm conversation</div>
+      <div className="text-sm text-muted">The couple looks into each other's eyes...</div>
+    </Label>
+  </div>
+</RadioGroup>;
 ```
 
 ---
