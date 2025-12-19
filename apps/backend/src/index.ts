@@ -26,7 +26,13 @@ export const app = new Hono();
 // Middleware
 app.use("*", requestId());
 app.use("*", logger());
-app.use("*", secureHeaders());
+app.use(
+  "*",
+  secureHeaders({
+    crossOriginResourcePolicy: "cross-origin",
+    crossOriginEmbedderPolicy: false,
+  })
+);
 app.use(
   "*",
   cors({
