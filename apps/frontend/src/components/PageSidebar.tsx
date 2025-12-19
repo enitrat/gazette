@@ -1,11 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { TEMPLATE_NAMES, TEMPLATES } from "@gazette/shared/constants";
-import { Plus, X } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { usePagesStore } from "@/stores/pages-store";
+import { usePagesStore, type PageSummary } from "@/stores/pages-store";
 
 type PageSidebarProps = {
   projectId?: string;
@@ -61,6 +77,74 @@ function PagePreview({ templateId }: { templateId: Template }) {
   );
 }
 
+type SortablePageRowProps = {
+  page: PageSummary;
+  isActive: boolean;
+  onSelectPage: (pageId: string) => void;
+};
+
+function SortablePageRow({ page, isActive, onSelectPage }: SortablePageRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: page.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 rounded-md border px-3 py-2 transition-all",
+        isActive
+          ? "border-gold bg-cream shadow-[0_0_0_1px_rgba(193,154,107,0.35)]"
+          : "border-sepia/30 bg-cream/80 hover:border-gold/60 hover:bg-cream",
+        isDragging && "opacity-60"
+      )}
+    >
+      <Button
+        onClick={() => onSelectPage(page.id)}
+        variant="ghost"
+        type="button"
+        className="h-auto flex-1 justify-start gap-3 px-0 py-0 text-left"
+      >
+        <PagePreview templateId={page.templateId} />
+        <div className="flex flex-1 flex-col justify-center">
+          <p className="font-ui text-sm font-medium text-ink">
+            {page.title.trim() || `Page ${page.order + 1}`}
+          </p>
+          <p className="font-ui text-xs text-muted">
+            {page.subtitle.trim() || TEMPLATE_NAMES[page.templateId]}
+          </p>
+        </div>
+        <span className="flex items-start font-ui text-[11px] text-muted">
+          {page.elementCount ?? 0}
+        </span>
+      </Button>
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        onClick={(event) => event.stopPropagation()}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-sm border border-transparent text-muted transition-colors hover:border-sepia/40 hover:bg-parchment hover:text-sepia"
+        aria-label={`Reorder ${page.title.trim() || `Page ${page.order + 1}`}`}
+      >
+        <GripVertical className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export function PageSidebar({
   projectId,
   activePageId,
@@ -69,10 +153,16 @@ export function PageSidebar({
   onClose,
   className,
 }: PageSidebarProps) {
-  const { pages, isLoading, error, fetchPages, createPage } = usePagesStore();
+  const { pages, isLoading, error, fetchPages, createPage, reorderPages } = usePagesStore();
   const [isCreating, setIsCreating] = useState(false);
 
   const sortedPages = useMemo(() => [...pages].sort((a, b) => a.order - b.order), [pages]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     if (!projectId) {
@@ -98,6 +188,25 @@ export function PageSidebar({
       onSelectPage(created.id);
     }
     setIsCreating(false);
+  };
+
+  const handleDragEnd = async ({ active, over }: DragEndEvent) => {
+    if (!projectId || !over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = sortedPages.findIndex((page) => page.id === active.id);
+    const newIndex = sortedPages.findIndex((page) => page.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
+
+    const nextOrder = arrayMove(sortedPages, oldIndex, newIndex);
+    await reorderPages(
+      projectId,
+      nextOrder.map((page) => page.id)
+    );
   };
 
   return (
@@ -148,7 +257,7 @@ export function PageSidebar({
             </Card>
           )}
 
-          {!isLoading && !error && sortedPages.length === 0 && (
+          {!isLoading && sortedPages.length === 0 && (
             <Card className="border-dashed border-muted/60 bg-cream/60 shadow-none">
               <CardContent className="p-3 font-ui text-xs text-muted">
                 Every story begins with a blank page. Add your first.
@@ -156,38 +265,25 @@ export function PageSidebar({
             </Card>
           )}
 
-          {!isLoading &&
-            !error &&
-            sortedPages.map((page) => {
-              const isActive = page.id === activePageId;
-              return (
-                <Button
-                  key={page.id}
-                  onClick={() => onSelectPage(page.id)}
-                  variant="ghost"
-                  type="button"
-                  className={cn(
-                    "h-auto w-full justify-start gap-3 border px-3 py-2 text-left transition-all",
-                    isActive
-                      ? "border-gold bg-cream shadow-[0_0_0_1px_rgba(193,154,107,0.35)]"
-                      : "border-sepia/30 bg-cream/80 hover:border-gold/60 hover:bg-cream"
-                  )}
-                >
-                  <PagePreview templateId={page.templateId} />
-                  <div className="flex flex-1 flex-col justify-center">
-                    <p className="font-ui text-sm font-medium text-ink">
-                      {page.title.trim() || `Page ${page.order + 1}`}
-                    </p>
-                    <p className="font-ui text-xs text-muted">
-                      {page.subtitle.trim() || TEMPLATE_NAMES[page.templateId]}
-                    </p>
-                  </div>
-                  <span className="flex items-start font-ui text-[11px] text-muted">
-                    {page.elementCount ?? 0}
-                  </span>
-                </Button>
-              );
-            })}
+          {!isLoading && sortedPages.length > 0 && (
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <SortableContext
+                items={sortedPages.map((page) => page.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {sortedPages.map((page) => (
+                    <SortablePageRow
+                      key={page.id}
+                      page={page}
+                      isActive={page.id === activePageId}
+                      onSelectPage={onSelectPage}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
         </div>
       )}
 

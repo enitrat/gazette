@@ -22,10 +22,11 @@ type PagesState = {
     templateId?: Template,
     afterPageId?: string
   ) => Promise<PageSummary | null>;
+  reorderPages: (projectId: string, pageIds: string[]) => Promise<boolean>;
   setPages: (pages: PageSummary[]) => void;
 };
 
-export const usePagesStore = create<PagesState>((set) => ({
+export const usePagesStore = create<PagesState>((set, get) => ({
   pages: [],
   isLoading: false,
   error: null,
@@ -78,6 +79,55 @@ export const usePagesStore = create<PagesState>((set) => ({
         error: parsed.message,
       });
       return null;
+    }
+  },
+  reorderPages: async (projectId, pageIds) => {
+    if (!projectId) {
+      set({ error: "Missing project ID." });
+      return false;
+    }
+
+    const previousPages = get().pages;
+    if (pageIds.length === 0 || previousPages.length === 0) {
+      return false;
+    }
+
+    const byId = new Map(previousPages.map((page) => [page.id, page]));
+    const seen = new Set<string>();
+    const nextPages: PageSummary[] = [];
+
+    for (const [index, pageId] of pageIds.entries()) {
+      const page = byId.get(pageId);
+      if (!page || seen.has(pageId)) {
+        continue;
+      }
+      seen.add(pageId);
+      nextPages.push({ ...page, order: index });
+    }
+
+    const remaining = previousPages
+      .filter((page) => !seen.has(page.id))
+      .sort((a, b) => a.order - b.order);
+
+    const mergedPages = [...nextPages, ...remaining].map((page, index) => ({
+      ...page,
+      order: index,
+    }));
+
+    set({ pages: mergedPages, error: null });
+
+    try {
+      await api.patch("pages/reorder", {
+        json: {
+          pageIds: mergedPages.map((page) => page.id),
+          projectId,
+        },
+      });
+      return true;
+    } catch (error) {
+      const parsed = await parseApiError(error);
+      set({ pages: previousPages, error: parsed.message });
+      return false;
     }
   },
 }));
