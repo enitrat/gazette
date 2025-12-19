@@ -1,60 +1,57 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
-import { TEMPLATE_NAMES } from "@gazette/shared";
+import { TEMPLATE_NAMES, TEMPLATES } from "@gazette/shared/constants";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { usePagesStore } from "@/stores/pages-store";
 
 type PageSidebarProps = {
   projectId?: string;
-  token?: string | null;
   activePageId?: string | null;
   onSelectPage: (pageId: string) => void;
   onRequestNewPage?: () => void;
 };
 
 const TEMPLATE_PREVIEW_STYLES: Record<Template, string> = {
-  "classic-front": "grid-rows-[auto_1fr_auto]",
-  "two-column": "grid-cols-2",
-  "grid-gallery": "grid-cols-2 grid-rows-2",
-  "magazine-spread": "grid-cols-[2fr_1fr]",
+  [TEMPLATES.MASTHEAD]: "grid-rows-[auto_auto_1fr_auto]",
+  [TEMPLATES.FULL_PAGE]: "grid-rows-[auto_1fr_auto]",
+  [TEMPLATES.TWO_COLUMNS]: "grid-cols-2",
+  [TEMPLATES.THREE_GRID]: "grid-cols-3",
 };
 
-function PagePreview({ template }: { template: Template }) {
-  const layout = TEMPLATE_PREVIEW_STYLES[template];
+function PagePreview({ templateId }: { templateId: Template }) {
+  const layout = TEMPLATE_PREVIEW_STYLES[templateId];
 
   return (
     <div className="h-14 w-10 rounded-sm border border-sepia/30 bg-cream p-1 shadow-[inset_0_0_0_1px_rgba(92,64,51,0.08)]">
       <div className={cn("grid h-full w-full gap-1", layout)}>
         <div className="h-1.5 rounded-[1px] bg-sepia/40" />
-        {template === "classic-front" && (
+        {templateId === TEMPLATES.MASTHEAD && (
+          <>
+            <div className="h-1 rounded-[1px] bg-sepia/30" />
+            <div className="rounded-[1px] bg-sepia/15" />
+            <div className="h-1 rounded-[1px] bg-sepia/20" />
+          </>
+        )}
+        {templateId === TEMPLATES.FULL_PAGE && (
           <>
             <div className="rounded-[1px] bg-sepia/15" />
             <div className="h-1 rounded-[1px] bg-sepia/30" />
           </>
         )}
-        {template === "two-column" && (
+        {templateId === TEMPLATES.TWO_COLUMNS && (
           <>
             <div className="rounded-[1px] bg-sepia/15" />
             <div className="rounded-[1px] bg-sepia/20" />
           </>
         )}
-        {template === "grid-gallery" && (
+        {templateId === TEMPLATES.THREE_GRID && (
           <>
             <div className="rounded-[1px] bg-sepia/15" />
             <div className="rounded-[1px] bg-sepia/25" />
             <div className="rounded-[1px] bg-sepia/25" />
-            <div className="rounded-[1px] bg-sepia/15" />
-          </>
-        )}
-        {template === "magazine-spread" && (
-          <>
-            <div className="rounded-[1px] bg-sepia/15" />
-            <div className="rounded-[1px] bg-sepia/30" />
           </>
         )}
       </div>
@@ -64,7 +61,6 @@ function PagePreview({ template }: { template: Template }) {
 
 export function PageSidebar({
   projectId,
-  token,
   activePageId,
   onSelectPage,
   onRequestNewPage,
@@ -78,8 +74,8 @@ export function PageSidebar({
     if (!projectId) {
       return;
     }
-    void fetchPages(projectId, token);
-  }, [projectId, token, fetchPages]);
+    void fetchPages(projectId);
+  }, [projectId, fetchPages]);
 
   const handleCreatePage = async () => {
     if (!projectId || isCreating) {
@@ -93,7 +89,7 @@ export function PageSidebar({
 
     setIsCreating(true);
     const lastPage = sortedPages[sortedPages.length - 1];
-    const created = await createPage(projectId, token, "classic-front", lastPage?.id);
+    const created = await createPage(projectId, TEMPLATES.MASTHEAD, lastPage?.id);
     if (created) {
       onSelectPage(created.id);
     }
@@ -159,13 +155,13 @@ export function PageSidebar({
                       : "border-sepia/30 bg-cream/80 hover:border-gold/60 hover:bg-cream"
                   )}
                 >
-                  <PagePreview template={page.template} />
+                  <PagePreview templateId={page.templateId} />
                   <div className="flex flex-1 flex-col justify-center">
                     <p className="font-ui text-sm font-medium text-ink">
                       {page.title.trim() || `Page ${page.order + 1}`}
                     </p>
                     <p className="font-ui text-xs text-muted">
-                      {page.subtitle.trim() || TEMPLATE_NAMES[page.template]}
+                      {page.subtitle.trim() || TEMPLATE_NAMES[page.templateId]}
                     </p>
                   </div>
                   <span className="flex items-start font-ui text-[11px] text-muted">

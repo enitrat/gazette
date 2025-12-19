@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { PageSidebar } from "@/components/PageSidebar";
 import { TemplateDialog } from "@/components/TemplateDialog";
+import { getAuthSession } from "@/lib/auth";
 import { usePagesStore } from "@/stores/pages-store";
 
 export const Route = createFileRoute("/editor")({
@@ -17,14 +18,8 @@ function EditorPage() {
   const navigate = Route.useNavigate();
   const pages = usePagesStore((state) => state.pages);
   const createPage = usePagesStore((state) => state.createPage);
-  const [projectId] = useState(() =>
-    typeof window !== "undefined"
-      ? (localStorage.getItem("gazette:projectId") ?? undefined)
-      : undefined
-  );
-  const [token] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("gazette:token") : null
-  );
+  const [session] = useState(() => getAuthSession());
+  const projectId = session?.projectId;
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
@@ -54,7 +49,7 @@ function EditorPage() {
     }
 
     const lastPage = pages[pages.length - 1];
-    const created = await createPage(projectId, token, templateId, lastPage?.id);
+    const created = await createPage(projectId, templateId, lastPage?.id);
     if (!created) {
       throw new Error("Unable to create page.");
     }
@@ -66,7 +61,6 @@ function EditorPage() {
       {/* Sidebar */}
       <PageSidebar
         projectId={projectId}
-        token={token}
         activePageId={activePageId}
         onSelectPage={handleSelectPage}
         onRequestNewPage={() => setIsTemplateDialogOpen(true)}

@@ -2,7 +2,8 @@ import ky, { HTTPError } from "ky";
 
 import { getAuthToken } from "./auth";
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
+const baseUrl =
+  import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
 
 export const api = ky.create({
   prefixUrl: baseUrl.replace(/\/+$/, ""),

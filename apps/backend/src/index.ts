@@ -4,13 +4,13 @@ import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { requestId } from "hono/request-id";
 import { HTTPException } from "hono/http-exception";
-import { db } from "./db";
 import { AuthError } from "./auth";
 import { projectsRouter } from "./routes/projects";
 import { imagesRouter } from "./routes/images";
 import { elementsRouter } from "./routes/elements";
 import { templatesRouter } from "./routes/templates";
 import pagesRouter from "./routes/pages";
+import { systemRouter } from "./features/system/router";
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -36,52 +36,13 @@ app.use(
   })
 );
 
-// Health check endpoint
-app.get("/health", async (c) => {
-  try {
-    // Test database connection
-    const result = db.$client.query("SELECT 1 as ok").get() as { ok: number };
-    const dbHealthy = result?.ok === 1;
-
-    return c.json({
-      status: dbHealthy ? "healthy" : "unhealthy",
-      timestamp: new Date().toISOString(),
-      version: "0.0.1",
-      environment: NODE_ENV,
-      database: dbHealthy ? "connected" : "disconnected",
-    });
-  } catch (error) {
-    return c.json(
-      {
-        status: "unhealthy",
-        timestamp: new Date().toISOString(),
-        version: "0.0.1",
-        environment: NODE_ENV,
-        database: "error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      503
-    );
-  }
-});
-
 // API routes
 app.route("/api", pagesRouter);
-
-// API root
-app.get("/", (c) => {
-  return c.json({
-    name: "La Gazette de la Vie API",
-    version: "0.0.1",
-    documentation: "/docs",
-  });
-});
-
-// API routes
 app.route("/api/projects", projectsRouter);
 app.route("/api", templatesRouter);
 app.route("/api", imagesRouter);
 app.route("/api", elementsRouter);
+app.route("/", systemRouter);
 
 // 404 handler
 app.notFound((c) => {

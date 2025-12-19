@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import type { Template } from "@gazette/shared";
-
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api";
+import { TEMPLATES } from "@gazette/shared/constants";
+import { api, parseApiError } from "@/lib/api";
 
 export type PageSummary = {
   id: string;
   order: number;
-  template: Template;
+  templateId: Template;
   title: string;
   subtitle: string;
   elementCount?: number;
@@ -16,26 +16,21 @@ type PagesState = {
   pages: PageSummary[];
   isLoading: boolean;
   error: string | null;
-  fetchPages: (projectId: string, token?: string | null) => Promise<void>;
+  fetchPages: (projectId: string) => Promise<void>;
   createPage: (
     projectId: string,
-    token?: string | null,
-    template?: Template,
+    templateId?: Template,
     afterPageId?: string
   ) => Promise<PageSummary | null>;
   setPages: (pages: PageSummary[]) => void;
 };
-
-function buildAuthHeaders(token?: string | null) {
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export const usePagesStore = create<PagesState>((set) => ({
   pages: [],
   isLoading: false,
   error: null,
   setPages: (pages) => set({ pages }),
-  fetchPages: async (projectId, token) => {
+  fetchPages: async (projectId) => {
     if (!projectId) {
       set({ error: "Missing project ID.", pages: [] });
       return;
@@ -43,66 +38,44 @@ export const usePagesStore = create<PagesState>((set) => ({
 
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE}/projects/${projectId}/pages`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...buildAuthHeaders(token),
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load pages (${response.status})`);
-      }
-
-      const data = (await response.json()) as { pages?: PageSummary[]; data?: PageSummary[] };
-      const pages = Array.isArray(data.pages)
-        ? data.pages
-        : Array.isArray(data.data)
-          ? data.data
-          : [];
+      const data = await api.get(`projects/${projectId}/pages`).json<{ pages?: PageSummary[] }>();
+      const pages = Array.isArray(data.pages) ? data.pages : [];
 
       pages.sort((a, b) => a.order - b.order);
       set({ pages, isLoading: false });
     } catch (error) {
+      const parsed = await parseApiError(error);
       set({
         pages: [],
         isLoading: false,
-        error: error instanceof Error ? error.message : "Unable to load pages.",
+        error: parsed.message,
       });
     }
   },
-  createPage: async (projectId, token, template = "classic-front", afterPageId) => {
+  createPage: async (projectId, templateId = TEMPLATES.MASTHEAD, afterPageId) => {
     if (!projectId) {
       set({ error: "Missing project ID." });
       return null;
     }
 
     try {
-      const response = await fetch(`${API_BASE}/projects/${projectId}/pages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...buildAuthHeaders(token),
-        },
-        body: JSON.stringify({
-          template,
-          afterPageId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create page (${response.status})`);
-      }
-
-      const created = (await response.json()) as PageSummary;
+      const created = await api
+        .post(`projects/${projectId}/pages`, {
+          json: {
+            templateId,
+            afterPageId,
+          },
+        })
+        .json<PageSummary>();
       set((state) => {
         const pages = [...state.pages, created].sort((a, b) => a.order - b.order);
         return { pages };
       });
       return created;
     } catch (error) {
+      const parsed = await parseApiError(error);
       set({
-        error: error instanceof Error ? error.message : "Unable to create page.",
+        error: parsed.message,
       });
       return null;
     }
