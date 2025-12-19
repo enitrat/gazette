@@ -7,7 +7,9 @@ import { ExportDialog } from "@/components/ExportDialog";
 import { TemplateDialog } from "@/components/TemplateDialog";
 import { GenerationProgressDialog } from "@/components/GenerationProgressDialog";
 import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
+import { ImageEditDialog } from "@/components/ImageEditDialog";
 import { Button } from "@/components/ui/button";
+import { api, parseApiError } from "@/lib/api";
 import { getAuthSession } from "@/lib/auth";
 import { useElementsStore } from "@/stores/elements-store";
 import { usePagesStore } from "@/stores/pages-store";
@@ -32,6 +34,8 @@ function EditorPage() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isProgressOpen, setIsProgressOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isImageEditOpen, setIsImageEditOpen] = useState(false);
+  const [imageEditElementId, setImageEditElementId] = useState<string | null>(null);
   const elementsByPage = useElementsStore((state) => state.elementsByPage);
   const fetchElements = useElementsStore((state) => state.fetchElements);
   const setElementsForPage = useElementsStore((state) => state.setElementsForPage);
@@ -46,6 +50,10 @@ function EditorPage() {
   const activeElements = useMemo(
     () => (activePageId ? (elementsByPage[activePageId] ?? []) : []),
     [activePageId, elementsByPage]
+  );
+  const imageEditElement = useMemo(
+    () => activeElements.find((element) => element.id === imageEditElementId) ?? null,
+    [activeElements, imageEditElementId]
   );
 
   useEffect(() => {
@@ -101,11 +109,57 @@ function EditorPage() {
         height: 240,
       },
       imageUrl: result.previewUrl || result.image.url,
+      imageWidth: result.image.width,
+      imageHeight: result.image.height,
       videoStatus: "none",
     };
 
     setElementsForPage(activePageId, [...existing, nextElement]);
     setSelectedElementId(nextElement.id);
+  };
+
+  const handleImageDoubleClick = (element: CanvasElement) => {
+    if (!element.imageUrl) return;
+    setImageEditElementId(element.id);
+    setIsImageEditOpen(true);
+  };
+
+  const handleImageEditOpenChange = (nextOpen: boolean) => {
+    setIsImageEditOpen(nextOpen);
+    if (!nextOpen) {
+      setImageEditElementId(null);
+    }
+  };
+
+  const handleSaveCrop = async (
+    elementId: string,
+    cropData: { x: number; y: number; zoom: number }
+  ) => {
+    if (!activePageId) return;
+
+    const pageElements = elementsByPage[activePageId] ?? [];
+    const nextElements = pageElements.map((element) =>
+      element.id === elementId ? { ...element, cropData } : element
+    );
+    setElementsForPage(activePageId, nextElements);
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(elementId);
+
+    if (!projectId || !isUuid) {
+      return;
+    }
+
+    try {
+      await api.put(`elements/${elementId}`, {
+        json: {
+          cropData,
+        },
+      });
+    } catch (error) {
+      const parsed = await parseApiError(error);
+      throw new Error(parsed.message);
+    }
   };
 
   return (
@@ -209,6 +263,7 @@ function EditorPage() {
               selectedElementId={selectedElementId}
               onSelectElement={setSelectedElementId}
               onClearSelection={() => setSelectedElementId(null)}
+              onImageDoubleClick={handleImageDoubleClick}
             />
           </div>
         </main>
@@ -240,6 +295,12 @@ function EditorPage() {
         onOpenChange={setIsUploadOpen}
         projectId={projectId}
         onUploadComplete={handleImageUploaded}
+      />
+      <ImageEditDialog
+        open={isImageEditOpen}
+        onOpenChange={handleImageEditOpenChange}
+        element={imageEditElement}
+        onSave={handleSaveCrop}
       />
       <ExportDialog
         open={isExportDialogOpen}

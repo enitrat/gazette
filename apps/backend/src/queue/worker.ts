@@ -127,4 +127,4 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-console.log("[Queue Worker] Started.");
+console.warn("[Queue Worker] Started.");

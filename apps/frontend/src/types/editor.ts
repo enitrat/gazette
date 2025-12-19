@@ -11,6 +11,13 @@ export type CanvasElement = {
   position: CanvasPosition;
   content?: string;
   imageUrl?: string | null;
+  imageWidth?: number | null;
+  imageHeight?: number | null;
+  cropData?: {
+    x: number;
+    y: number;
+    zoom: number;
+  } | null;
   videoUrl?: string | null;
   videoStatus?: "none" | "pending" | "processing" | "complete" | "failed";
 };

@@ -1,4 +1,4 @@
-import { useMemo, type SyntheticEvent } from "react";
+import { useMemo, useState, type SyntheticEvent } from "react";
 import { cn } from "@/lib/utils";
 import type { CanvasElement, CanvasPage } from "@/types/editor";
 
@@ -12,6 +12,7 @@ type CanvasProps = {
   selectedElementId?: string | null;
   onSelectElement?: (elementId: string) => void;
   onClearSelection?: () => void;
+  onImageDoubleClick?: (element: CanvasElement) => void;
 };
 
 const VIDEO_LOOP_SECONDS = 5;
@@ -40,15 +41,30 @@ function LoopingVideo({ src, className }: { src: string; className?: string }) {
   );
 }
 
+function getCoverScale(
+  imageWidth: number,
+  imageHeight: number,
+  frameWidth: number,
+  frameHeight: number
+) {
+  if (imageWidth <= 0 || imageHeight <= 0 || frameWidth <= 0 || frameHeight <= 0) {
+    return 1;
+  }
+  return Math.max(frameWidth / imageWidth, frameHeight / imageHeight);
+}
+
 function CanvasElementView({
   element,
   isSelected,
   onSelect,
+  onImageDoubleClick,
 }: {
   element: CanvasElement;
   isSelected: boolean;
   onSelect?: (elementId: string) => void;
+  onImageDoubleClick?: (element: CanvasElement) => void;
 }) {
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const baseStyle: React.CSSProperties = {
     left: element.position.x,
     top: element.position.y,
@@ -59,6 +75,39 @@ function CanvasElementView({
   if (element.type === "image") {
     const hasVideo = element.videoUrl && element.videoStatus === "complete";
     const hasImage = element.imageUrl;
+    const resolvedWidth =
+      typeof element.imageWidth === "number" && element.imageWidth > 0
+        ? element.imageWidth
+        : (naturalSize?.width ?? 0);
+    const resolvedHeight =
+      typeof element.imageHeight === "number" && element.imageHeight > 0
+        ? element.imageHeight
+        : (naturalSize?.height ?? 0);
+    const hasDimensions = resolvedWidth > 0 && resolvedHeight > 0;
+    const cropData = element.cropData ?? { x: 0, y: 0, zoom: 1 };
+    const coverScale = hasDimensions
+      ? getCoverScale(
+          resolvedWidth,
+          resolvedHeight,
+          element.position.width,
+          element.position.height
+        )
+      : 1;
+    const scaledWidth = hasDimensions
+      ? resolvedWidth * coverScale * cropData.zoom
+      : element.position.width;
+    const scaledHeight = hasDimensions
+      ? resolvedHeight * coverScale * cropData.zoom
+      : element.position.height;
+    const imageStyle: React.CSSProperties = hasDimensions
+      ? {
+          width: scaledWidth,
+          height: scaledHeight,
+          left: "50%",
+          top: "50%",
+          transform: `translate(-50%, -50%) translate(${cropData.x}px, ${cropData.y}px)`,
+        }
+      : {};
 
     return (
       <div
@@ -71,6 +120,12 @@ function CanvasElementView({
           event.stopPropagation();
           onSelect?.(element.id);
         }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          if (onImageDoubleClick && hasImage) {
+            onImageDoubleClick(element);
+          }
+        }}
       >
         {hasVideo ? (
           <LoopingVideo
@@ -81,8 +136,20 @@ function CanvasElementView({
           <img
             src={element.imageUrl as string}
             alt=""
-            className="h-full w-full object-cover sepia-vintage"
+            className={
+              hasDimensions
+                ? "absolute max-w-none sepia-vintage"
+                : "h-full w-full object-cover sepia-vintage"
+            }
+            style={hasDimensions ? imageStyle : undefined}
             loading="lazy"
+            onLoad={(event) => {
+              if (hasDimensions) return;
+              const target = event.currentTarget;
+              if (target.naturalWidth && target.naturalHeight) {
+                setNaturalSize({ width: target.naturalWidth, height: target.naturalHeight });
+              }
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs font-ui text-muted">
@@ -136,6 +203,7 @@ export function Canvas({
   selectedElementId,
   onSelectElement,
   onClearSelection,
+  onImageDoubleClick,
 }: CanvasProps) {
   const elements = useMemo(() => page?.elements ?? [], [page]);
   const hasElements = elements.length > 0;
@@ -169,6 +237,7 @@ export function Canvas({
                 element={element}
                 isSelected={element.id === selectedElementId}
                 onSelect={onSelectElement}
+                onImageDoubleClick={onImageDoubleClick}
               />
             ))
           ) : (

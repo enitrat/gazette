@@ -18,6 +18,7 @@ type ApiElement = {
   position: CanvasElement["position"];
   content?: string;
   imageUrl?: string | null;
+  cropData?: CanvasElement["cropData"];
   videoUrl?: string | null;
   videoStatus?: CanvasElement["videoStatus"];
 };
@@ -61,6 +62,7 @@ export const useElementsStore = create<ElementsState>((set) => ({
         position: element.position,
         content: element.content,
         imageUrl: normalizeAssetUrl(element.imageUrl),
+        cropData: element.cropData ?? null,
         videoUrl: normalizeAssetUrl(element.videoUrl),
         videoStatus: element.videoStatus,
       }));
