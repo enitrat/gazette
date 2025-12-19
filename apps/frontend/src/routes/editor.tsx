@@ -5,7 +5,7 @@ import { CanvasHeader } from "@/components/editor/CanvasHeader";
 import { CanvasViewport } from "@/components/editor/CanvasViewport";
 import { TopNavbar } from "@/components/editor/TopNavbar";
 import { EditorToolbar } from "@/components/editor/EditorToolbar";
-import { PropertiesPanel } from "@/components/PropertiesPanel";
+import { PropertiesPanel } from "@/components/editor/PropertiesPanel";
 import { LeftSidebar } from "@/components/editor/LeftSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
 import { ShareDialog } from "@/components/editor/dialogs/ShareDialog";
@@ -552,11 +552,7 @@ function EditorPage() {
         </main>
 
         {/* Properties Panel */}
-        <PropertiesPanel
-          pageId={activePageId}
-          elements={activeElements}
-          onEditImage={handleImageDoubleClick}
-        />
+        <PropertiesPanel pageId={activePageId} elements={activeElements} />
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-sepia/30 bg-parchment/95 px-3 py-2 backdrop-blur md:hidden">

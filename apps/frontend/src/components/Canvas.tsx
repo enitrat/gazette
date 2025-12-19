@@ -23,6 +23,7 @@ import {
 import { CSS, type Transform } from "@dnd-kit/utilities";
 import { Clock, Loader2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveTextStyle } from "@/lib/editor-style";
 import type { CanvasElement, CanvasPage } from "@/types/editor";
 
 type CanvasProps = {
@@ -470,6 +471,13 @@ function CanvasElementView({
       : element.type === "subheading"
         ? "subheading"
         : "caption";
+  const textStyle = resolveTextStyle(element);
+  const textDecoration = [
+    textStyle.underline ? "underline" : null,
+    textStyle.strikethrough ? "line-through" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
@@ -485,7 +493,40 @@ function CanvasElementView({
         isEditing && "pointer-events-none opacity-0"
       )}
       ref={setNodeRef}
-      style={{ ...baseStyle, ...dragStyle }}
+      style={{
+        ...baseStyle,
+        ...dragStyle,
+        fontFamily: textStyle.fontFamily,
+        fontSize: textStyle.fontSize !== undefined ? `${textStyle.fontSize}px` : undefined,
+        lineHeight: textStyle.lineHeight,
+        letterSpacing:
+          textStyle.letterSpacing !== undefined ? `${textStyle.letterSpacing}px` : undefined,
+        color: textStyle.color,
+        textAlign: textStyle.textAlign,
+        fontWeight: textStyle.bold ? 700 : undefined,
+        fontStyle: textStyle.italic ? "italic" : undefined,
+        textDecoration: textDecoration || undefined,
+        marginLeft:
+          textStyle.marginHorizontal !== undefined ? `${textStyle.marginHorizontal}px` : undefined,
+        marginRight:
+          textStyle.marginHorizontal !== undefined ? `${textStyle.marginHorizontal}px` : undefined,
+        marginTop:
+          textStyle.marginVertical !== undefined ? `${textStyle.marginVertical}px` : undefined,
+        marginBottom:
+          textStyle.marginVertical !== undefined ? `${textStyle.marginVertical}px` : undefined,
+        paddingLeft:
+          textStyle.paddingHorizontal !== undefined
+            ? `${textStyle.paddingHorizontal}px`
+            : undefined,
+        paddingRight:
+          textStyle.paddingHorizontal !== undefined
+            ? `${textStyle.paddingHorizontal}px`
+            : undefined,
+        paddingTop:
+          textStyle.paddingVertical !== undefined ? `${textStyle.paddingVertical}px` : undefined,
+        paddingBottom:
+          textStyle.paddingVertical !== undefined ? `${textStyle.paddingVertical}px` : undefined,
+      }}
       onClick={(event) => {
         if (disableInteractions) return;
         event.stopPropagation();
@@ -890,6 +931,15 @@ export function Canvas({
       : editingElement?.type === "subheading"
         ? "subheading"
         : "caption";
+  const editingTextStyle = editingElement ? resolveTextStyle(editingElement) : null;
+  const editingTextDecoration = editingTextStyle
+    ? [
+        editingTextStyle.underline ? "underline" : null,
+        editingTextStyle.strikethrough ? "line-through" : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : "";
 
   return (
     <div
@@ -1033,6 +1083,37 @@ export function Canvas({
                       top: editingElement.position.y,
                       width: editingElement.position.width,
                       height: editingElement.position.height,
+                      fontFamily: editingTextStyle?.fontFamily,
+                      fontSize:
+                        editingTextStyle?.fontSize !== undefined
+                          ? `${editingTextStyle.fontSize}px`
+                          : undefined,
+                      lineHeight: editingTextStyle?.lineHeight,
+                      letterSpacing:
+                        editingTextStyle?.letterSpacing !== undefined
+                          ? `${editingTextStyle.letterSpacing}px`
+                          : undefined,
+                      color: editingTextStyle?.color,
+                      textAlign: editingTextStyle?.textAlign,
+                      fontWeight: editingTextStyle?.bold ? 700 : undefined,
+                      fontStyle: editingTextStyle?.italic ? "italic" : undefined,
+                      textDecoration: editingTextDecoration || undefined,
+                      paddingLeft:
+                        editingTextStyle?.paddingHorizontal !== undefined
+                          ? `${editingTextStyle.paddingHorizontal}px`
+                          : undefined,
+                      paddingRight:
+                        editingTextStyle?.paddingHorizontal !== undefined
+                          ? `${editingTextStyle.paddingHorizontal}px`
+                          : undefined,
+                      paddingTop:
+                        editingTextStyle?.paddingVertical !== undefined
+                          ? `${editingTextStyle.paddingVertical}px`
+                          : undefined,
+                      paddingBottom:
+                        editingTextStyle?.paddingVertical !== undefined
+                          ? `${editingTextStyle.paddingVertical}px`
+                          : undefined,
                     }}
                   />
                 </>

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { UpdateElement } from "@gazette/shared";
 import { api, apiBaseUrl, parseApiError } from "@/lib/api";
-import type { CanvasElement } from "@/types/editor";
+import type { CanvasElement, TextStyle } from "@/types/editor";
 
 const UPDATE_DEBOUNCE_MS = 400;
 const pendingUpdates = new Map<string, UpdateElement>();
@@ -36,6 +36,7 @@ type ApiElement = {
 
 type ElementsState = {
   elementsByPage: Record<string, CanvasElement[]>;
+  historyByPage: Record<string, CanvasElement[][]>;
   isLoading: boolean;
   error: string | null;
   selectedElementId: string | null;
@@ -49,7 +50,13 @@ type ElementsState = {
     updates: UpdateElement,
     options?: { immediate?: boolean }
   ) => void;
-  reorderElement: (pageId: string, elementId: string, direction: "forward" | "backward") => void;
+  updateElementStyle: (pageId: string, elementId: string, style: Partial<TextStyle>) => void;
+  reorderElement: (
+    pageId: string,
+    elementId: string,
+    direction: "forward" | "backward" | "front" | "back"
+  ) => void;
+  undoLastChange: (pageId: string) => void;
   createImageElement: (
     pageId: string,
     imageId: string,
@@ -67,8 +74,16 @@ type ElementsState = {
   deleteElement: (pageId: string, elementId: string) => Promise<boolean>;
 };
 
+const cloneElements = (elements: CanvasElement[]) =>
+  elements.map((element) => ({
+    ...element,
+    position: { ...element.position },
+    style: element.style ? { ...element.style } : undefined,
+  }));
+
 export const useElementsStore = create<ElementsState>((set) => ({
   elementsByPage: {},
+  historyByPage: {},
   isLoading: false,
   error: null,
   selectedElementId: null,
@@ -129,6 +144,8 @@ export const useElementsStore = create<ElementsState>((set) => ({
 
     set((state) => {
       const pageElements = state.elementsByPage[pageId] ?? [];
+      const history = state.historyByPage[pageId] ?? [];
+      const nextHistory = [...history, cloneElements(pageElements)].slice(-25);
       const nextElements = pageElements.map((element) => {
         if (element.id !== elementId) return element;
         return {
@@ -143,6 +160,10 @@ export const useElementsStore = create<ElementsState>((set) => ({
         elementsByPage: {
           ...state.elementsByPage,
           [pageId]: nextElements,
+        },
+        historyByPage: {
+          ...state.historyByPage,
+          [pageId]: nextHistory,
         },
       };
     });
@@ -187,10 +208,43 @@ export const useElementsStore = create<ElementsState>((set) => ({
     }, UPDATE_DEBOUNCE_MS);
     pendingTimers.set(elementId, timer);
   },
+  updateElementStyle: (pageId, elementId, style) => {
+    if (!pageId || !elementId) return;
+    if (!style || Object.keys(style).length === 0) return;
+
+    set((state) => {
+      const pageElements = state.elementsByPage[pageId] ?? [];
+      const history = state.historyByPage[pageId] ?? [];
+      const nextHistory = [...history, cloneElements(pageElements)].slice(-25);
+      const nextElements = pageElements.map((element) => {
+        if (element.id !== elementId) return element;
+        return {
+          ...element,
+          style: {
+            ...(element.style ?? {}),
+            ...style,
+          },
+        };
+      });
+
+      return {
+        elementsByPage: {
+          ...state.elementsByPage,
+          [pageId]: nextElements,
+        },
+        historyByPage: {
+          ...state.historyByPage,
+          [pageId]: nextHistory,
+        },
+      };
+    });
+  },
   reorderElement: (pageId, elementId, direction) => {
     if (!pageId) return;
     set((state) => {
       const pageElements = state.elementsByPage[pageId] ?? [];
+      const history = state.historyByPage[pageId] ?? [];
+      const nextHistory = [...history, cloneElements(pageElements)].slice(-25);
       const index = pageElements.findIndex((element) => element.id === elementId);
       if (index < 0) {
         return {};
@@ -198,7 +252,11 @@ export const useElementsStore = create<ElementsState>((set) => ({
       const targetIndex =
         direction === "forward"
           ? Math.min(pageElements.length - 1, index + 1)
-          : Math.max(0, index - 1);
+          : direction === "backward"
+            ? Math.max(0, index - 1)
+            : direction === "front"
+              ? pageElements.length - 1
+              : 0;
       if (targetIndex === index) {
         return {};
       }
@@ -209,6 +267,29 @@ export const useElementsStore = create<ElementsState>((set) => ({
         elementsByPage: {
           ...state.elementsByPage,
           [pageId]: nextElements,
+        },
+        historyByPage: {
+          ...state.historyByPage,
+          [pageId]: nextHistory,
+        },
+      };
+    });
+  },
+  undoLastChange: (pageId) => {
+    if (!pageId) return;
+    set((state) => {
+      const history = state.historyByPage[pageId] ?? [];
+      if (history.length === 0) return {};
+      const nextHistory = history.slice(0, -1);
+      const previous = history[history.length - 1] ?? [];
+      return {
+        elementsByPage: {
+          ...state.elementsByPage,
+          [pageId]: previous,
+        },
+        historyByPage: {
+          ...state.historyByPage,
+          [pageId]: nextHistory,
         },
       };
     });

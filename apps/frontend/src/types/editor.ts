@@ -5,6 +5,23 @@ export type CanvasPosition = {
   height: number;
 };
 
+export type TextStyle = {
+  fontFamily?: string;
+  fontSize?: number;
+  lineHeight?: number;
+  letterSpacing?: number;
+  color?: string;
+  textAlign?: "left" | "center" | "right" | "justify";
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  marginHorizontal?: number;
+  marginVertical?: number;
+  paddingHorizontal?: number;
+  paddingVertical?: number;
+};
+
 export type CanvasElement = {
   id: string;
   type: "image" | "headline" | "subheading" | "caption";
@@ -23,6 +40,7 @@ export type CanvasElement = {
   videoUrl?: string | null;
   videoStatus?: "none" | "pending" | "processing" | "complete" | "failed";
   isOptimistic?: boolean;
+  style?: TextStyle;
 };
 
 export type CanvasPage = {
