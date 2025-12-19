@@ -87,6 +87,11 @@ const safeUnlink = async (filePath: string) => {
   }
 };
 
+const imageResponseHeaders = (mimeType: string) => ({
+  "Content-Type": mimeType,
+  "Cross-Origin-Resource-Policy": "cross-origin",
+});
+
 export const imagesRouter = new Hono();
 
 imagesRouter.use("/projects/:id/images", requireAuth);
@@ -268,9 +273,7 @@ imagesRouter.get("/images/:id/public", async (c) => {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
   }
 
-  return c.body(file.stream(), 200, {
-    "Content-Type": image.mimeType,
-  });
+  return c.body(file.stream(), 200, imageResponseHeaders(image.mimeType));
 });
 
 // Get image file
@@ -295,9 +298,7 @@ imagesRouter.get("/images/:id/file", requireAuth, async (c) => {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
   }
 
-  return c.body(file.stream(), 200, {
-    "Content-Type": image.mimeType,
-  });
+  return c.body(file.stream(), 200, imageResponseHeaders(image.mimeType));
 });
 
 // Analyze image for animation suggestions
