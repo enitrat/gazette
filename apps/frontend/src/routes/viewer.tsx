@@ -1,6 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { getAuthSession } from "@/lib/auth";
 
 export const Route = createFileRoute("/viewer")({
+  beforeLoad: () => {
+    const session = getAuthSession();
+    if (!session) {
+      throw redirect({
+        to: "/auth",
+      });
+    }
+  },
   component: ViewerPage,
 });
 

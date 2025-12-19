@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { Canvas } from "@/components/Canvas";
@@ -20,6 +20,14 @@ export const Route = createFileRoute("/editor")({
   validateSearch: (search: Record<string, unknown>) => ({
     pageId: typeof search.pageId === "string" ? search.pageId : undefined,
   }),
+  beforeLoad: () => {
+    const session = getAuthSession();
+    if (!session) {
+      throw redirect({
+        to: "/auth",
+      });
+    }
+  },
   component: EditorPage,
 });
 
