@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
-import { Canvas } from "@/components/Canvas";
+import { Canvas, type CanvasElement } from "@/components/Canvas";
 import { PageSidebar } from "@/components/PageSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
 import { TemplateDialog } from "@/components/TemplateDialog";
 import { GenerationProgressDialog } from "@/components/GenerationProgressDialog";
+import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { getAuthSession } from "@/lib/auth";
 import { usePagesStore } from "@/stores/pages-store";
-import { Download, Plus, Save, Share2, Sparkles } from "lucide-react";
+import { Download, ImagePlus, Plus, Save, Share2, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/editor")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -28,12 +29,18 @@ function EditorPage() {
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isProgressOpen, setIsProgressOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
+  const [elementsByPage, setElementsByPage] = useState<Record<string, CanvasElement[]>>({});
 
   const activePageId = useMemo(() => pageId ?? pages[0]?.id, [pageId, pages]);
   const activePage = useMemo(
     () => pages.find((page) => page.id === activePageId) ?? null,
     [activePageId, pages]
+  );
+  const activeElements = useMemo(
+    () => (activePageId ? (elementsByPage[activePageId] ?? []) : []),
+    [activePageId, elementsByPage]
   );
 
   useEffect(() => {
@@ -66,6 +73,32 @@ function EditorPage() {
       throw new Error("Unable to create page.");
     }
     handleSelectPage(created.id);
+  };
+
+  const handleImageUploaded = (result: ImageUploadResult) => {
+    if (!activePageId) return;
+
+    setElementsByPage((state) => {
+      const existing = state[activePageId] ?? [];
+      const offset = existing.length * 18;
+      const nextElement: CanvasElement = {
+        id: `image-${result.image.id}`,
+        type: "image",
+        position: {
+          x: 80 + offset,
+          y: 180 + offset,
+          width: 320,
+          height: 240,
+        },
+        imageUrl: result.previewUrl || result.image.url,
+        videoStatus: "none",
+      };
+
+      return {
+        ...state,
+        [activePageId]: [...existing, nextElement],
+      };
+    });
   };
 
   return (
@@ -132,9 +165,23 @@ function EditorPage() {
                 Track generation progress while you keep editing.
               </p>
             </div>
-            <Button variant="outline" onClick={() => setIsProgressOpen(true)} disabled={!projectId}>
-              View generation
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsUploadOpen(true)}
+                disabled={!projectId || !activePageId}
+              >
+                <ImagePlus />
+                Add Photo
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsProgressOpen(true)}
+                disabled={!projectId}
+              >
+                View generation
+              </Button>
+            </div>
           </div>
           <div className="mx-auto aspect-[3/4] max-w-2xl">
             <Canvas
@@ -145,7 +192,7 @@ function EditorPage() {
                       id: activePage.id,
                       title: activePage.title,
                       subtitle: activePage.subtitle,
-                      elements: [],
+                      elements: activeElements,
                     }
                   : null
               }
@@ -174,6 +221,12 @@ function EditorPage() {
         open={isProgressOpen}
         onOpenChange={setIsProgressOpen}
         onComplete={() => setCanvasRefreshKey((prev) => prev + 1)}
+      />
+      <ImageUpload
+        open={isUploadOpen}
+        onOpenChange={setIsUploadOpen}
+        projectId={projectId}
+        onUploadComplete={handleImageUploaded}
       />
       <ExportDialog
         open={isExportDialogOpen}
