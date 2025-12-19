@@ -10,6 +10,7 @@ export type CanvasElement = {
   type: "image" | "headline" | "subheading" | "caption";
   position: CanvasPosition;
   content?: string;
+  imageId?: string | null;
   imageUrl?: string | null;
   imageWidth?: number | null;
   imageHeight?: number | null;
@@ -18,6 +19,7 @@ export type CanvasElement = {
     y: number;
     zoom: number;
   } | null;
+  animationPrompt?: string | null;
   videoUrl?: string | null;
   videoStatus?: "none" | "pending" | "processing" | "complete" | "failed";
 };

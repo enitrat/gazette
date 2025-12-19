@@ -25,8 +25,10 @@ type ApiElement = {
   type: CanvasElement["type"];
   position: CanvasElement["position"];
   content?: string;
+  imageId?: string | null;
   imageUrl?: string | null;
   cropData?: CanvasElement["cropData"];
+  animationPrompt?: string | null;
   videoUrl?: string | null;
   videoStatus?: CanvasElement["videoStatus"];
 };
@@ -86,8 +88,10 @@ export const useElementsStore = create<ElementsState>((set) => ({
         type: element.type,
         position: element.position,
         content: element.content,
+        imageId: element.imageId ?? null,
         imageUrl: normalizeAssetUrl(element.imageUrl),
         cropData: element.cropData ?? null,
+        animationPrompt: element.animationPrompt ?? null,
         videoUrl: normalizeAssetUrl(element.videoUrl),
         videoStatus: element.videoStatus,
       }));
@@ -222,10 +226,12 @@ export const useElementsStore = create<ElementsState>((set) => ({
         id: data.id,
         type: data.type,
         position: data.position,
+        imageId: data.imageId ?? imageId,
         imageUrl: normalizeAssetUrl(data.imageUrl) || imageUrl,
         imageWidth,
         imageHeight,
         cropData: data.cropData ?? null,
+        animationPrompt: data.animationPrompt ?? null,
         videoUrl: normalizeAssetUrl(data.videoUrl),
         videoStatus: data.videoStatus ?? "none",
       };

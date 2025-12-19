@@ -8,6 +8,7 @@ import { ExportDialog } from "@/components/ExportDialog";
 import { ShareDialog } from "@/components/ShareDialog";
 import { TemplateDialog } from "@/components/TemplateDialog";
 import { GenerationProgressDialog } from "@/components/GenerationProgressDialog";
+import { AnimationDialog } from "@/components/AnimationDialog";
 import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
 import { ImageEditDialog } from "@/components/ImageEditDialog";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ function EditorPage() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isProgressOpen, setIsProgressOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isAnimationOpen, setIsAnimationOpen] = useState(false);
+  const [animationElementId, setAnimationElementId] = useState<string | null>(null);
   const [isImageEditOpen, setIsImageEditOpen] = useState(false);
   const [imageEditElementId, setImageEditElementId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -67,6 +70,10 @@ function EditorPage() {
   const imageEditElement = useMemo(
     () => activeElements.find((element) => element.id === imageEditElementId) ?? null,
     [activeElements, imageEditElementId]
+  );
+  const animationElement = useMemo(
+    () => activeElements.find((element) => element.id === animationElementId) ?? null,
+    [activeElements, animationElementId]
   );
 
   useEffect(() => {
@@ -131,6 +138,8 @@ function EditorPage() {
 
     if (createdElement) {
       setSelectedElementId(createdElement.id);
+      setAnimationElementId(createdElement.id);
+      setIsAnimationOpen(true);
     }
   };
 
@@ -144,6 +153,13 @@ function EditorPage() {
     setIsImageEditOpen(nextOpen);
     if (!nextOpen) {
       setImageEditElementId(null);
+    }
+  };
+
+  const handleAnimationOpenChange = (nextOpen: boolean) => {
+    setIsAnimationOpen(nextOpen);
+    if (!nextOpen) {
+      setAnimationElementId(null);
     }
   };
 
@@ -164,6 +180,34 @@ function EditorPage() {
 
     updateElement(activePageId, elementId, { position });
     selectElement(elementId);
+  };
+
+  const handleSaveAnimationPrompt = async (elementId: string, prompt: string) => {
+    if (!activePageId) return;
+
+    const pageElements = elementsByPage[activePageId] ?? [];
+    const nextElements = pageElements.map((element) =>
+      element.id === elementId ? { ...element, animationPrompt: prompt } : element
+    );
+    setElementsForPage(activePageId, nextElements);
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(elementId);
+
+    if (!projectId || !isUuid) {
+      return;
+    }
+
+    try {
+      await api.put(`elements/${elementId}`, {
+        json: {
+          animationPrompt: prompt,
+        },
+      });
+    } catch (error) {
+      const parsed = await parseApiError(error);
+      throw new Error(parsed.message);
+    }
   };
 
   return (
@@ -420,6 +464,12 @@ function EditorPage() {
         onOpenChange={handleImageEditOpenChange}
         element={imageEditElement}
         onSave={handleSaveCrop}
+      />
+      <AnimationDialog
+        open={isAnimationOpen}
+        onOpenChange={handleAnimationOpenChange}
+        element={animationElement}
+        onSavePrompt={handleSaveAnimationPrompt}
       />
       <ExportDialog
         open={isExportDialogOpen}
