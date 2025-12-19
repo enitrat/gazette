@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { TEMPLATE_NAMES, TEMPLATES } from "@gazette/shared/constants";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ type PageSidebarProps = {
   activePageId?: string | null;
   onSelectPage: (pageId: string) => void;
   onRequestNewPage?: () => void;
+  onClose?: () => void;
   className?: string;
 };
 
@@ -65,6 +66,7 @@ export function PageSidebar({
   activePageId,
   onSelectPage,
   onRequestNewPage,
+  onClose,
   className,
 }: PageSidebarProps) {
   const { pages, isLoading, error, fetchPages, createPage } = usePagesStore();
@@ -99,10 +101,24 @@ export function PageSidebar({
   };
 
   return (
-    <aside className={cn("w-72 border-r border-sepia/20 bg-parchment/95 p-4", className)}>
-      <div className="mb-4 flex items-center justify-between">
+    <aside
+      className={cn("w-72 border-r border-sepia/20 bg-parchment/95 p-4", "max-w-[85vw]", className)}
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="text-ink-effect">Pages</h3>
-        <span className="font-ui text-xs text-muted">{sortedPages.length} total</span>
+        <div className="flex items-center gap-2">
+          <span className="font-ui text-xs text-muted">{sortedPages.length} total</span>
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close pages panel"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-sm border border-sepia/30 text-sepia transition-colors hover:bg-sepia hover:text-parchment"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {!projectId && (

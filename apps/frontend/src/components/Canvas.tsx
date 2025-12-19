@@ -1,4 +1,11 @@
-import { useMemo, useState, type SyntheticEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type SyntheticEvent,
+} from "react";
 import { cn } from "@/lib/utils";
 import type { CanvasElement, CanvasPage } from "@/types/editor";
 
@@ -13,9 +20,14 @@ type CanvasProps = {
   onSelectElement?: (elementId: string) => void;
   onClearSelection?: () => void;
   onImageDoubleClick?: (element: CanvasElement) => void;
+  enableGestures?: boolean;
 };
 
 const VIDEO_LOOP_SECONDS = 5;
+const MIN_SCALE = 0.7;
+const MAX_SCALE = 2.5;
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 function LoopingVideo({ src, className }: { src: string; className?: string }) {
   const handleTimeUpdate = (event: SyntheticEvent<HTMLVideoElement>) => {
@@ -143,6 +155,9 @@ function CanvasElementView({
             }
             style={hasDimensions ? imageStyle : undefined}
             loading="lazy"
+            decoding="async"
+            sizes="(max-width: 640px) 90vw, (max-width: 1024px) 70vw, 50vw"
+            draggable={false}
             onLoad={(event) => {
               if (hasDimensions) return;
               const target = event.currentTarget;
@@ -204,12 +219,137 @@ export function Canvas({
   onSelectElement,
   onClearSelection,
   onImageDoubleClick,
+  enableGestures = false,
 }: CanvasProps) {
   const elements = useMemo(() => page?.elements ?? [], [page]);
   const hasElements = elements.length > 0;
+  const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef({
+    startScale: 1,
+    startTranslate: { x: 0, y: 0 },
+    startMid: { x: 0, y: 0 },
+    startDistance: 0,
+    startPointer: { x: 0, y: 0 },
+  });
+  const didPanRef = useRef(false);
+  const gesturesActive = enableGestures || readOnly;
+
+  useEffect(() => {
+    setTransform({ scale: 1, x: 0, y: 0 });
+    pointersRef.current.clear();
+    didPanRef.current = false;
+  }, [page?.id]);
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!gesturesActive || event.pointerType === "mouse") return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    didPanRef.current = false;
+
+    if (pointersRef.current.size === 1) {
+      gestureRef.current.startTranslate = { x: transform.x, y: transform.y };
+      gestureRef.current.startScale = transform.scale;
+      gestureRef.current.startPointer = { x: event.clientX, y: event.clientY };
+    }
+
+    if (pointersRef.current.size === 2) {
+      const [first, second] = Array.from(pointersRef.current.values());
+      const mid = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+      const dx = second.x - first.x;
+      const dy = second.y - first.y;
+      gestureRef.current.startMid = mid;
+      gestureRef.current.startDistance = Math.hypot(dx, dy);
+      gestureRef.current.startScale = transform.scale;
+      gestureRef.current.startTranslate = { x: transform.x, y: transform.y };
+    }
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!gesturesActive || event.pointerType === "mouse") return;
+    if (!pointersRef.current.has(event.pointerId)) return;
+
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointersRef.current.size === 1) {
+      const start = gestureRef.current.startTranslate;
+      const deltaX = event.clientX - gestureRef.current.startPointer.x;
+      const deltaY = event.clientY - gestureRef.current.startPointer.y;
+      if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+        didPanRef.current = true;
+      }
+      setTransform((prev) => ({
+        scale: prev.scale,
+        x: start.x + deltaX,
+        y: start.y + deltaY,
+      }));
+    }
+
+    if (pointersRef.current.size === 2) {
+      const [first, second] = Array.from(pointersRef.current.values());
+      const mid = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+      const dx = second.x - first.x;
+      const dy = second.y - first.y;
+      const distance = Math.hypot(dx, dy);
+      const start = gestureRef.current;
+      if (start.startDistance <= 0) return;
+      const nextScale = clamp(
+        start.startScale * (distance / start.startDistance),
+        MIN_SCALE,
+        MAX_SCALE
+      );
+      const anchor = {
+        x: (start.startMid.x - start.startTranslate.x) / start.startScale,
+        y: (start.startMid.y - start.startTranslate.y) / start.startScale,
+      };
+      const nextX = mid.x - anchor.x * nextScale;
+      const nextY = mid.y - anchor.y * nextScale;
+      didPanRef.current = true;
+      setTransform({
+        scale: nextScale,
+        x: nextX,
+        y: nextY,
+      });
+    }
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (!gesturesActive || event.pointerType === "mouse") return;
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size < 2) {
+      gestureRef.current.startTranslate = { x: transform.x, y: transform.y };
+      gestureRef.current.startScale = transform.scale;
+      const remaining = Array.from(pointersRef.current.values())[0];
+      if (remaining) {
+        gestureRef.current.startPointer = { x: remaining.x, y: remaining.y };
+      }
+    }
+  };
+
+  const handleSelectElement = (elementId: string) => {
+    if (didPanRef.current) {
+      didPanRef.current = false;
+      return;
+    }
+    onSelectElement?.(elementId);
+  };
+
+  const handleClearSelection = () => {
+    if (didPanRef.current) {
+      didPanRef.current = false;
+      return;
+    }
+    onClearSelection?.();
+  };
 
   return (
-    <div className={cn("gazette-page paper-texture h-full w-full rounded-md p-6", className)}>
+    <div
+      className={cn(
+        "gazette-page paper-texture h-full w-full rounded-md p-4 sm:p-6",
+        gesturesActive && "touch-none select-none",
+        className
+      )}
+    >
       <div className="flex h-full flex-col gap-4">
         {showChrome ? (
           <header className="text-center">
@@ -229,25 +369,40 @@ export function Canvas({
           </header>
         ) : null}
 
-        <div className="relative flex-1 overflow-hidden" onClick={() => onClearSelection?.()}>
-          {hasElements ? (
-            elements.map((element) => (
-              <CanvasElementView
-                key={element.id}
-                element={element}
-                isSelected={element.id === selectedElementId}
-                onSelect={onSelectElement}
-                onImageDoubleClick={onImageDoubleClick}
-              />
-            ))
-          ) : (
-            <div className="flex h-full items-center justify-center text-center text-sm text-muted">
-              {emptyState}
-              {readOnly ? null : (
-                <span className="ml-2 text-xs text-sepia">Use the toolbar to add elements.</span>
-              )}
-            </div>
-          )}
+        <div
+          className="relative flex-1 overflow-hidden"
+          onClick={handleClearSelection}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <div
+            className="h-full w-full"
+            style={{
+              transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
+              transformOrigin: "top left",
+            }}
+          >
+            {hasElements ? (
+              elements.map((element) => (
+                <CanvasElementView
+                  key={element.id}
+                  element={element}
+                  isSelected={element.id === selectedElementId}
+                  onSelect={handleSelectElement}
+                  onImageDoubleClick={onImageDoubleClick}
+                />
+              ))
+            ) : (
+              <div className="flex h-full items-center justify-center text-center text-sm text-muted">
+                {emptyState}
+                {readOnly ? null : (
+                  <span className="ml-2 text-xs text-sepia">Use the toolbar to add elements.</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -14,7 +14,7 @@ import { getAuthSession } from "@/lib/auth";
 import { useElementsStore } from "@/stores/elements-store";
 import { usePagesStore } from "@/stores/pages-store";
 import type { CanvasElement } from "@/types/editor";
-import { Download, ImagePlus, Plus, Save, Share2, Sparkles } from "lucide-react";
+import { Download, ImagePlus, PanelLeft, Plus, Save, Share2, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/editor")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -36,6 +36,7 @@ function EditorPage() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isImageEditOpen, setIsImageEditOpen] = useState(false);
   const [imageEditElementId, setImageEditElementId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const elementsByPage = useElementsStore((state) => state.elementsByPage);
   const fetchElements = useElementsStore((state) => state.fetchElements);
   const setElementsForPage = useElementsStore((state) => state.setElementsForPage);
@@ -79,6 +80,7 @@ function EditorPage() {
         pageId: selectedId,
       },
     });
+    setIsSidebarOpen(false);
   };
 
   const handleCreatePage = async (templateId: Template) => {
@@ -163,10 +165,20 @@ function EditorPage() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-57px)] flex-col">
-      <header className="editor-toolbar border-b border-sepia/20 bg-parchment/90 px-6 py-3">
-        <div className="flex items-center justify-between gap-4">
+    <div className="flex min-h-[calc(100vh-57px)] flex-col pb-20 md:pb-0">
+      <header className="editor-toolbar border-b border-sepia/20 bg-parchment/90 px-4 py-2 md:px-6 md:py-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setIsSidebarOpen(true)}
+              aria-label="Open pages panel"
+            >
+              <PanelLeft />
+            </Button>
             <span className="font-masthead text-lg text-sepia">La Gazette de la Vie</span>
             {session?.projectName && (
               <span className="rounded-full border border-sepia/30 bg-cream/70 px-3 py-1 font-ui text-xs text-muted">
@@ -174,7 +186,7 @@ function EditorPage() {
               </span>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden flex-wrap items-center gap-2 md:flex">
             <Button type="button" variant="outline" onClick={() => setIsTemplateDialogOpen(true)}>
               <Plus />
               Add Page
@@ -214,19 +226,37 @@ function EditorPage() {
           activePageId={activePageId}
           onSelectPage={handleSelectPage}
           onRequestNewPage={() => setIsTemplateDialogOpen(true)}
-          className="editor-sidebar"
+          className="editor-sidebar hidden lg:block"
         />
 
+        {isSidebarOpen ? (
+          <div
+            className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          >
+            <div className="h-full" onClick={(event) => event.stopPropagation()}>
+              <PageSidebar
+                projectId={projectId}
+                activePageId={activePageId}
+                onSelectPage={handleSelectPage}
+                onRequestNewPage={() => setIsTemplateDialogOpen(true)}
+                onClose={() => setIsSidebarOpen(false)}
+                className="editor-sidebar h-full shadow-xl"
+              />
+            </div>
+          </div>
+        ) : null}
+
         {/* Canvas */}
-        <main className="editor-canvas flex-1 bg-cream/50 p-8">
-          <div className="mb-4 flex items-center justify-between">
+        <main className="editor-canvas flex-1 bg-cream/50 p-4 sm:p-6 lg:p-8">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-ink-effect">Editor Canvas</h2>
               <p className="font-ui text-xs text-muted">
                 Track generation progress while you keep editing.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 sm:flex">
               <Button
                 variant="outline"
                 onClick={() => setIsUploadOpen(true)}
@@ -264,15 +294,85 @@ function EditorPage() {
               onSelectElement={setSelectedElementId}
               onClearSelection={() => setSelectedElementId(null)}
               onImageDoubleClick={handleImageDoubleClick}
+              enableGestures
             />
           </div>
         </main>
 
         {/* Properties Panel */}
-        <aside className="editor-properties w-72 border-l border-sepia/20 bg-parchment p-4">
+        <aside className="editor-properties hidden w-72 border-l border-sepia/20 bg-parchment p-4 lg:block">
           <h3 className="mb-4 text-ink-effect">Properties</h3>
           <p className="font-ui text-sm text-muted">Select an element to edit its properties</p>
         </aside>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-sepia/30 bg-parchment/95 px-3 py-2 backdrop-blur md:hidden">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarOpen(true)}
+            aria-label="Open pages panel"
+            title="Pages"
+          >
+            <PanelLeft />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setIsTemplateDialogOpen(true)}
+            aria-label="Add page"
+            title="Add Page"
+          >
+            <Plus />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setIsUploadOpen(true)}
+            disabled={!projectId || !activePageId}
+            aria-label="Add photo"
+            title="Add Photo"
+          >
+            <ImagePlus />
+          </Button>
+          <Button type="button" size="icon" aria-label="Generate" title="Generate">
+            <Sparkles />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={!projectId}
+            aria-label="Share"
+            title="Share"
+          >
+            <Share2 />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setIsExportDialogOpen(true)}
+            aria-label="Export"
+            title="Export"
+          >
+            <Download />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={!projectId}
+            aria-label="Save"
+            title="Save"
+          >
+            <Save />
+          </Button>
+        </div>
       </div>
 
       <TemplateDialog
