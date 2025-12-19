@@ -214,7 +214,7 @@ export function Canvas({
   showChrome = false,
   readOnly = false,
   className,
-  emptyState = "Nothing to display yet.",
+  emptyState = "This page awaits your memories. Click to add a photograph and bring the past to life.",
   selectedElementId,
   onSelectElement,
   onClearSelection,
@@ -397,9 +397,6 @@ export function Canvas({
             ) : (
               <div className="flex h-full items-center justify-center text-center text-sm text-muted">
                 {emptyState}
-                {readOnly ? null : (
-                  <span className="ml-2 text-xs text-sepia">Use the toolbar to add elements.</span>
-                )}
               </div>
             )}
           </div>

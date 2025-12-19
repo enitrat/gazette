@@ -302,7 +302,9 @@ function EditorPage() {
               showChrome={true}
               className="h-full w-full"
               emptyState={
-                activePageId ? "Click to add elements to your gazette." : "Select a page."
+                activePageId
+                  ? "This page awaits your memories. Click to add a photograph and bring the past to life."
+                  : "Every story begins with a blank page. Add your first."
               }
               selectedElementId={selectedElementId}
               onSelectElement={setSelectedElementId}

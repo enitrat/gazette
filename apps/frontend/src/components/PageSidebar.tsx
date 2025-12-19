@@ -151,7 +151,7 @@ export function PageSidebar({
           {!isLoading && !error && sortedPages.length === 0 && (
             <Card className="border-dashed border-muted/60 bg-cream/60 shadow-none">
               <CardContent className="p-3 font-ui text-xs text-muted">
-                No pages yet. Start with your first spread.
+                Every story begins with a blank page. Add your first.
               </CardContent>
             </Card>
           )}
