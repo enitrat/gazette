@@ -91,13 +91,13 @@
   --card-foreground: 36 33% 16%;
   --popover: 48 45% 95%;
   --popover-foreground: 36 33% 16%;
-  --primary: 43 69% 47%;
+  --primary: 45 70% 47%;
   --primary-foreground: 36 33% 16%;
   --secondary: 24 29% 28%;
   --secondary-foreground: 43 50% 85%;
   --muted: 30 24% 44%;
   --muted-foreground: 30 24% 44%;
-  --accent: 43 69% 47%;
+  --accent: 45 70% 47%;
   --accent-foreground: 36 33% 16%;
   --destructive: 25 76% 31%;
   --destructive-foreground: 48 45% 95%;
@@ -105,7 +105,7 @@
   --success-foreground: 48 45% 95%;
   --border: 24 29% 28%;
   --input: 30 24% 44%;
-  --ring: 43 69% 47%;
+  --ring: 45 70% 47%;
 
   /* Transition timings */
   --transition-fast: 150ms ease;
@@ -113,7 +113,7 @@
   --transition-slow: 400ms ease-out;
 
   /* Chart colors (vintage palette) */
-  --chart-1: 43 69% 47%;
+  --chart-1: 45 70% 47%;
   --chart-2: 24 29% 28%;
   --chart-3: 30 24% 44%;
   --chart-4: 135 28% 29%;
