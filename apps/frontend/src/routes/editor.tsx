@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { Template } from "@gazette/shared";
 import { Canvas } from "@/components/Canvas";
+import { EditorToolbar } from "@/components/EditorToolbar";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { PageSidebar } from "@/components/PageSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
@@ -12,11 +13,22 @@ import { AnimationDialog } from "@/components/AnimationDialog";
 import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
 import { ImageEditDialog } from "@/components/ImageEditDialog";
 import { Button } from "@/components/ui/button";
+import { api, parseApiError } from "@/lib/api";
 import { getAuthSession } from "@/lib/auth";
 import { useElementsStore } from "@/stores/elements-store";
 import { usePagesStore } from "@/stores/pages-store";
 import type { CanvasElement } from "@/types/editor";
-import { Download, ImagePlus, PanelLeft, Plus, Save, Share2, Sparkles } from "lucide-react";
+import {
+  Download,
+  ImagePlus,
+  PanelLeft,
+  Plus,
+  Save,
+  Share2,
+  Sparkles,
+  Trash2,
+  Type,
+} from "lucide-react";
 
 export const Route = createFileRoute("/editor")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -50,9 +62,18 @@ function EditorPage() {
   const [isImageEditOpen, setIsImageEditOpen] = useState(false);
   const [imageEditElementId, setImageEditElementId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [toolbarMessage, setToolbarMessage] = useState<{
+    tone: "error" | "success" | "info";
+    text: string;
+  } | null>(null);
+  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const elementsByPage = useElementsStore((state) => state.elementsByPage);
   const fetchElements = useElementsStore((state) => state.fetchElements);
+  const setElementsForPage = useElementsStore((state) => state.setElementsForPage);
   const createImageElement = useElementsStore((state) => state.createImageElement);
+  const createTextElement = useElementsStore((state) => state.createTextElement);
+  const deleteElement = useElementsStore((state) => state.deleteElement);
   const selectedElementId = useElementsStore((state) => state.selectedElementId);
   const setSelectedElementId = useElementsStore((state) => state.setSelectedElementId);
   const selectElement = useElementsStore((state) => state.selectElement);
@@ -75,6 +96,8 @@ function EditorPage() {
     () => activeElements.find((element) => element.id === animationElementId) ?? null,
     [activeElements, animationElementId]
   );
+  const elementCount = activeElements.length;
+  const photoCount = activeElements.filter((element) => element.type === "image").length;
 
   useEffect(() => {
     if (!pageId && pages.length > 0) {
@@ -92,6 +115,24 @@ function EditorPage() {
     void fetchElements(activePageId);
     setSelectedElementId(null);
   }, [activePageId, fetchElements, setSelectedElementId]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      const tagName = target?.tagName?.toLowerCase();
+      if (tagName === "input" || tagName === "textarea") return;
+
+      if ((event.key === "Delete" || event.key === "Backspace") && selectedElementId) {
+        event.preventDefault();
+        setIsDeleteDialogOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedElementId]);
 
   const handleSelectPage = (selectedId: string) => {
     navigate({
@@ -140,6 +181,26 @@ function EditorPage() {
       setSelectedElementId(createdElement.id);
       setAnimationElementId(createdElement.id);
       setIsAnimationOpen(true);
+    }
+  };
+
+  const handleAddText = async () => {
+    if (!activePageId) return;
+    const offset = activeElements.length * 14;
+    const position = {
+      x: 90 + offset,
+      y: 120 + offset,
+      width: 320,
+      height: 60,
+    };
+    const createdElement = await createTextElement(
+      activePageId,
+      "headline",
+      position,
+      "New headline"
+    );
+    if (createdElement) {
+      setSelectedElementId(createdElement.id);
     }
   };
 
@@ -239,67 +300,117 @@ function EditorPage() {
     }
   };
 
+  const handleRequestDelete = () => {
+    if (!selectedElementId) return;
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!activePageId || !selectedElementId) return;
+    const deleted = await deleteElement(activePageId, selectedElementId);
+    if (deleted) {
+      setIsDeleteDialogOpen(false);
+      setSelectedElementId(null);
+    }
+  };
+
+  const showToolbarMessage = (tone: "error" | "success" | "info", text: string) => {
+    setToolbarMessage({ tone, text });
+    window.setTimeout(() => setToolbarMessage(null), 5000);
+  };
+
+  const handleGenerateAll = async () => {
+    if (!projectId) return;
+    setIsGeneratingAll(true);
+    try {
+      type GenerationElement = {
+        id: string;
+        type?: string;
+        imageId?: string | null;
+        animationPrompt?: string | null;
+      };
+
+      const pageRequests = await Promise.all(
+        pages.map(async (page) => {
+          const data = await api
+            .get(`pages/${page.id}/elements`)
+            .json<{ elements?: GenerationElement[] }>();
+          return data.elements ?? [];
+        })
+      );
+
+      const imageElements = pageRequests
+        .flat()
+        .filter((element) => element.type === "image" && element.imageId)
+        .map((element) => {
+          const rawPrompt =
+            typeof element.animationPrompt === "string" ? element.animationPrompt : "";
+          const prompt =
+            rawPrompt.trim().length > 0
+              ? rawPrompt.trim()
+              : "Animate this photo with gentle movement.";
+          return {
+            elementId: String(element.id),
+            imageId: String(element.imageId),
+            prompt,
+          };
+        });
+
+      if (imageElements.length === 0) {
+        showToolbarMessage("info", "No image elements ready for generation yet.");
+        return;
+      }
+
+      if (imageElements.length > 25) {
+        showToolbarMessage("error", "Too many images selected. Limit is 25 per generation.");
+        return;
+      }
+
+      await api.post(`projects/${projectId}/generate`, {
+        json: {
+          elements: imageElements,
+        },
+      });
+
+      showToolbarMessage("success", `Generation started for ${imageElements.length} images.`);
+      setIsProgressOpen(true);
+      if (activePageId) {
+        void fetchElements(activePageId);
+      }
+    } catch (error) {
+      const parsed = await parseApiError(error);
+      showToolbarMessage("error", parsed.message);
+    } finally {
+      setIsGeneratingAll(false);
+    }
+  };
+
   return (
     <div className="flex min-h-[calc(100vh-57px)] flex-col pb-20 md:pb-0">
-      <header className="editor-toolbar border-b border-sepia/20 bg-parchment/90 px-4 py-2 md:px-6 md:py-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setIsSidebarOpen(true)}
-              aria-label="Open pages panel"
-            >
-              <PanelLeft />
-            </Button>
-            <span className="font-masthead text-2xl text-sepia text-ink-effect">
-              La Gazette de la Vie
-            </span>
-            {session?.projectName && (
-              <span className="rounded-full border border-sepia/30 bg-cream/70 px-3 py-1 font-ui text-xs text-muted">
-                {session.projectName}
-              </span>
-            )}
-          </div>
-          <div className="hidden flex-wrap items-center gap-2 md:flex">
-            <Button type="button" variant="outline" onClick={() => setIsTemplateDialogOpen(true)}>
-              <Plus />
-              Add Page
-            </Button>
-            <Button type="button">
-              <Sparkles />
-              Generate
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsProgressOpen(true)}
-              disabled={!projectId}
-            >
-              View generation
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsShareDialogOpen(true)}
-              disabled={!projectId}
-            >
-              <Share2 />
-              Share
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setIsExportDialogOpen(true)}>
-              <Download />
-              Export
-            </Button>
-            <Button type="button" variant="ghost" disabled={!projectId}>
-              <Save />
-              Save
-            </Button>
-          </div>
-        </div>
-      </header>
+      <EditorToolbar
+        projectName={session?.projectName}
+        elementCount={elementCount}
+        photoCount={photoCount}
+        canDelete={Boolean(selectedElementId)}
+        isDeleteDialogOpen={isDeleteDialogOpen}
+        onDeleteDialogOpenChange={setIsDeleteDialogOpen}
+        onConfirmDelete={handleConfirmDelete}
+        onOpenSidebar={() => setIsSidebarOpen(true)}
+        onAddPage={() => setIsTemplateDialogOpen(true)}
+        onAddImage={() => setIsUploadOpen(true)}
+        onAddText={handleAddText}
+        onRequestDelete={handleRequestDelete}
+        onGenerateAll={handleGenerateAll}
+        onOpenProgress={() => setIsProgressOpen(true)}
+        onOpenShare={() => setIsShareDialogOpen(true)}
+        onOpenExport={() => setIsExportDialogOpen(true)}
+        onSave={() => undefined}
+        message={toolbarMessage}
+        disableAddImage={!projectId || !activePageId || photoCount >= 5}
+        disableAddText={!activePageId}
+        disableGenerate={!projectId || isGeneratingAll}
+        disableSave={!projectId}
+      />
 
       <hr className="divider-vintage m-0" />
 
@@ -339,23 +450,6 @@ function EditorPage() {
               <p className="font-ui text-xs text-muted">
                 Track generation progress while you keep editing.
               </p>
-            </div>
-            <div className="hidden items-center gap-2 sm:flex">
-              <Button
-                variant="outline"
-                onClick={() => setIsUploadOpen(true)}
-                disabled={!projectId || !activePageId}
-              >
-                <ImagePlus />
-                Add Photo
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setIsProgressOpen(true)}
-                disabled={!projectId}
-              >
-                View generation
-              </Button>
             </div>
           </div>
           <div className="mx-auto aspect-[3/4] max-w-2xl">
@@ -425,13 +519,42 @@ function EditorPage() {
             variant="outline"
             size="icon"
             onClick={() => setIsUploadOpen(true)}
-            disabled={!projectId || !activePageId}
+            disabled={!projectId || !activePageId || photoCount >= 5}
             aria-label="Add photo"
             title="Add Photo"
           >
             <ImagePlus />
           </Button>
-          <Button type="button" size="icon" aria-label="Generate" title="Generate">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={handleAddText}
+            disabled={!activePageId}
+            aria-label="Add text"
+            title="Add Text"
+          >
+            <Type />
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon"
+            onClick={handleRequestDelete}
+            disabled={!selectedElementId}
+            aria-label="Delete"
+            title="Delete"
+          >
+            <Trash2 />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            onClick={handleGenerateAll}
+            disabled={!projectId || isGeneratingAll}
+            aria-label="Generate all"
+            title="Generate All"
+          >
             <Sparkles />
           </Button>
           <Button

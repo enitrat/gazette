@@ -27,6 +27,7 @@ type ApiElement = {
   content?: string;
   imageId?: string | null;
   imageUrl?: string | null;
+  imageId?: string | null;
   cropData?: CanvasElement["cropData"];
   animationPrompt?: string | null;
   videoUrl?: string | null;
@@ -57,6 +58,13 @@ type ElementsState = {
     imageWidth: number,
     imageHeight: number
   ) => Promise<CanvasElement | null>;
+  createTextElement: (
+    pageId: string,
+    type: Extract<CanvasElement["type"], "headline" | "subheading" | "caption">,
+    position: CanvasElement["position"],
+    content: string
+  ) => Promise<CanvasElement | null>;
+  deleteElement: (pageId: string, elementId: string) => Promise<boolean>;
 };
 
 export const useElementsStore = create<ElementsState>((set) => ({
@@ -248,6 +256,71 @@ export const useElementsStore = create<ElementsState>((set) => ({
       const parsed = await parseApiError(error);
       set({ error: parsed.message });
       return null;
+    }
+  },
+  createTextElement: async (pageId, type, position, content) => {
+    if (!pageId) {
+      set({ error: "Missing page ID." });
+      return null;
+    }
+
+    try {
+      const data = await api
+        .post(`pages/${pageId}/elements`, {
+          json: {
+            type,
+            position,
+            content,
+          },
+        })
+        .json<ApiElement>();
+
+      const normalized: CanvasElement = {
+        id: data.id,
+        type: data.type,
+        position: data.position,
+        content: data.content ?? "",
+      };
+
+      set((state) => ({
+        elementsByPage: {
+          ...state.elementsByPage,
+          [pageId]: [...(state.elementsByPage[pageId] ?? []), normalized],
+        },
+      }));
+
+      return normalized;
+    } catch (error) {
+      const parsed = await parseApiError(error);
+      set({ error: parsed.message });
+      return null;
+    }
+  },
+  deleteElement: async (pageId, elementId) => {
+    if (!pageId || !elementId) {
+      set({ error: "Missing element details." });
+      return false;
+    }
+
+    try {
+      await api.delete(`elements/${elementId}`);
+      set((state) => {
+        const nextElements = (state.elementsByPage[pageId] ?? []).filter(
+          (element) => element.id !== elementId
+        );
+        return {
+          elementsByPage: {
+            ...state.elementsByPage,
+            [pageId]: nextElements,
+          },
+          selectedElementId: state.selectedElementId === elementId ? null : state.selectedElementId,
+        };
+      });
+      return true;
+    } catch (error) {
+      const parsed = await parseApiError(error);
+      set({ error: parsed.message });
+      return false;
     }
   },
 }));
