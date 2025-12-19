@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { IMAGE_CONSTRAINTS } from "@gazette/shared/constants";
-import { Loader2, UploadCloud } from "lucide-react";
 import { apiBaseUrl } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
 
 type UploadedImage = {
@@ -23,7 +23,7 @@ export type ImageUploadResult = {
   previewUrl: string;
 };
 
-type ImageUploadProps = {
+type ImageUploadDialogProps = {
   open: boolean;
   projectId?: string | null;
   onOpenChange: (open: boolean) => void;
@@ -32,7 +32,12 @@ type ImageUploadProps = {
 
 const MAX_MB = Math.round(IMAGE_CONSTRAINTS.MAX_FILE_SIZE / (1024 * 1024));
 
-export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }: ImageUploadProps) {
+export function ImageUploadDialog({
+  open,
+  projectId,
+  onOpenChange,
+  onUploadComplete,
+}: ImageUploadDialogProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -66,7 +71,7 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
     }
   }, [open]);
 
-  const validateFile = (file: File) => {
+  const validateFile = useCallback((file: File) => {
     if (!IMAGE_CONSTRAINTS.SUPPORTED_MIME_TYPES.includes(file.type as never)) {
       return "Unsupported file type. Please upload JPG, PNG, or WebP.";
     }
@@ -74,20 +79,41 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
       return `File is too large. Max size is ${MAX_MB}MB.`;
     }
     return null;
-  };
+  }, []);
 
-  const handleFile = (file?: File | null) => {
-    if (!file) return;
-    const validationError = validateFile(file);
-    if (validationError) {
-      setSelectedFile(null);
-      setErrorMessage(validationError);
-      return;
-    }
-    setErrorMessage(null);
-    setSelectedFile(file);
-    setProgress(0);
-  };
+  const handleFile = useCallback(
+    (file?: File | null) => {
+      if (!file) return;
+      const validationError = validateFile(file);
+      if (validationError) {
+        setSelectedFile(null);
+        setErrorMessage(validationError);
+        return;
+      }
+      setErrorMessage(null);
+      setSelectedFile(file);
+      setProgress(0);
+    },
+    [validateFile]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+      if (!items || items.length === 0) return;
+      const imageItem = Array.from(items).find((item) => item.type.startsWith("image/"));
+      if (!imageItem) return;
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      event.preventDefault();
+      handleFile(file);
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [open, handleFile]);
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -97,6 +123,7 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
   };
 
   const handleBrowse = () => {
+    if (isUploading) return;
     inputRef.current?.click();
   };
 
@@ -199,11 +226,13 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
     });
   };
 
+  const showPreview = Boolean(previewUrl);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl border-sepia/30 bg-parchment">
+      <DialogContent className="max-w-[600px] rounded-[8px] border-sepia/30 bg-parchment shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-ink-effect">Add Photo</DialogTitle>
+          <DialogTitle>Add Photo</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 font-ui text-sm text-muted">
@@ -227,55 +256,61 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
             }}
             onDragOver={(event) => {
               event.preventDefault();
-              setIsDragging(true);
+              if (!isUploading) {
+                setIsDragging(true);
+              }
             }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             className={cn(
-              "relative flex min-h-[260px] cursor-pointer flex-col items-center justify-center gap-3 rounded-sm border-2 border-dashed border-sepia/40 bg-cream/70 p-6 text-center transition",
+              "relative flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-[8px] border-2 border-dashed border-sepia/40 bg-cream/70 p-6 text-center transition",
+              !isUploading && "cursor-pointer",
               isDragging && "border-gold bg-parchment/90"
             )}
           >
-            {previewUrl ? (
-              <div className="flex h-full w-full flex-col items-center gap-3">
+            {showPreview ? (
+              <div className="flex w-full flex-col items-center gap-3">
                 <img
                   src={previewUrl}
                   alt="Selected upload preview"
-                  className="max-h-48 w-full rounded-sm object-contain shadow-sm"
+                  className="max-h-56 w-full rounded-[6px] object-contain shadow-sm"
                 />
                 <div className="text-xs text-muted">
                   {selectedFile?.name} • {selectedFile ? Math.round(selectedFile.size / 1024) : 0}KB
                 </div>
-                <div className="text-xs text-sepia">Click to choose another image</div>
+                {!isUploading ? (
+                  <div className="text-xs text-sepia">Click to choose another image</div>
+                ) : null}
               </div>
             ) : (
               <>
-                <UploadCloud className="h-10 w-10 text-sepia" aria-hidden="true" />
-                <div className="text-base text-ink">Drop image here</div>
-                <div className="text-xs text-muted">or click to browse</div>
+                <div className="text-4xl" aria-hidden="true">
+                  📷
+                </div>
+                <div className="text-base font-semibold text-ink">
+                  Drop image here or click to browse
+                </div>
                 <div className="text-xs text-muted">
-                  Supports: JPG, PNG, WebP • Max size: {MAX_MB}MB
+                  Supports: JPG, PNG, WebP | Max size: {MAX_MB}MB
                 </div>
               </>
             )}
           </div>
 
           {isUploading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 rounded-[8px] border border-sepia/20 bg-cream/70 p-3">
               <div className="flex items-center justify-between text-xs text-muted">
                 <span>Uploading image...</span>
                 <span>{progress}%</span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-sepia/20">
-                <div className="h-full bg-gold transition-all" style={{ width: `${progress}%` }} />
-              </div>
+              <Progress value={progress} />
             </div>
           ) : null}
 
           {errorMessage ? (
             <div
               role="alert"
-              className="rounded-sm border border-aged-red/40 bg-white/60 p-3 text-xs text-aged-red"
+              className="rounded-[8px] border border-aged-red/40 bg-white/60 p-3 text-xs text-aged-red"
             >
               {errorMessage}
             </div>
@@ -285,15 +320,13 @@ export function ImageUpload({ open, projectId, onOpenChange, onUploadComplete }:
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleUpload} disabled={!selectedFile || isUploading}>
-              {isUploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                "Upload photo"
-              )}
+            <Button
+              type="button"
+              onClick={handleUpload}
+              disabled={!selectedFile || isUploading}
+              className="bg-gold text-ink hover:bg-gold/90"
+            >
+              {isUploading ? "Uploading..." : "Upload photo"}
             </Button>
           </div>
         </div>

@@ -7,11 +7,14 @@ import { EditorToolbar } from "@/components/EditorToolbar";
 import { PropertiesPanel } from "@/components/PropertiesPanel";
 import { PageSidebar } from "@/components/PageSidebar";
 import { ExportDialog } from "@/components/ExportDialog";
-import { ShareDialog } from "@/components/ShareDialog";
-import { TemplateDialog } from "@/components/TemplateDialog";
-import { GenerationProgressDialog } from "@/components/GenerationProgressDialog";
-import { AnimationDialog } from "@/components/AnimationDialog";
-import { ImageUpload, type ImageUploadResult } from "@/components/ImageUpload";
+import { ShareDialog } from "@/components/editor/dialogs/ShareDialog";
+import { TemplateDialog } from "@/components/editor/dialogs/TemplateDialog";
+import { GenerationProgressDialog } from "@/components/editor/dialogs/GenerationProgressDialog";
+import { AnimationDialog } from "@/components/editor/dialogs/AnimationDialog";
+import {
+  ImageUploadDialog,
+  type ImageUploadResult,
+} from "@/components/editor/dialogs/ImageUploadDialog";
 import { ImageEditDialog } from "@/components/ImageEditDialog";
 import { Button } from "@/components/ui/button";
 import { api, parseApiError } from "@/lib/api";
@@ -694,7 +697,7 @@ function EditorPage() {
           }
         }}
       />
-      <ImageUpload
+      <ImageUploadDialog
         open={isUploadOpen}
         onOpenChange={setIsUploadOpen}
         projectId={projectId}
