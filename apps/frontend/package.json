@@ -34,6 +34,7 @@
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-router-devtools": "^1.120.3",
+    "@tanstack/router-devtools": "^1.141.6",
     "@tanstack/router-plugin": "^1.120.3",
     "@types/bun": "latest",
     "@types/node": "^24.10.1",
