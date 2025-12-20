@@ -1,106 +1,136 @@
-import { useMemo, useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
-import { useElementsStore } from "@/stores/elements-store";
-import type { CanvasElement } from "@/types/editor";
-import { FloatingToolbar } from "@/components/editor/FloatingToolbar";
-import { StyleTab } from "@/components/editor/properties/StyleTab";
-import { LayoutTab } from "@/components/editor/properties/LayoutTab";
-import { AdvancedTab } from "@/components/editor/properties/AdvancedTab";
+import { useElementsStore } from '@/stores/elements-store';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StyleTab } from './properties/StyleTab';
+import { LayoutTab } from './properties/LayoutTab';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { FileImage, Type } from 'lucide-react';
 
-const PanelBody = ({
-  pageId,
-  elements,
-  selectedElement,
-}: {
-  pageId?: string | null;
-  elements: CanvasElement[];
-  selectedElement?: CanvasElement | null;
-}) => (
-  <div className="flex h-full flex-col">
-    <div className="mb-4">
-      <h3 className="font-headline text-ink-effect">Properties</h3>
-      <p className="font-ui text-xs text-muted">
-        {selectedElement ? "Edit the selected element" : "Select an element to begin"}
-      </p>
-    </div>
-    <Tabs defaultValue="style" className="flex flex-1 flex-col">
-      <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="style" className="text-xs">
-          Style
-        </TabsTrigger>
-        <TabsTrigger value="layout" className="text-xs">
-          Layout
-        </TabsTrigger>
-        <TabsTrigger value="advanced" className="text-xs">
-          Advanced
-        </TabsTrigger>
-      </TabsList>
-      <ScrollArea className="mt-4 flex-1 pr-2">
-        <TabsContent value="style" className="mt-0">
-          <StyleTab pageId={pageId} element={selectedElement} elements={elements} />
-        </TabsContent>
-        <TabsContent value="layout" className="mt-0">
-          <LayoutTab />
-        </TabsContent>
-        <TabsContent value="advanced" className="mt-0">
-          <AdvancedTab />
-        </TabsContent>
-      </ScrollArea>
-    </Tabs>
-  </div>
-);
+interface PropertiesPanelProps {
+  onLayerChange?: (elementId: string, direction: 'front' | 'forward' | 'backward' | 'back') => void;
+  onGenerateVideo?: (elementId: string) => void;
+}
 
-type PropertiesPanelProps = {
-  pageId?: string | null;
-  elements: CanvasElement[];
-  className?: string;
-};
+export function PropertiesPanel(_props: PropertiesPanelProps) {
+  const getSelectedElement = useElementsStore((state) => state.getSelectedElement);
+  const updateElementLocal = useElementsStore((state) => state.updateElementLocal);
+  const selectedElement = getSelectedElement();
 
-export function PropertiesPanel({ pageId, elements, className }: PropertiesPanelProps) {
-  const selectedElementId = useElementsStore((state) => state.selectedElementId);
-  const selectedElement = useMemo(
-    () => elements.find((element) => element.id === selectedElementId) ?? null,
-    [elements, selectedElementId]
-  );
-  const [isOpen, setIsOpen] = useState(false);
+  const handleUpdate = (updates: any) => {
+    if (selectedElement) {
+      updateElementLocal(selectedElement.id, updates);
+    }
+  };
+
+  if (!selectedElement) {
+    return (
+      <div className="w-full h-full border-l-2 border-[#92764C]/20 bg-gradient-to-br from-[#F4F1E8] via-[#F4F1E8]/95 to-[#F4F1E8]/90 flex flex-col">
+        {/* Header with Ornamental Border */}
+        <div className="p-4 border-b-2 border-[#92764C]/20 bg-[#F4F1E8]">
+          <div className="relative pb-3">
+            <h2 className="text-lg font-serif text-[#3D3327] tracking-wide text-center">
+              Properties
+            </h2>
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
+          </div>
+        </div>
+
+        {/* Empty State */}
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center space-y-4">
+            {/* Decorative Frame */}
+            <div className="relative inline-block">
+              <div className="absolute inset-0 border-2 border-[#92764C]/20 rounded-lg transform rotate-2" />
+              <div className="relative bg-[#F4F1E8] border-2 border-[#92764C]/30 rounded-lg p-6">
+                <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-[#D4AF37]/20 to-[#92764C]/10 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-[#F4F1E8] border border-[#92764C]/30 flex items-center justify-center">
+                    <Type className="w-6 h-6 text-[#92764C]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Message */}
+            <div className="space-y-2 max-w-[240px]">
+              <p className="text-sm font-serif text-[#3D3327] leading-relaxed">
+                No Element Selected
+              </p>
+              <p className="text-xs text-[#92764C]/70 font-serif italic leading-relaxed">
+                Select an element from the canvas to view and modify its properties
+              </p>
+            </div>
+
+            {/* Ornamental Divider */}
+            <div className="relative h-px bg-gradient-to-r from-transparent via-[#92764C]/30 to-transparent max-w-[200px] mx-auto">
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#F4F1E8] border border-[#92764C]/30" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isImage = selectedElement.type === 'image';
+  const elementTypeLabel = isImage ? 'Photographic Plate' : 'Text Element';
+  const ElementIcon = isImage ? FileImage : Type;
 
   return (
-    <>
-      <div className="relative hidden w-[280px] shrink-0 lg:block">
-        <aside
-          className={cn(
-            "editor-properties flex h-full flex-col border-l border-sepia/20 bg-cream/80 p-4",
-            className
-          )}
-        >
-          <PanelBody pageId={pageId} elements={elements} selectedElement={selectedElement} />
-        </aside>
-        <div className="absolute -left-12 top-24">
-          <FloatingToolbar pageId={pageId} selectedElement={selectedElement} />
+    <div className="w-full h-full border-l-2 border-[#92764C]/20 bg-gradient-to-br from-[#F4F1E8] via-[#F4F1E8]/95 to-[#F4F1E8]/90 flex flex-col">
+      {/* Header with Element Info */}
+      <div className="p-4 border-b-2 border-[#92764C]/20 bg-[#F4F1E8] space-y-3">
+        <div className="relative pb-3">
+          <h2 className="text-lg font-serif text-[#3D3327] tracking-wide text-center">
+            Properties
+          </h2>
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
+        </div>
+
+        {/* Element Type Badge */}
+        <div className="flex items-center justify-center gap-2 p-2 rounded border border-[#92764C]/20 bg-[#F4F1E8]/50">
+          <ElementIcon className="w-4 h-4 text-[#D4AF37]" />
+          <span className="text-xs font-serif text-[#3D3327] uppercase tracking-wider">
+            {elementTypeLabel}
+          </span>
         </div>
       </div>
 
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="fixed right-4 top-1/2 z-30 hidden -translate-y-1/2 shadow-sm md:inline-flex lg:hidden"
-            aria-label="Open properties panel"
+      {/* Tabs */}
+      <Tabs defaultValue="style" className="flex-1 flex flex-col">
+        <TabsList className="w-full grid grid-cols-2 gap-1 p-1 bg-[#F4F1E8] border-b-2 border-[#92764C]/20 rounded-none h-auto">
+          <TabsTrigger
+            value="style"
+            className="data-[state=active]:bg-[#D4AF37] data-[state=active]:text-white data-[state=active]:shadow-md text-[#92764C] font-serif text-xs uppercase tracking-wider py-2.5 rounded-sm transition-all duration-200 hover:bg-[#D4AF37]/10"
           >
-            <SlidersHorizontal className="h-4 w-4" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="right" className="w-[320px] border-l border-sepia/20 bg-cream/95 p-4">
-          <PanelBody pageId={pageId} elements={elements} selectedElement={selectedElement} />
-        </SheetContent>
-      </Sheet>
-    </>
+            Style
+          </TabsTrigger>
+          <TabsTrigger
+            value="layout"
+            className="data-[state=active]:bg-[#D4AF37] data-[state=active]:text-white data-[state=active]:shadow-md text-[#92764C] font-serif text-xs uppercase tracking-wider py-2.5 rounded-sm transition-all duration-200 hover:bg-[#D4AF37]/10"
+          >
+            Layout
+          </TabsTrigger>
+        </TabsList>
+
+        <ScrollArea className="flex-1">
+          <TabsContent value="style" className="m-0">
+            <StyleTab element={selectedElement} onUpdate={handleUpdate} />
+          </TabsContent>
+
+          <TabsContent value="layout" className="m-0">
+            <LayoutTab element={selectedElement} onUpdate={handleUpdate} />
+          </TabsContent>
+        </ScrollArea>
+      </Tabs>
+
+      {/* Footer with Ornamental Detail */}
+      <div className="p-3 border-t border-[#92764C]/10 bg-[#F4F1E8]/80">
+        <div className="relative h-px bg-gradient-to-r from-transparent via-[#D4AF37]/50 to-transparent">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1">
+            <div className="w-1 h-1 rounded-full bg-[#D4AF37]" />
+            <div className="w-1 h-1 rounded-full bg-[#D4AF37]" />
+            <div className="w-1 h-1 rounded-full bg-[#D4AF37]" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

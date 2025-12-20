@@ -1,22 +1,29 @@
 import { Buffer } from "node:buffer";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import JSZip from "jszip";
+import puppeteer from "puppeteer";
 import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
-import { DEFAULTS, ELEMENT_TYPES } from "@gazette/shared";
+import { DEFAULTS, ELEMENT_TYPES, CANVAS, TEXT_STYLES, GAZETTE_COLORS } from "@gazette/shared";
 
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
 const VIDEO_SUBDIR = "videos";
 
-const appRoot = fileURLToPath(new URL("..", import.meta.url));
+// Go up from src/services/ to apps/backend/
+const appRoot = fileURLToPath(new URL("../..", import.meta.url));
 const videoRoot = join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
 
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 1600;
+// Use shared canvas dimensions
+const CANVAS_WIDTH = CANVAS.WIDTH;
+const CANVAS_HEIGHT = CANVAS.HEIGHT;
 const GOOGLE_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Old+Standard+TT:wght@700&family=Libre+Baskerville:ital@1&family=EB+Garamond:wght@400;500&family=Inter:wght@400;500;600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap";
 
 type ExportPosition = {
   x: number;
@@ -85,6 +92,28 @@ const escapeHtml = (value: string) =>
 const formatText = (value: string | null | undefined) => {
   if (!value) return "";
   return escapeHtml(value).replace(/\n/g, "<br/>");
+};
+
+type TextElementType = "headline" | "subheading" | "caption";
+
+interface TextStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: string;
+  lineHeight: number;
+  letterSpacing: number;
+  color: string;
+  textAlign: string;
+  fontStyle: string;
+  textDecoration: string;
+}
+
+const getTextStyleCss = (elementType: TextElementType): string => {
+  const style = TEXT_STYLES[elementType] as TextStyle;
+  const fontSize = typeof style.fontSize === "number" ? `${style.fontSize}px` : style.fontSize;
+  const letterSpacing = typeof style.letterSpacing === "number" ? `${style.letterSpacing}em` : style.letterSpacing;
+
+  return `font-family: "${style.fontFamily}", Georgia, serif; font-size: ${fontSize}; font-weight: ${style.fontWeight}; line-height: ${style.lineHeight}; letter-spacing: ${letterSpacing}; color: ${style.color}; text-align: ${style.textAlign}; font-style: ${style.fontStyle};`;
 };
 
 const extractVideoJobId = (value: string | null | undefined) => {
@@ -161,19 +190,10 @@ const getInlineFontCss = async () => {
 
 const buildBaseCss = () => `
 :root {
-  --color-parchment: #f4e4bc;
-  --color-sepia: #5c4033;
-  --color-gold: #c9a227;
-  --color-ink: #2c2416;
-  --color-muted: #8b7355;
-  --color-cream: #fdf8e8;
-  --color-aged-red: #8b4513;
-  --color-forest-green: #355e3b;
-  --font-masthead: "Playfair Display", Georgia, serif;
-  --font-headline: "Old Standard TT", "Times New Roman", serif;
-  --font-subheading: "Libre Baskerville", Georgia, serif;
-  --font-body: "EB Garamond", Garamond, serif;
-  --font-ui: "Inter", system-ui, sans-serif;
+  --color-parchment: ${GAZETTE_COLORS.parchment};
+  --color-ink: ${GAZETTE_COLORS.ink};
+  --color-muted: ${GAZETTE_COLORS.muted};
+  --color-cream: ${GAZETTE_COLORS.cream};
 }
 
 *,
@@ -185,21 +205,20 @@ const buildBaseCss = () => `
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: var(--font-body);
+  font-family: "Crimson Text", Georgia, serif;
   background-color: var(--color-cream);
   color: var(--color-ink);
   line-height: 1.6;
 }
 
 a {
-  color: var(--color-sepia);
+  color: var(--color-ink);
   text-decoration: none;
-  border-bottom: 1px solid rgba(92, 64, 51, 0.4);
+  border-bottom: 1px solid rgba(44, 24, 16, 0.4);
 }
 
 a:hover {
-  color: var(--color-gold);
-  border-color: rgba(201, 162, 39, 0.6);
+  color: var(--color-muted);
 }
 
 .export-nav {
@@ -207,7 +226,7 @@ a:hover {
   top: 0;
   z-index: 5;
   background: rgba(253, 248, 232, 0.95);
-  border-bottom: 1px solid rgba(92, 64, 51, 0.2);
+  border-bottom: 1px solid rgba(139, 115, 85, 0.2);
   padding: 12px 24px;
   display: flex;
   flex-wrap: wrap;
@@ -217,7 +236,7 @@ a:hover {
 }
 
 .nav-title {
-  font-family: var(--font-masthead);
+  font-family: "Playfair Display", Georgia, serif;
   font-size: 20px;
   font-weight: 700;
 }
@@ -226,7 +245,7 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
-  font-family: var(--font-ui);
+  font-family: "Inter", system-ui, sans-serif;
   font-size: 14px;
 }
 
@@ -237,25 +256,7 @@ main {
 .page-section {
   padding-bottom: 32px;
   margin-bottom: 32px;
-  border-bottom: 1px dashed rgba(92, 64, 51, 0.25);
-}
-
-.page-meta {
-  text-align: center;
-  margin-bottom: 16px;
-}
-
-.page-meta h2 {
-  margin: 0;
-  font-family: var(--font-headline);
-  font-size: 28px;
-}
-
-.page-meta p {
-  margin: 4px 0 0;
-  font-family: var(--font-subheading);
-  font-style: italic;
-  color: var(--color-muted);
+  border-bottom: 1px dashed rgba(139, 115, 85, 0.25);
 }
 
 .page-frame {
@@ -273,60 +274,50 @@ main {
 }
 
 .gazette-page {
-  background: radial-gradient(
-      ellipse at center,
-      transparent 60%,
-      rgba(92, 64, 51, 0.15) 100%
-    ),
-    var(--color-parchment);
-  border: 1px solid rgba(92, 64, 51, 0.3);
+  position: relative;
+  width: ${CANVAS_WIDTH}px;
+  height: ${CANVAS_HEIGHT}px;
+  background-color: var(--color-parchment);
   box-shadow:
-    inset 0 0 30px rgba(92, 64, 51, 0.05),
-    0 4px 20px rgba(0, 0, 0, 0.1);
+    0 10px 40px rgba(0, 0, 0, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
   overflow: hidden;
 }
 
-.paper-texture::after {
+/* Vignette effect */
+.gazette-page::before {
   content: "";
   position: absolute;
   inset: 0;
+  background: radial-gradient(ellipse at center, transparent 0%, transparent 50%, rgba(139, 115, 85, 0.12) 100%);
   pointer-events: none;
-  opacity: 0.06;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
+}
+
+/* Inner border decoration */
+.gazette-page::after {
+  content: "";
+  position: absolute;
+  inset: 20px;
+  border: 1px solid rgba(139, 115, 85, 0.15);
+  border-radius: 2px;
+  pointer-events: none;
 }
 
 .element {
   position: absolute;
-  padding: 6px;
   overflow: hidden;
-  color: var(--color-ink);
 }
 
-.element.headline {
-  font-family: var(--font-headline);
-  font-size: 48px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  line-height: 1.1;
-}
-
-.element.subheading {
-  font-family: var(--font-subheading);
-  font-size: 26px;
-  font-style: italic;
-  line-height: 1.2;
-}
-
-.element.caption {
-  font-family: var(--font-body);
-  font-size: 20px;
-  line-height: 1.4;
+.element.text-element {
+  padding: 8px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .element.image {
   padding: 0;
+  border-radius: 2px;
 }
 
 .media {
@@ -342,11 +333,11 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-ui);
+  font-family: "Inter", system-ui, sans-serif;
   font-size: 14px;
   color: var(--color-muted);
-  background: rgba(253, 248, 232, 0.9);
-  border: 1px dashed rgba(92, 64, 51, 0.3);
+  background: linear-gradient(135deg, #e8dcc0, #d4c4a0);
+  border: 1px dashed rgba(139, 115, 85, 0.3);
 }
 
 .page-nav {
@@ -355,7 +346,7 @@ main {
   align-items: center;
   margin: 12px auto 0;
   max-width: ${CANVAS_WIDTH}px;
-  font-family: var(--font-ui);
+  font-family: "Inter", system-ui, sans-serif;
   font-size: 14px;
   color: var(--color-muted);
 }
@@ -378,7 +369,7 @@ main {
     padding-bottom: 0;
   }
 
-  .page-canvas {
+  .gazette-page {
     box-shadow: none;
   }
 }
@@ -427,8 +418,10 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
         }
 
         const text = formatText(element.content ?? "");
+        const textType = element.type as TextElementType;
+        const textStyleCss = getTextStyleCss(textType);
         return `
-          <div class="element ${element.type}" style="${style}">${text}</div>
+          <div class="element text-element" style="${style} ${textStyleCss}">${text}</div>
         `;
       })
       .join("");
@@ -757,4 +750,323 @@ export const buildVideoExportZip = async (projectId: string) => {
   const rawName = `gazette-${safeSlug}.videos.zip`;
 
   return { buffer, filename: rawName };
+};
+
+const buildPdfHtml = async (payload: HtmlExportPayload) => {
+  const fontCss = await getInlineFontCss();
+  const baseCss = buildBaseCss();
+
+  const pagesMarkup = payload.pages.map((page) => {
+    const elements = payload.elementsByPage.get(page.id) ?? [];
+
+    const elementsMarkup = elements
+      .map((element) => {
+        const style = `left:${element.position.x}px;top:${element.position.y}px;width:${element.position.width}px;height:${element.position.height}px;`;
+
+        if (element.type === ELEMENT_TYPES.IMAGE) {
+          const imageData = element.imageId ? payload.imageDataById.get(element.imageId) : null;
+          const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
+
+          if (imageData) {
+            return `
+              <div class="element image" style="${style}">
+                <img class="media" src="${imageData.dataUri}" alt="${label}" />
+              </div>
+            `;
+          }
+
+          return `
+            <div class="element image" style="${style}">
+              <div class="missing-media">Missing image</div>
+            </div>
+          `;
+        }
+
+        const text = formatText(element.content ?? "");
+        const textType = element.type as TextElementType;
+        const textStyleCss = getTextStyleCss(textType);
+        return `
+          <div class="element text-element" style="${style} ${textStyleCss}">${text}</div>
+        `;
+      })
+      .join("");
+
+    return `
+      <section class="pdf-page">
+        <div class="gazette-page">
+          ${elementsMarkup}
+        </div>
+      </section>
+    `;
+  });
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>${escapeHtml(payload.project.name)} — Gazette PDF</title>
+    <style>
+${fontCss}
+${baseCss}
+
+@page {
+  size: ${CANVAS_WIDTH}px ${CANVAS_HEIGHT}px;
+  margin: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: white;
+}
+
+.pdf-page {
+  width: ${CANVAS_WIDTH}px;
+  height: ${CANVAS_HEIGHT}px;
+  page-break-after: always;
+  background: white;
+}
+
+.pdf-page:last-child {
+  page-break-after: avoid;
+}
+    </style>
+  </head>
+  <body>
+    ${pagesMarkup.join("")}
+  </body>
+</html>`;
+};
+
+export const buildPdfExport = async (projectId: string) => {
+  const payload = await fetchHtmlExportData(projectId);
+  if (!payload) return null;
+
+  const html = await buildPdfHtml(payload);
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+
+    const pdfBuffer = await page.pdf({
+      width: `${CANVAS_WIDTH}px`,
+      height: `${CANVAS_HEIGHT}px`,
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+
+    const safeSlug = sanitizeFilename(payload.project.slug, "export");
+    const filename = `gazette-${safeSlug}.pdf`;
+
+    return { buffer: new Uint8Array(pdfBuffer), filename };
+  } finally {
+    await browser.close();
+  }
+};
+
+const SLIDESHOW_SECONDS_PER_PAGE = 15;
+
+const buildSlideshowPageHtml = (payload: HtmlExportPayload, pageIndex: number, videoAssetMap: Map<string, string>) => {
+  const fontCss = cachedFontCss || "";
+  const baseCss = buildBaseCss();
+  const page = payload.pages[pageIndex];
+  if (!page) return null;
+
+  const elements = payload.elementsByPage.get(page.id) ?? [];
+
+  const elementsMarkup = elements
+    .map((element) => {
+      const style = `left:${element.position.x}px;top:${element.position.y}px;width:${element.position.width}px;height:${element.position.height}px;`;
+
+      if (element.type === ELEMENT_TYPES.IMAGE) {
+        const imageData = element.imageId ? payload.imageDataById.get(element.imageId) : null;
+        const videoAsset = videoAssetMap.get(element.id);
+        const poster = imageData ? ` poster="${imageData.dataUri}"` : "";
+        const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
+
+        if (videoAsset) {
+          return `
+            <div class="element image" style="${style}">
+              <video class="media" src="${videoAsset}"${poster} loop autoplay muted playsinline preload="auto"></video>
+            </div>
+          `;
+        }
+
+        if (imageData) {
+          return `
+            <div class="element image" style="${style}">
+              <img class="media" src="${imageData.dataUri}" alt="${label}" />
+            </div>
+          `;
+        }
+
+        return `
+          <div class="element image" style="${style}">
+            <div class="missing-media">Missing image</div>
+          </div>
+        `;
+      }
+
+      const text = formatText(element.content ?? "");
+      const textType = element.type as TextElementType;
+      const textStyleCss = getTextStyleCss(textType);
+      return `
+        <div class="element text-element" style="${style} ${textStyleCss}">${text}</div>
+      `;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+${fontCss}
+${baseCss}
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-parchment);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.page-canvas {
+  width: ${CANVAS_WIDTH}px;
+  height: ${CANVAS_HEIGHT}px;
+}
+    </style>
+  </head>
+  <body>
+    <div class="page-canvas gazette-page paper-texture">
+      ${elementsMarkup}
+    </div>
+  </body>
+</html>`;
+};
+
+const runFFmpeg = (args: string[]): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ffmpeg", args, { stdio: "pipe" });
+    let stderr = "";
+    proc.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    proc.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`FFmpeg exited with code ${code}: ${stderr}`));
+      }
+    });
+    proc.on("error", reject);
+  });
+};
+
+export const buildVideoSlideshowExport = async (projectId: string) => {
+  const payload = await fetchHtmlExportData(projectId);
+  if (!payload) return null;
+
+  // Pre-fetch fonts for slideshow
+  await getInlineFontCss();
+
+  // Build video asset map for pages with videos
+  const videoAssetMap = new Map<string, string>();
+  for (const page of payload.pages) {
+    const elements = payload.elementsByPage.get(page.id) ?? [];
+    for (const element of elements) {
+      if (element.type !== ELEMENT_TYPES.IMAGE) continue;
+      if (!element.videoUrl) continue;
+      if (element.videoStatus && element.videoStatus !== "complete") continue;
+      const jobId = extractVideoJobId(element.videoUrl);
+      if (!jobId) continue;
+      const filePath = join(videoRoot, `${jobId}.mp4`);
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        // Use file:// URL for local video files
+        videoAssetMap.set(element.id, `file://${filePath}`);
+      }
+    }
+  }
+
+  const workDir = join(tmpdir(), `gazette-slideshow-${randomUUID()}`);
+  await mkdir(workDir, { recursive: true });
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--autoplay-policy=no-user-gesture-required"],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
+
+    const imageFiles: string[] = [];
+
+    // Screenshot each page
+    for (let i = 0; i < payload.pages.length; i++) {
+      const html = buildSlideshowPageHtml(payload, i, videoAssetMap);
+      if (!html) continue;
+
+      await page.setContent(html, { waitUntil: "networkidle0" });
+
+      // Wait a bit for videos to start playing (if any)
+      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 500)));
+
+      const imagePath = join(workDir, `page-${String(i + 1).padStart(3, "0")}.png`);
+      await page.screenshot({ path: imagePath, type: "png" });
+      imageFiles.push(imagePath);
+    }
+
+    await browser.close();
+
+    if (imageFiles.length === 0) {
+      await rm(workDir, { recursive: true, force: true });
+      return null;
+    }
+
+    // Create a concat file for FFmpeg
+    const concatPath = join(workDir, "concat.txt");
+    const concatContent = imageFiles
+      .map((file) => `file '${file}'\nduration ${SLIDESHOW_SECONDS_PER_PAGE}`)
+      .join("\n");
+    await writeFile(concatPath, concatContent + `\nfile '${imageFiles[imageFiles.length - 1]}'`);
+
+    // Generate video with FFmpeg
+    const outputPath = join(workDir, "slideshow.mp4");
+    await runFFmpeg([
+      "-y",
+      "-f", "concat",
+      "-safe", "0",
+      "-i", concatPath,
+      "-vf", `scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=decrease,pad=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:(ow-iw)/2:(oh-ih)/2`,
+      "-c:v", "libx264",
+      "-pix_fmt", "yuv420p",
+      "-preset", "medium",
+      "-crf", "23",
+      "-movflags", "+faststart",
+      outputPath,
+    ]);
+
+    // Read the output video
+    const videoBuffer = await Bun.file(outputPath).arrayBuffer();
+
+    // Cleanup
+    await rm(workDir, { recursive: true, force: true });
+
+    const safeSlug = sanitizeFilename(payload.project.slug, "export");
+    const filename = `gazette-${safeSlug}-slideshow.mp4`;
+
+    return { buffer: new Uint8Array(videoBuffer), filename };
+  } catch (error) {
+    await browser.close().catch(() => {});
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
 };

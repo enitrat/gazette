@@ -96,3 +96,55 @@ export const DEFAULTS = {
   CROP_Y: 0,
   GENERATION_PROGRESS: 0,
 } as const;
+
+// Canvas dimensions - shared between editor and export
+export const CANVAS = {
+  WIDTH: 800,
+  HEIGHT: 1100,
+} as const;
+
+// Text style defaults for each element type - shared between editor and export
+export const TEXT_STYLES = {
+  headline: {
+    fontFamily: "Playfair Display",
+    fontSize: 32,
+    fontWeight: "bold" as const,
+    lineHeight: 1.2,
+    letterSpacing: -0.02,
+    color: "#2c1810",
+    textAlign: "left" as const,
+    fontStyle: "normal" as const,
+    textDecoration: "none",
+  },
+  subheading: {
+    fontFamily: "Playfair Display",
+    fontSize: 20,
+    fontWeight: "bold" as const,
+    lineHeight: 1.3,
+    letterSpacing: -0.01,
+    color: "#2c1810",
+    textAlign: "left" as const,
+    fontStyle: "normal" as const,
+    textDecoration: "none",
+  },
+  caption: {
+    fontFamily: "Crimson Text",
+    fontSize: 14,
+    fontWeight: "normal" as const,
+    lineHeight: 1.5,
+    letterSpacing: 0,
+    color: "#4a3628",
+    textAlign: "left" as const,
+    fontStyle: "italic" as const,
+    textDecoration: "none",
+  },
+} as const;
+
+// Colors used in the gazette theme
+export const GAZETTE_COLORS = {
+  parchment: "#F4E4BC",
+  ink: "#2c1810",
+  muted: "#8b7355",
+  cream: "#fdf8e8",
+  caption: "#4a3628",
+} as const;

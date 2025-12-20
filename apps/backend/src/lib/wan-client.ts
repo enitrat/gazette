@@ -24,7 +24,7 @@ export type WanTaskResult = {
 };
 
 const DEFAULT_BASE_URL = "https://dashscope-intl.aliyuncs.com/api/v1";
-const DEFAULT_MODEL = "wan2.1-i2v-turbo";
+const DEFAULT_MODEL = "wan2.6-i2v";
 const DEFAULT_POLL_INTERVAL_MS = 15000;
 const DEFAULT_MAX_POLL_MS = 12 * 60 * 1000;
 

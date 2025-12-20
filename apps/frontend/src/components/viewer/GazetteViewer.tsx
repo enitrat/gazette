@@ -1,327 +1,375 @@
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { ChevronLeft, ChevronRight, Lock, Maximize2, Minimize2, Share2 } from "lucide-react";
-import { Canvas } from "@/components/Canvas";
-import type { CanvasPage } from "@/types/editor";
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import type { ViewProjectResponse } from '@gazette/shared';
+import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/lib/constants';
+import { images } from '@/lib/api';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-type GazetteViewerProps = {
-  projectName: string;
-  slug: string;
-  shareUrl: string;
-  pages: CanvasPage[];
-  activeIndex: number;
-  onNavigate: (nextIndex: number) => void;
-  onShare: () => void;
-  shareStatus?: string | null;
-};
+interface GazetteViewerProps {
+  data: ViewProjectResponse;
+}
 
-export function GazetteViewer({
-  projectName,
-  slug,
-  shareUrl,
-  pages,
-  activeIndex,
-  onNavigate,
-  onShare,
-  shareStatus,
-}: GazetteViewerProps) {
-  const pageCount = pages.length;
-  const currentPage = pages[activeIndex];
-  const canGoBack = activeIndex > 0;
-  const canGoForward = activeIndex < pageCount - 1;
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-  const viewerRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-  const previousIndexRef = useRef(activeIndex);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [transitionDirection, setTransitionDirection] = useState<"forward" | "backward">("forward");
+export function GazetteViewer({ data }: GazetteViewerProps) {
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
+  const [imageLoadStates, setImageLoadStates] = useState<Record<string, boolean>>({});
 
-  const dots = useMemo(() => Array.from({ length: pageCount }, (_, index) => index), [pageCount]);
+  const currentPage = data.pages[currentPageIndex];
+  const totalPages = data.pages.length;
 
-  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length > 1) {
-      touchStartRef.current = null;
-      return;
-    }
-    const touch = event.touches[0];
-    if (!touch) return;
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-  };
-
-  const handleTouchMove = (event: TouchEvent<HTMLDivElement>) => {
-    if (!touchStartRef.current) return;
-    if (event.touches.length > 1) {
-      touchStartRef.current = null;
-      return;
-    }
-    const touch = event.touches[0];
-    if (!touch) return;
-    const deltaX = touch.clientX - touchStartRef.current.x;
-    const deltaY = touch.clientY - touchStartRef.current.y;
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 12) {
-      event.preventDefault();
+  const goToNextPage = () => {
+    if (currentPageIndex < totalPages - 1) {
+      setDirection(1);
+      setCurrentPageIndex((prev) => prev + 1);
     }
   };
 
-  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
-    if (!touchStartRef.current) return;
-    const touch = event.changedTouches[0];
-    if (!touch) return;
-    const deltaX = touch.clientX - touchStartRef.current.x;
-    const deltaY = touch.clientY - touchStartRef.current.y;
-    const elapsed = Date.now() - touchStartRef.current.time;
-    touchStartRef.current = null;
-    if (elapsed > 600) return;
-    if (Math.abs(deltaX) < 50 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) return;
-    if (deltaX < 0 && canGoForward) {
-      onNavigate(activeIndex + 1);
-    }
-    if (deltaX > 0 && canGoBack) {
-      onNavigate(activeIndex - 1);
+  const goToPreviousPage = () => {
+    if (currentPageIndex > 0) {
+      setDirection(-1);
+      setCurrentPageIndex((prev) => prev - 1);
     }
   };
 
+  // Keyboard navigation
   useEffect(() => {
-    if (activeIndex === previousIndexRef.current) return;
-    setTransitionDirection(activeIndex > previousIndexRef.current ? "forward" : "backward");
-    previousIndexRef.current = activeIndex;
-  }, [activeIndex]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, [contenteditable='true']")) {
-        return;
-      }
-      if (event.key === "ArrowRight" && canGoForward) {
-        event.preventDefault();
-        onNavigate(activeIndex + 1);
-      }
-      if (event.key === "ArrowLeft" && canGoBack) {
-        event.preventDefault();
-        onNavigate(activeIndex - 1);
-      }
-      if (event.key === "Escape" && isFullscreen) {
-        void document.exitFullscreen?.();
-      }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') goToPreviousPage();
+      if (e.key === 'ArrowRight') goToNextPage();
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeIndex, canGoBack, canGoForward, isFullscreen, onNavigate]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentPageIndex, totalPages]);
 
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    handleFullscreenChange();
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, []);
-
-  useEffect(() => {
-    if (!isFullscreen) {
-      document.body.style.overflow = "";
-      return;
-    }
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    const playVideos = () => {
-      const container = canvasRef.current;
-      if (!container) return;
-      container.querySelectorAll("video").forEach((video) => {
-        video.loop = true;
-        video.muted = true;
-        video.playsInline = true;
-        const playPromise = video.play();
-        if (playPromise?.catch) {
-          playPromise.catch(() => undefined);
-        }
-      });
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        playVideos();
-      }
-    };
-
-    const timeout = window.setTimeout(playVideos, 60);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      window.clearTimeout(timeout);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [activeIndex]);
-
-  const handleFullscreenToggle = async () => {
-    if (!viewerRef.current) return;
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-      return;
-    }
-    if (viewerRef.current.requestFullscreen) {
-      await viewerRef.current.requestFullscreen();
-    }
+  // Page transition variants
+  const pageVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 1000 : -1000,
+      opacity: 0,
+      scale: 0.95,
+      rotateY: direction > 0 ? 15 : -15,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+      scale: 1,
+      rotateY: 0,
+    },
+    exit: (direction: number) => ({
+      x: direction < 0 ? 1000 : -1000,
+      opacity: 0,
+      scale: 0.95,
+      rotateY: direction < 0 ? 15 : -15,
+    }),
   };
 
   return (
-    <div
-      ref={viewerRef}
-      className={cn(
-        "bg-cream/70 px-4 pb-16 pt-4 sm:px-8 sm:pb-10 sm:pt-6",
-        isFullscreen ? "min-h-screen" : "min-h-[calc(100vh-57px)]"
-      )}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-[#f5f1e8] via-[#faf8f3] to-[#f0e9d8]">
+      {/* Decorative background pattern */}
       <div
-        className={cn(
-          "mx-auto flex w-full flex-col gap-6",
-          isFullscreen ? "max-w-6xl" : "max-w-5xl"
-        )}
-      >
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-sepia/40 bg-parchment px-3 py-1 text-xs font-ui text-sepia">
-              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-              View only
-            </div>
-            <div className="text-xs font-ui uppercase tracking-[0.2em] text-muted">{slug}</div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleFullscreenToggle}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-sm border border-sepia/40 bg-parchment px-3 py-2 text-xs font-ui text-sepia transition-colors",
-                "hover:bg-sepia hover:text-parchment"
-              )}
-            >
-              {isFullscreen ? (
-                <>
-                  <Minimize2 className="h-4 w-4" aria-hidden="true" />
-                  Exit fullscreen
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
-                  Fullscreen
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={onShare}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-sm border border-sepia/40 bg-parchment px-3 py-2 text-xs font-ui text-sepia transition-colors",
-                "hover:bg-sepia hover:text-parchment"
-              )}
-            >
-              <Share2 className="h-4 w-4" aria-hidden="true" />
-              Share
-            </button>
-            {shareStatus ? <span className="text-xs font-ui text-muted">{shareStatus}</span> : null}
-          </div>
-        </header>
+        className="pointer-events-none absolute inset-0 opacity-[0.015]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        }}
+      />
 
-        <div className={cn("relative mx-auto w-full", isFullscreen ? "max-w-5xl" : "max-w-4xl")}>
-          <div className="aspect-[3/4] w-full" ref={canvasRef}>
-            {currentPage ? (
+      {/* Vignette effect */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.05) 100%)',
+        }}
+      />
+
+      {/* Header - Masthead */}
+      <header className="relative z-10 border-b-4 border-[#8b7355]/30 bg-gradient-to-b from-white/95 to-white/90 shadow-lg backdrop-blur-sm">
+        <div className="container mx-auto px-6 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center"
+          >
+            <div className="mb-2 flex items-center justify-center gap-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
+              <svg className="h-4 w-4 text-[#8b7355]" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 2 L12 6 L17 7 L13.5 10.5 L14.5 16 L10 13.5 L5.5 16 L6.5 10.5 L3 7 L8 6 Z" />
+              </svg>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
+            </div>
+
+            <h1 className="font-display text-5xl font-black tracking-tight text-[#2C2416] drop-shadow-sm">
+              {data.project.name}
+            </h1>
+
+            <div className="mt-2 flex items-center justify-center gap-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
+              <svg className="h-4 w-4 text-[#8b7355]" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 2 L12 6 L17 7 L13.5 10.5 L14.5 16 L10 13.5 L5.5 16 L6.5 10.5 L3 7 L8 6 Z" />
+              </svg>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
+            </div>
+          </motion.div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <main className="relative flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-16">
+        <AnimatePresence initial={false} custom={direction} mode="wait">
+          <motion.div
+            key={currentPageIndex}
+            custom={direction}
+            variants={pageVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{
+              x: { type: 'spring', stiffness: 300, damping: 40 },
+              opacity: { duration: 0.4 },
+              scale: { duration: 0.4 },
+              rotateY: { duration: 0.4 },
+            }}
+            className="relative w-full max-w-5xl"
+            style={{ perspective: '2000px' }}
+          >
+            {/* Page container with shadow and texture */}
+            <div className="relative mx-auto" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
+              {/* Multiple shadow layers for depth */}
+              <div className="absolute inset-0 -translate-x-2 translate-y-2 rounded-sm bg-[#8b7355]/5 blur-xl" />
+              <div className="absolute inset-0 translate-x-2 translate-y-3 rounded-sm bg-[#8b7355]/10 blur-2xl" />
+
+              {/* Page content */}
               <div
-                key={activeIndex}
-                className={cn(
-                  "h-full w-full rounded-md",
-                  "animate-in fade-in-0 duration-300",
-                  transitionDirection === "forward"
-                    ? "slide-in-from-right-3"
-                    : "slide-in-from-left-3"
-                )}
+                className="relative overflow-hidden rounded-sm border-2 border-[#8b7355]/30 bg-[#fefdfb] shadow-2xl"
+                style={{
+                  backgroundImage: `
+                    linear-gradient(to bottom, rgba(251,248,240,0) 0%, rgba(251,248,240,0.3) 100%),
+                    url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E")
+                  `,
+                  backgroundSize: 'cover',
+                }}
               >
-                <Canvas
-                  page={currentPage}
-                  projectName={projectName}
-                  showChrome
-                  readOnly
-                  className="h-full w-full"
-                  emptyState="This page has no elements yet."
-                  enableGestures
-                />
-              </div>
-            ) : (
-              <div className="flex h-full w-full items-center justify-center rounded-md border border-sepia/30 bg-parchment text-sm text-muted">
-                No pages available.
-              </div>
-            )}
-          </div>
-        </div>
+                {/* Page header */}
+                <div className="border-b border-[#8b7355]/20 bg-gradient-to-b from-[#faf8f3] to-transparent p-8 pb-6">
+                  <h2 className="font-display text-4xl font-bold leading-tight text-[#2C2416]">
+                    {currentPage.title}
+                  </h2>
+                  {currentPage.subtitle && (
+                    <p className="mt-2 font-serif text-lg italic text-[#5C4033]">
+                      {currentPage.subtitle}
+                    </p>
+                  )}
+                </div>
 
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex w-full flex-col items-center justify-between gap-4 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => onNavigate(activeIndex - 1)}
-              disabled={!canGoBack}
-              className={cn(
-                "inline-flex items-center gap-3 rounded-sm border border-sepia/40 bg-parchment px-6 py-3 text-sm font-ui text-sepia shadow-sm transition-colors",
-                canGoBack ? "hover:bg-sepia hover:text-parchment" : "cursor-not-allowed opacity-50"
-              )}
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              Previous
-            </button>
-            <div className="text-xs font-ui uppercase tracking-[0.3em] text-muted">
-              Page {pageCount === 0 ? 0 : activeIndex + 1} of {pageCount}
+                {/* Elements rendering */}
+                <div className="relative p-8" style={{ height: CANVAS_HEIGHT - 140 }}>
+                  {currentPage.elements.map((element) => {
+                    const { position } = element;
+
+                    if (element.type === 'image') {
+                      const hasVideo = element.videoUrl && element.videoStatus === 'complete';
+                      const imageUrl = element.imageId ? images.getUrl(element.imageId) : null;
+
+                      return (
+                        <motion.div
+                          key={element.id}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.2, duration: 0.5 }}
+                          className="absolute overflow-hidden rounded-sm border border-[#8b7355]/20 shadow-md"
+                          style={{
+                            left: position.x,
+                            top: position.y,
+                            width: position.width,
+                            height: position.height,
+                          }}
+                        >
+                          {hasVideo ? (
+                            <video
+                              src={element.videoUrl!}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                // Fallback to image if video fails
+                                const target = e.target as HTMLVideoElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                          ) : null}
+
+                          {imageUrl && (
+                            <img
+                              src={imageUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              style={{
+                                display: hasVideo && imageLoadStates[element.id] ? 'none' : 'block',
+                                transform: element.cropData
+                                  ? `scale(${element.cropData.zoom}) translate(${-element.cropData.x}px, ${-element.cropData.y}px)`
+                                  : undefined,
+                                transformOrigin: 'top left',
+                              }}
+                              onLoad={() => {
+                                setImageLoadStates(prev => ({ ...prev, [element.id]: true }));
+                              }}
+                            />
+                          )}
+                        </motion.div>
+                      );
+                    }
+
+                    if (element.type === 'headline') {
+                      return (
+                        <motion.div
+                          key={element.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3, duration: 0.5 }}
+                          className="absolute"
+                          style={{
+                            left: position.x,
+                            top: position.y,
+                            width: position.width,
+                            height: position.height,
+                          }}
+                        >
+                          <h3 className="font-display text-3xl font-bold leading-tight text-[#2C2416]">
+                            {element.content}
+                          </h3>
+                        </motion.div>
+                      );
+                    }
+
+                    if (element.type === 'subheading') {
+                      return (
+                        <motion.div
+                          key={element.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.35, duration: 0.5 }}
+                          className="absolute"
+                          style={{
+                            left: position.x,
+                            top: position.y,
+                            width: position.width,
+                            height: position.height,
+                          }}
+                        >
+                          <h4 className="font-display text-xl font-semibold leading-snug text-[#5C4033]">
+                            {element.content}
+                          </h4>
+                        </motion.div>
+                      );
+                    }
+
+                    if (element.type === 'caption') {
+                      return (
+                        <motion.div
+                          key={element.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.4, duration: 0.5 }}
+                          className="absolute"
+                          style={{
+                            left: position.x,
+                            top: position.y,
+                            width: position.width,
+                            height: position.height,
+                          }}
+                        >
+                          <p className="font-serif text-base leading-relaxed text-[#2C2416]">
+                            {element.content}
+                          </p>
+                        </motion.div>
+                      );
+                    }
+
+                    return null;
+                  })}
+                </div>
+
+                {/* Decorative corner flourishes */}
+                <div className="pointer-events-none absolute left-4 top-4 h-8 w-8 border-l-2 border-t-2 border-[#8b7355]/20" />
+                <div className="pointer-events-none absolute right-4 top-4 h-8 w-8 border-r-2 border-t-2 border-[#8b7355]/20" />
+                <div className="pointer-events-none absolute bottom-4 left-4 h-8 w-8 border-b-2 border-l-2 border-[#8b7355]/20" />
+                <div className="pointer-events-none absolute bottom-4 right-4 h-8 w-8 border-b-2 border-r-2 border-[#8b7355]/20" />
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigate(activeIndex + 1)}
-              disabled={!canGoForward}
-              className={cn(
-                "inline-flex items-center gap-3 rounded-sm border border-sepia/40 bg-parchment px-6 py-3 text-sm font-ui text-sepia shadow-sm transition-colors",
-                canGoForward
-                  ? "hover:bg-sepia hover:text-parchment"
-                  : "cursor-not-allowed opacity-50"
-              )}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* Footer navigation */}
+      <footer className="fixed bottom-0 left-0 right-0 z-20 border-t-2 border-[#8b7355]/30 bg-gradient-to-t from-white/95 to-white/90 backdrop-blur-sm">
+        <div className="container mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            {/* Previous button */}
+            <motion.button
+              whileHover={{ scale: 1.05, x: -5 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={goToPreviousPage}
+              disabled={currentPageIndex === 0}
+              className="group flex items-center gap-2 rounded-sm border border-[#8b7355]/30 bg-gradient-to-br from-[#faf8f3] to-[#f4e4bc] px-6 py-3 font-serif text-sm font-medium text-[#2C2416] shadow-md transition-all hover:border-[#8b7355]/50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
             >
-              Next
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="flex w-full max-w-md items-center justify-center gap-2 overflow-x-auto px-4">
-            {dots.map((index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => onNavigate(index)}
-                aria-label={`Go to page ${index + 1}`}
-                aria-current={index === activeIndex ? "page" : undefined}
-                className={cn(
-                  "h-2.5 w-2.5 rounded-full border transition-all",
-                  index === activeIndex
-                    ? "border-sepia bg-sepia shadow-sm"
-                    : "border-sepia/40 bg-parchment hover:bg-sepia/30"
-                )}
-              />
-            ))}
-          </div>
-        </div>
+              <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+              <span>Page précédente</span>
+            </motion.button>
 
-        <div className="text-center text-[11px] font-ui uppercase tracking-[0.3em] text-muted sm:hidden">
-          Swipe to navigate pages
-        </div>
+            {/* Page indicator */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                {data.pages.map((_, index) => (
+                  <motion.button
+                    key={index}
+                    onClick={() => {
+                      setDirection(index > currentPageIndex ? 1 : -1);
+                      setCurrentPageIndex(index);
+                    }}
+                    className="group relative h-2 w-2"
+                    whileHover={{ scale: 1.5 }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <div
+                      className={`h-full w-full rounded-full transition-all ${
+                        index === currentPageIndex
+                          ? 'bg-[#C9A227] shadow-md'
+                          : 'bg-[#8b7355]/30 group-hover:bg-[#8b7355]/50'
+                      }`}
+                    />
+                    {index === currentPageIndex && (
+                      <motion.div
+                        layoutId="activePageIndicator"
+                        className="absolute inset-0 -m-1 rounded-full border-2 border-[#C9A227]"
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                  </motion.button>
+                ))}
+              </div>
 
-        <div className="rounded-md border border-sepia/30 bg-parchment/80 px-4 py-3 text-xs font-ui text-muted">
-          Share link: <span className="break-all text-sepia">{shareUrl}</span>
+              <div className="font-display text-sm font-medium text-[#5C4033]">
+                Page <span className="text-lg font-bold text-[#C9A227]">{currentPageIndex + 1}</span> sur {totalPages}
+              </div>
+            </div>
+
+            {/* Next button */}
+            <motion.button
+              whileHover={{ scale: 1.05, x: 5 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={goToNextPage}
+              disabled={currentPageIndex === totalPages - 1}
+              className="group flex items-center gap-2 rounded-sm border border-[#8b7355]/30 bg-gradient-to-br from-[#faf8f3] to-[#f4e4bc] px-6 py-3 font-serif text-sm font-medium text-[#2C2416] shadow-md transition-all hover:border-[#8b7355]/50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+            >
+              <span>Page suivante</span>
+              <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </motion.button>
+          </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

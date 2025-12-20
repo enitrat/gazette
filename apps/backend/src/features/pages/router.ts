@@ -6,6 +6,7 @@ import { and, eq, gt, gte, lt, lte, ne, sql } from "drizzle-orm";
 import { db, schema } from "../../db";
 import { AuthErrors, requireAuth, requireProjectAuth } from "../../auth";
 import { CreatePageSchema, UpdatePageSchema, ERROR_CODES } from "@gazette/shared";
+import { initializeTemplateElements } from "../templates/definitions";
 
 const router = new Hono();
 
@@ -147,6 +148,9 @@ router.post(
           title: "",
           subtitle: "",
         });
+
+        // Initialize template elements for the new page
+        await initializeTemplateElements(id, templateId, tx);
 
         const inserted = await tx
           .select({

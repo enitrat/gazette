@@ -69,12 +69,16 @@ const serializeElement = (record: ElementRecord) => {
     };
   }
 
+  // Parse style JSON if present
+  const style = record.style ? JSON.parse(record.style) : null;
+
   return {
     id: record.id,
     pageId: record.pageId,
     type: record.type,
     position,
     content: record.content ?? "",
+    style,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -226,6 +230,7 @@ elementsRouter.post("/pages/:id/elements", async (c) => {
       videoUrl: null,
       videoStatus: null,
       content: validation.data.content ?? "",
+      style: validation.data.style ? JSON.stringify(validation.data.style) : null,
     };
   }
 
@@ -313,6 +318,10 @@ elementsRouter.put("/elements/:id", async (c) => {
 
   if (validation.data.animationPrompt !== undefined) {
     updateValues.animationPrompt = validation.data.animationPrompt;
+  }
+
+  if (validation.data.style !== undefined) {
+    updateValues.style = validation.data.style ? JSON.stringify(validation.data.style) : null;
   }
 
   if (Object.keys(updateValues).length === 1) {

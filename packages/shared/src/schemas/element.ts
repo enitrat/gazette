@@ -21,6 +21,19 @@ export const CropDataSchema = z.object({
   zoom: z.number().positive().default(1),
 });
 
+// Text style schema
+export const TextStyleSchema = z.object({
+  fontFamily: z.string().optional(),
+  fontSize: z.number().positive().optional(),
+  fontWeight: z.enum(["normal", "bold", "400", "700"]).optional(),
+  fontStyle: z.enum(["normal", "italic"]).optional(),
+  lineHeight: z.number().positive().optional(),
+  letterSpacing: z.number().optional(),
+  color: z.string().optional(),
+  textAlign: z.enum(["left", "center", "right", "justify"]).optional(),
+  textDecoration: z.string().optional(),
+});
+
 // Image element
 export const ImageElementSchema = z.object({
   id: z.string().uuid(),
@@ -42,6 +55,7 @@ export const TextElementBaseSchema = z.object({
   pageId: z.string().uuid(),
   position: PositionSchema,
   content: z.string().max(1000),
+  style: TextStyleSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -70,6 +84,7 @@ export const CreateElementSchema = z.discriminatedUnion("type", [
     type: z.enum(["headline", "subheading", "caption"]),
     position: PositionSchema,
     content: z.string().max(1000).default(""),
+    style: TextStyleSchema.optional(),
   }),
 ]);
 
@@ -79,11 +94,13 @@ export const UpdateElementSchema = z.object({
   cropData: CropDataSchema.nullable().optional(),
   animationPrompt: z.string().max(500).nullable().optional(),
   content: z.string().max(1000).optional(),
+  style: TextStyleSchema.nullable().optional(),
 });
 
 // Types
 export type ElementTypeEnum = z.infer<typeof ElementType>;
 export type VideoStatusEnum = z.infer<typeof VideoStatus>;
+export type TextStyle = z.infer<typeof TextStyleSchema>;
 export type Position = z.infer<typeof PositionSchema>;
 export type CropData = z.infer<typeof CropDataSchema>;
 export type ImageElement = z.infer<typeof ImageElementSchema>;

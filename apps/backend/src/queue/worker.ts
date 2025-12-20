@@ -7,6 +7,12 @@ import { analyzeImageJob } from "./jobs/analyze-image";
 import { generateVideoJob } from "./jobs/generate-video";
 import type { GenerationJobPayload } from "./jobs/types";
 
+// Debug: Log environment variables at worker startup
+console.log("[Queue Worker] Environment check:");
+console.log("  WAN_API_KEY:", process.env.WAN_API_KEY ? `${process.env.WAN_API_KEY.slice(0, 8)}...` : "NOT SET");
+console.log("  GEMINI_API_KEY:", process.env.GEMINI_API_KEY ? `${process.env.GEMINI_API_KEY.slice(0, 8)}...` : "NOT SET");
+console.log("  REDIS_URL:", process.env.REDIS_URL || "default");
+
 const connection = createRedisConnection();
 
 const updateJobStatus = async (
@@ -47,6 +53,9 @@ const updateElementVideoStatus = async (
 const worker = new Worker<GenerationJobPayload>(
   GENERATION_QUEUE_NAME,
   async (job) => {
+    console.log(`[Queue Worker] Processing job ${job.id} (type: ${job.data.type})`);
+    console.log(`[Queue Worker] WAN_API_KEY at job time:`, process.env.WAN_API_KEY ? "SET" : "NOT SET");
+
     await updateJobStatus(job.data.jobId, {
       status: "processing",
       progress: 10,
@@ -127,4 +136,14 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-console.warn("[Queue Worker] Started.");
+console.warn(`[Queue Worker] Started. Listening on queue: ${GENERATION_QUEUE_NAME}`);
+console.warn(`[Queue Worker] Redis URL: ${process.env.REDIS_URL || "redis://localhost:6379 (default)"}`);
+
+// Log when worker becomes ready to process jobs
+worker.on("ready", () => {
+  console.log("[Queue Worker] Ready to process jobs");
+});
+
+worker.on("active", (job) => {
+  console.log(`[Queue Worker] Job ${job.id} is now active`);
+});

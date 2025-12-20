@@ -1,0 +1,1 @@
+ALTER TABLE elements ADD COLUMN style TEXT;

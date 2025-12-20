@@ -1,439 +1,314 @@
-import { create } from "zustand";
-import type { UpdateElement } from "@gazette/shared";
-import { api, apiBaseUrl, parseApiError } from "@/lib/api";
-import type { CanvasElement, TextStyle } from "@/types/editor";
+import { create } from 'zustand';
+import type { CreateElement, UpdateElement, TextStyle } from '@gazette/shared';
+import type { SerializedElement } from '@/lib/api';
+import api from '@/lib/api';
+import { toast } from 'sonner';
 
-const UPDATE_DEBOUNCE_MS = 400;
-const pendingUpdates = new Map<string, UpdateElement>();
-const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// Re-export TextStyle from shared for convenience
+export type { TextStyle } from '@gazette/shared';
 
-const isUuid = (value: string) =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-
-const normalizeAssetUrl = (url?: string | null) => {
-  if (!url) return null;
-  if (url.startsWith("http")) return url;
-  try {
-    return new URL(url, apiBaseUrl).toString();
-  } catch {
-    return url;
-  }
+// Extended element with optional local style
+// Note: style can be null (from API) or undefined (not set)
+export type ElementWithStyle = SerializedElement & {
+  style?: TextStyle | null;
 };
 
-type ApiElement = {
-  id: string;
-  type: CanvasElement["type"];
-  position: CanvasElement["position"];
-  content?: string;
-  imageId?: string | null;
-  imageUrl?: string | null;
-  imageId?: string | null;
-  cropData?: CanvasElement["cropData"];
-  animationPrompt?: string | null;
-  videoUrl?: string | null;
-  videoStatus?: CanvasElement["videoStatus"];
-};
-
-type ElementsState = {
-  elementsByPage: Record<string, CanvasElement[]>;
-  historyByPage: Record<string, CanvasElement[][]>;
+interface ElementsState {
+  elements: ElementWithStyle[];
+  selectedId: string | null;
+  editingId: string | null;
+  clipboard: ElementWithStyle | null;
   isLoading: boolean;
   error: string | null;
-  selectedElementId: string | null;
-  selectElement: (elementId: string | null) => void;
+
+  // Actions
   fetchElements: (pageId: string) => Promise<void>;
-  setElementsForPage: (pageId: string, elements: CanvasElement[]) => void;
-  setSelectedElementId: (elementId: string | null) => void;
-  updateElement: (
-    pageId: string,
-    elementId: string,
-    updates: UpdateElement,
-    options?: { immediate?: boolean }
-  ) => void;
-  updateElementStyle: (pageId: string, elementId: string, style: Partial<TextStyle>) => void;
-  reorderElement: (
-    pageId: string,
-    elementId: string,
-    direction: "forward" | "backward" | "front" | "back"
-  ) => void;
-  undoLastChange: (pageId: string) => void;
-  createImageElement: (
-    pageId: string,
-    imageId: string,
-    position: CanvasElement["position"],
-    imageUrl: string,
-    imageWidth: number,
-    imageHeight: number
-  ) => Promise<CanvasElement | null>;
-  createTextElement: (
-    pageId: string,
-    type: Extract<CanvasElement["type"], "headline" | "subheading" | "caption">,
-    position: CanvasElement["position"],
-    content: string
-  ) => Promise<CanvasElement | null>;
-  deleteElement: (pageId: string, elementId: string) => Promise<boolean>;
-};
+  createElement: (pageId: string, data: CreateElement) => Promise<SerializedElement>;
+  updateElement: (elementId: string, data: UpdateElement) => Promise<void>;
+  deleteElement: (elementId: string) => Promise<void>;
 
-const cloneElements = (elements: CanvasElement[]) =>
-  elements.map((element) => ({
-    ...element,
-    position: { ...element.position },
-    style: element.style ? { ...element.style } : undefined,
-  }));
+  // Selection
+  selectElement: (id: string | null) => void;
+  clearSelection: () => void;
 
-export const useElementsStore = create<ElementsState>((set) => ({
-  elementsByPage: {},
-  historyByPage: {},
+  // Editing
+  startEditing: (id: string) => void;
+  stopEditing: () => void;
+
+  // Clipboard
+  copySelected: () => void;
+  paste: (pageId: string) => Promise<void>;
+
+  // Helpers
+  getSelectedElement: () => ElementWithStyle | null;
+  getElementById: (id: string) => ElementWithStyle | null;
+
+  // Local updates (for optimistic UI)
+  updateElementLocal: (id: string, updates: Partial<ElementWithStyle>) => void;
+  updateElementStyle: (id: string, styleUpdates: Partial<TextStyle>) => void;
+}
+
+export const useElementsStore = create<ElementsState>((set, get) => ({
+  elements: [],
+  selectedId: null,
+  editingId: null,
+  clipboard: null,
   isLoading: false,
   error: null,
-  selectedElementId: null,
-  selectElement: (elementId) => set({ selectedElementId: elementId }),
-  setSelectedElementId: (elementId) => set({ selectedElementId: elementId }),
-  setElementsForPage: (pageId, elements) =>
-    set((state) => ({
-      elementsByPage: {
-        ...state.elementsByPage,
-        [pageId]: elements,
-      },
-    })),
-  fetchElements: async (pageId) => {
-    if (!pageId) {
-      set({ error: "Missing page ID." });
-      return;
-    }
 
+  fetchElements: async (pageId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const data = await api.get(`pages/${pageId}/elements`).json<{ elements?: ApiElement[] }>();
-      const elements = Array.isArray(data.elements) ? data.elements : [];
-      const normalized = elements.map((element) => ({
-        id: element.id,
-        type: element.type,
-        position: element.position,
-        content: element.content,
-        imageId: element.imageId ?? null,
-        imageUrl: normalizeAssetUrl(element.imageUrl),
-        cropData: element.cropData ?? null,
-        animationPrompt: element.animationPrompt ?? null,
-        videoUrl: normalizeAssetUrl(element.videoUrl),
-        videoStatus: element.videoStatus,
-      }));
-
-      set((state) => {
-        const nextSelected = normalized.some((item) => item.id === state.selectedElementId)
-          ? state.selectedElementId
-          : null;
-
-        return {
-          elementsByPage: {
-            ...state.elementsByPage,
-            [pageId]: normalized,
-          },
-          selectedElementId: nextSelected,
-          isLoading: false,
-        };
-      });
+      const elements = await api.elements.list(pageId);
+      set({ elements, isLoading: false });
     } catch (error) {
-      const parsed = await parseApiError(error);
-      set({ isLoading: false, error: parsed.message });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch elements';
+      set({ error: errorMessage, isLoading: false });
+
+      // Show error toast with retry option
+      toast.error('Failed to load elements', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => get().fetchElements(pageId),
+        },
+      });
     }
   },
-  updateElement: (pageId, elementId, updates, options) => {
-    if (!pageId || !elementId) return;
-    if (!updates || Object.keys(updates).length === 0) return;
 
-    set((state) => {
-      const pageElements = state.elementsByPage[pageId] ?? [];
-      const history = state.historyByPage[pageId] ?? [];
-      const nextHistory = [...history, cloneElements(pageElements)].slice(-25);
-      const nextElements = pageElements.map((element) => {
-        if (element.id !== elementId) return element;
-        return {
-          ...element,
-          ...(updates.position ? { position: updates.position } : {}),
-          ...(updates.content !== undefined ? { content: updates.content } : {}),
-          ...(updates.cropData !== undefined ? { cropData: updates.cropData } : {}),
-        };
+  createElement: async (pageId: string, data: CreateElement) => {
+    set({ error: null });
+    try {
+      const newElement = await api.elements.create(pageId, data);
+
+      // Add the new element to the store
+      const { elements } = get();
+      set({
+        elements: [...elements, newElement],
+        selectedId: newElement.id
       });
 
-      return {
-        elementsByPage: {
-          ...state.elementsByPage,
-          [pageId]: nextElements,
-        },
-        historyByPage: {
-          ...state.historyByPage,
-          [pageId]: nextHistory,
-        },
-      };
-    });
-
-    if (!isUuid(elementId)) {
-      return;
-    }
-
-    const existing = pendingUpdates.get(elementId) ?? {};
-    const nextUpdates: UpdateElement = {
-      ...existing,
-      ...updates,
-    };
-    pendingUpdates.set(elementId, nextUpdates);
-
-    const existingTimer = pendingTimers.get(elementId);
-    if (existingTimer) {
-      clearTimeout(existingTimer);
-    }
-
-    const flush = async () => {
-      const payload = pendingUpdates.get(elementId);
-      pendingUpdates.delete(elementId);
-      pendingTimers.delete(elementId);
-      if (!payload || Object.keys(payload).length === 0) return;
-
-      try {
-        await api.put(`elements/${elementId}`, { json: payload });
-      } catch (error) {
-        const parsed = await parseApiError(error);
-        console.error(parsed.message);
-      }
-    };
-
-    if (options?.immediate) {
-      void flush();
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      void flush();
-    }, UPDATE_DEBOUNCE_MS);
-    pendingTimers.set(elementId, timer);
-  },
-  updateElementStyle: (pageId, elementId, style) => {
-    if (!pageId || !elementId) return;
-    if (!style || Object.keys(style).length === 0) return;
-
-    set((state) => {
-      const pageElements = state.elementsByPage[pageId] ?? [];
-      const history = state.historyByPage[pageId] ?? [];
-      const nextHistory = [...history, cloneElements(pageElements)].slice(-25);
-      const nextElements = pageElements.map((element) => {
-        if (element.id !== elementId) return element;
-        return {
-          ...element,
-          style: {
-            ...(element.style ?? {}),
-            ...style,
-          },
-        };
+      toast.success('Element added', {
+        description: 'Your element has been added to the page',
       });
 
-      return {
-        elementsByPage: {
-          ...state.elementsByPage,
-          [pageId]: nextElements,
-        },
-        historyByPage: {
-          ...state.historyByPage,
-          [pageId]: nextHistory,
-        },
-      };
-    });
-  },
-  reorderElement: (pageId, elementId, direction) => {
-    if (!pageId) return;
-    set((state) => {
-      const pageElements = state.elementsByPage[pageId] ?? [];
-      const history = state.historyByPage[pageId] ?? [];
-      const nextHistory = [...history, cloneElements(pageElements)].slice(-25);
-      const index = pageElements.findIndex((element) => element.id === elementId);
-      if (index < 0) {
-        return {};
-      }
-      const targetIndex =
-        direction === "forward"
-          ? Math.min(pageElements.length - 1, index + 1)
-          : direction === "backward"
-            ? Math.max(0, index - 1)
-            : direction === "front"
-              ? pageElements.length - 1
-              : 0;
-      if (targetIndex === index) {
-        return {};
-      }
-      const nextElements = [...pageElements];
-      const [moved] = nextElements.splice(index, 1);
-      nextElements.splice(targetIndex, 0, moved);
-      return {
-        elementsByPage: {
-          ...state.elementsByPage,
-          [pageId]: nextElements,
-        },
-        historyByPage: {
-          ...state.historyByPage,
-          [pageId]: nextHistory,
-        },
-      };
-    });
-  },
-  undoLastChange: (pageId) => {
-    if (!pageId) return;
-    set((state) => {
-      const history = state.historyByPage[pageId] ?? [];
-      if (history.length === 0) return {};
-      const nextHistory = history.slice(0, -1);
-      const previous = history[history.length - 1] ?? [];
-      return {
-        elementsByPage: {
-          ...state.elementsByPage,
-          [pageId]: previous,
-        },
-        historyByPage: {
-          ...state.historyByPage,
-          [pageId]: nextHistory,
-        },
-      };
-    });
-  },
-  createImageElement: async (pageId, imageId, position, imageUrl, imageWidth, imageHeight) => {
-    if (!pageId) {
-      set({ error: "Missing page ID." });
-      return null;
-    }
-
-    const optimisticId = `temp-${crypto.randomUUID()}`;
-    const optimisticElement: CanvasElement = {
-      id: optimisticId,
-      type: "image",
-      position,
-      imageUrl,
-      imageWidth,
-      imageHeight,
-      cropData: null,
-      videoUrl: null,
-      videoStatus: "none",
-      isOptimistic: true,
-    };
-
-    set((state) => ({
-      elementsByPage: {
-        ...state.elementsByPage,
-        [pageId]: [...(state.elementsByPage[pageId] ?? []), optimisticElement],
-      },
-    }));
-
-    try {
-      const data = await api
-        .post(`pages/${pageId}/elements`, {
-          json: {
-            type: "image",
-            position,
-            imageId,
-          },
-        })
-        .json<ApiElement>();
-
-      const normalized: CanvasElement = {
-        id: data.id,
-        type: data.type,
-        position: data.position,
-        imageId: data.imageId ?? imageId,
-        imageUrl: normalizeAssetUrl(data.imageUrl) || imageUrl,
-        imageWidth,
-        imageHeight,
-        cropData: data.cropData ?? null,
-        animationPrompt: data.animationPrompt ?? null,
-        videoUrl: normalizeAssetUrl(data.videoUrl),
-        videoStatus: data.videoStatus ?? "none",
-        isOptimistic: false,
-      };
-
-      set((state) => ({
-        elementsByPage: {
-          ...state.elementsByPage,
-          [pageId]: (state.elementsByPage[pageId] ?? []).map((element) =>
-            element.id === optimisticId ? normalized : element
-          ),
-        },
-      }));
-
-      return normalized;
+      return newElement;
     } catch (error) {
-      const parsed = await parseApiError(error);
-      set((state) => ({
-        error: parsed.message,
-        elementsByPage: {
-          ...state.elementsByPage,
-          [pageId]: (state.elementsByPage[pageId] ?? []).filter(
-            (element) => element.id !== optimisticId
-          ),
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create element';
+      set({ error: errorMessage });
+
+      toast.error('Failed to create element', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => get().createElement(pageId, data),
         },
-      }));
-      return null;
+      });
+
+      throw error;
     }
   },
-  createTextElement: async (pageId, type, position, content) => {
-    if (!pageId) {
-      set({ error: "Missing page ID." });
-      return null;
-    }
 
+  updateElement: async (elementId: string, data: UpdateElement) => {
+    // Store original element for rollback
+    const { elements } = get();
+    const originalElement = elements.find(e => e.id === elementId);
+
+    set({ error: null });
     try {
-      const data = await api
-        .post(`pages/${pageId}/elements`, {
-          json: {
-            type,
-            position,
-            content,
-          },
-        })
-        .json<ApiElement>();
+      const updatedElement = await api.elements.update(elementId, data);
 
-      const normalized: CanvasElement = {
-        id: data.id,
-        type: data.type,
-        position: data.position,
-        content: data.content ?? "",
-      };
+      // Update the element in the store, preserving local-only properties (style)
+      const updatedElements = elements.map(e => {
+        if (e.id === elementId) {
+          return {
+            ...updatedElement,
+            style: e.style, // Preserve frontend-only style
+          } as ElementWithStyle;
+        }
+        return e;
+      });
 
-      set((state) => ({
-        elementsByPage: {
-          ...state.elementsByPage,
-          [pageId]: [...(state.elementsByPage[pageId] ?? []), normalized],
-        },
-      }));
-
-      return normalized;
+      set({ elements: updatedElements });
     } catch (error) {
-      const parsed = await parseApiError(error);
-      set({ error: parsed.message });
-      return null;
-    }
-  },
-  deleteElement: async (pageId, elementId) => {
-    if (!pageId || !elementId) {
-      set({ error: "Missing element details." });
-      return false;
-    }
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update element';
+      set({ error: errorMessage });
 
-    try {
-      await api.delete(`elements/${elementId}`);
-      set((state) => {
-        const nextElements = (state.elementsByPage[pageId] ?? []).filter(
-          (element) => element.id !== elementId
+      // Rollback to original element on error
+      if (originalElement) {
+        const rolledBackElements = elements.map(e =>
+          e.id === elementId ? originalElement : e
         );
-        return {
-          elementsByPage: {
-            ...state.elementsByPage,
-            [pageId]: nextElements,
-          },
-          selectedElementId: state.selectedElementId === elementId ? null : state.selectedElementId,
-        };
+        set({ elements: rolledBackElements });
+      }
+
+      toast.error('Failed to update element', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => get().updateElement(elementId, data),
+        },
       });
-      return true;
+
+      throw error;
+    }
+  },
+
+  deleteElement: async (elementId: string) => {
+    // Store original state for rollback
+    const { elements, selectedId } = get();
+    const deletedElement = elements.find(e => e.id === elementId);
+
+    // Optimistically remove the element
+    const updatedElements = elements.filter(e => e.id !== elementId);
+    const newSelectedId = selectedId === elementId ? null : selectedId;
+
+    set({
+      elements: updatedElements,
+      selectedId: newSelectedId,
+      editingId: null,
+      error: null
+    });
+
+    try {
+      await api.elements.delete(elementId);
+
+      toast.success('Element deleted', {
+        description: 'The element has been removed from the page',
+      });
     } catch (error) {
-      const parsed = await parseApiError(error);
-      set({ error: parsed.message });
-      return false;
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete element';
+      set({ error: errorMessage });
+
+      // Rollback - restore the deleted element
+      if (deletedElement) {
+        set({
+          elements: elements,
+          selectedId: selectedId,
+        });
+      }
+
+      toast.error('Failed to delete element', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => get().deleteElement(elementId),
+        },
+      });
+    }
+  },
+
+  selectElement: (id: string | null) => {
+    set({ selectedId: id });
+  },
+
+  clearSelection: () => {
+    set({ selectedId: null, editingId: null });
+  },
+
+  startEditing: (id: string) => {
+    set({ editingId: id, selectedId: id });
+  },
+
+  stopEditing: () => {
+    set({ editingId: null });
+  },
+
+  copySelected: () => {
+    const { selectedId, elements } = get();
+    if (!selectedId) return;
+
+    const element = elements.find(e => e.id === selectedId);
+    if (element) {
+      set({ clipboard: element });
+    }
+  },
+
+  paste: async (pageId: string) => {
+    const { clipboard } = get();
+    if (!clipboard) return;
+
+    // Create a copy of the element with offset position
+    const createData: CreateElement = clipboard.type === 'image'
+      ? {
+          type: 'image',
+          position: {
+            x: clipboard.position.x + 20,
+            y: clipboard.position.y + 20,
+            width: clipboard.position.width,
+            height: clipboard.position.height,
+          },
+          imageId: clipboard.imageId || undefined,
+        }
+      : {
+          type: clipboard.type,
+          position: {
+            x: clipboard.position.x + 20,
+            y: clipboard.position.y + 20,
+            width: clipboard.position.width,
+            height: clipboard.position.height,
+          },
+          content: clipboard.content || '',
+        };
+
+    try {
+      await get().createElement(pageId, createData);
+    } catch (error) {
+      // Error already handled in createElement
+      console.error('Failed to paste element:', error);
+    }
+  },
+
+  getSelectedElement: () => {
+    const { elements, selectedId } = get();
+    if (!selectedId) return null;
+    return elements.find(e => e.id === selectedId) || null;
+  },
+
+  getElementById: (id: string) => {
+    const { elements } = get();
+    return elements.find(e => e.id === id) || null;
+  },
+
+  updateElementLocal: (id: string, updates: Partial<ElementWithStyle>) => {
+    const { elements } = get();
+    const updatedElements = elements.map(e => {
+      if (e.id === id) {
+        // Properly merge updates while preserving the discriminated union type
+        return { ...e, ...updates } as ElementWithStyle;
+      }
+      return e;
+    });
+    set({ elements: updatedElements });
+  },
+
+  updateElementStyle: async (id: string, styleUpdates: Partial<TextStyle>) => {
+    const { elements } = get();
+    const element = elements.find(e => e.id === id);
+    if (!element) return;
+
+    // Merge with existing style
+    const newStyle = { ...(element.style || {}), ...styleUpdates };
+
+    // Update local state immediately for responsive UI
+    const updatedElements = elements.map(e => {
+      if (e.id === id) {
+        return {
+          ...e,
+          style: newStyle,
+        } as ElementWithStyle;
+      }
+      return e;
+    });
+    set({ elements: updatedElements });
+
+    // Persist to API
+    try {
+      await api.elements.update(id, { style: newStyle });
+    } catch (error) {
+      console.error('Failed to persist style:', error);
+      // Rollback on error
+      set({ elements });
     }
   },
 }));

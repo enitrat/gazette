@@ -1,282 +1,261 @@
-import { createFileRoute } from "@tanstack/react-router";
-import ky from "ky";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
-import type { CanvasElement, CanvasPage } from "@/types/editor";
-import { GazetteViewer } from "@/components/viewer/GazetteViewer";
-import { parseApiError } from "@/lib/api";
-import { toast } from "@/components/ui/use-toast";
+import { createFileRoute } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useToast } from '@/components/ui/use-toast'
+import { GazetteViewer } from '@/components/viewer/GazetteViewer'
+import { viewer } from '@/lib/api'
+import type { ViewProjectResponse } from '@gazette/shared'
+import { KeyRound, Loader2 } from 'lucide-react'
 
-const VIEW_TOKEN_PREFIX = "gazette.view.token";
+export const Route = createFileRoute('/view/$slug')({
+  component: ViewComponent,
+})
 
-const getApiBaseUrl = () =>
-  (
-    import.meta.env.VITE_API_URL ??
-    import.meta.env.VITE_API_BASE_URL ??
-    "http://localhost:3000/api"
-  ).replace(/\/+$/, "");
+function ViewComponent() {
+  const { slug } = Route.useParams()
+  const { toast } = useToast()
+  const [password, setPassword] = useState('')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [gazetteData, setGazetteData] = useState<ViewProjectResponse | null>(null)
+  const [needsPassword, setNeedsPassword] = useState(false)
 
-const viewerApi = ky.create({ prefixUrl: getApiBaseUrl() });
-
-type ViewerProject = {
-  id?: string;
-  name: string;
-  slug: string;
-  shareUrl?: string | null;
-  createdAt?: string | null;
-};
-
-type ViewerPage = CanvasPage & {
-  order: number;
-  templateId: string;
-  title?: string | null;
-  subtitle?: string | null;
-  elements: CanvasElement[];
-};
-
-type ViewerResponse = {
-  project: ViewerProject;
-  pages: ViewerPage[];
-};
-
-export const Route = createFileRoute("/view/$slug")({
-  component: ViewerRoute,
-});
-
-const loadViewToken = (slug: string) => {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(`${VIEW_TOKEN_PREFIX}.${slug}`);
-};
-
-const storeViewToken = (slug: string, token: string) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(`${VIEW_TOKEN_PREFIX}.${slug}`, token);
-};
-
-const clearViewToken = (slug: string) => {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(`${VIEW_TOKEN_PREFIX}.${slug}`);
-};
-
-function ViewerRoute() {
-  const { slug } = Route.useParams();
-  const [viewToken, setViewToken] = useState<string | null>(() => loadViewToken(slug));
-  const [viewerData, setViewerData] = useState<ViewerResponse | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [password, setPassword] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [shareStatus, setShareStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    setViewToken(loadViewToken(slug));
-    setViewerData(null);
-    setActiveIndex(0);
-    setStatusMessage(null);
-  }, [slug]);
-
-  useEffect(() => {
-    if (!viewToken) return;
-
-    const fetchView = async () => {
-      setIsLoading(true);
-      setStatusMessage(null);
-      try {
-        const data = await viewerApi
-          .get(`view/${slug}`, {
-            headers: {
-              Authorization: `Bearer ${viewToken}`,
-            },
-          })
-          .json<ViewerResponse>();
-        setViewerData(data);
-      } catch (error) {
-        const parsed = await parseApiError(error);
-        setStatusMessage(parsed.message);
-        setViewerData(null);
-        clearViewToken(slug);
-        setViewToken(null);
-        toast({
-          title: "Unable to load gazette",
-          description: parsed.message,
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void fetchView();
-  }, [slug, viewToken, toast]);
-
-  const pages = useMemo(() => {
-    if (!viewerData?.pages) return [] as ViewerPage[];
-    return [...viewerData.pages].sort((a, b) => a.order - b.order);
-  }, [viewerData?.pages]);
-
-  useEffect(() => {
-    if (activeIndex >= pages.length) {
-      setActiveIndex(0);
-    }
-    if (activeIndex < 0) {
-      setActiveIndex(0);
-    }
-  }, [activeIndex, pages.length]);
-
-  const handleNavigate = useCallback(
-    (nextIndex: number) => {
-      setActiveIndex(() => {
-        if (pages.length === 0) return 0;
-        return Math.min(Math.max(nextIndex, 0), pages.length - 1);
-      });
-    },
-    [pages.length]
-  );
-
-  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!password.trim()) {
-      setStatusMessage("Enter the password to continue.");
-      return;
-    }
-
-    setIsAuthenticating(true);
-    setStatusMessage(null);
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
 
     try {
-      const data = await viewerApi
-        .post(`view/${slug}/access`, {
-          json: { password },
-        })
-        .json<{ viewToken: string }>();
-      storeViewToken(slug, data.viewToken);
-      setViewToken(data.viewToken);
-      setPassword("");
-    } catch (error) {
-      const parsed = await parseApiError(error);
-      setStatusMessage(parsed.message);
+      // Try to access with password
+      await viewer.access(slug, password)
+
+      // Fetch gazette data
+      const data = await viewer.get(slug)
+
+      setGazetteData(data)
+      setIsAuthenticated(true)
+
       toast({
-        title: "Unlock failed",
-        description: parsed.message,
-        variant: "destructive",
-      });
+        title: 'Accès accordé',
+        description: 'Bienvenue dans la gazette',
+      })
+    } catch (error: any) {
+      toast({
+        title: 'Accès refusé',
+        description: error?.message || 'Mot de passe invalide',
+        variant: 'destructive',
+      })
     } finally {
-      setIsAuthenticating(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  const shareUrl =
-    viewerData?.project.shareUrl ?? (typeof window !== "undefined" ? window.location.href : "");
-
-  const handleShare = async () => {
-    if (!shareUrl) return;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = shareUrl;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
+  // Try to fetch without password on mount
+  useEffect(() => {
+    const fetchGazette = async () => {
+      try {
+        const data = await viewer.get(slug)
+        setGazetteData(data)
+        setIsAuthenticated(true)
+      } catch (error: any) {
+        // If 401, needs password
+        if (error?.status === 401 || error?.response?.status === 401) {
+          setNeedsPassword(true)
+        } else {
+          toast({
+            title: 'Erreur',
+            description: 'Impossible de charger la gazette',
+            variant: 'destructive',
+          })
+        }
       }
-      setShareStatus("Link copied");
-      toast({
-        title: "Link copied",
-        description: "Share link copied to clipboard.",
-        variant: "success",
-      });
-    } catch {
-      setShareStatus("Copy failed");
-      toast({
-        title: "Copy failed",
-        description: "Please copy the link manually.",
-        variant: "destructive",
-      });
     }
 
-    window.setTimeout(() => setShareStatus(null), 2000);
-  };
+    fetchGazette()
+  }, [slug])
 
-  if (!viewToken) {
+  if (!isAuthenticated && needsPassword) {
     return (
-      <div className="min-h-[calc(100vh-57px)] bg-cream/70 px-4 py-12 sm:px-8">
-        <div className="mx-auto w-full max-w-md rounded-md border border-sepia/30 bg-parchment p-6 shadow-sm">
-          <h1 className="font-masthead text-2xl text-ink-effect">La Gazette de la Vie</h1>
-          <p className="mt-2 text-sm text-muted">
-            This gazette is password protected. Enter the password to view it.
-          </p>
-          <form className="mt-6 space-y-4" onSubmit={handlePasswordSubmit}>
-            <label className="block text-xs font-ui uppercase tracking-[0.2em] text-muted">
-              Password
-              <input
-                type="password"
-                className="mt-2 w-full rounded-sm border border-sepia/30 bg-cream px-3 py-2 text-sm text-ink focus:border-gold focus:outline-none"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
-              />
-            </label>
-            {statusMessage ? (
-              <div className="rounded-sm border border-aged-red/40 bg-aged-red/10 px-3 py-2 text-xs text-aged-red">
-                {statusMessage}
-              </div>
-            ) : null}
-            <button
-              type="submit"
-              disabled={isAuthenticating}
-              className="w-full rounded-sm bg-gold px-4 py-2 text-xs font-ui font-semibold text-ink transition-colors hover:bg-gold/90 disabled:cursor-not-allowed disabled:opacity-60"
+      <div className="flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#f5f1e8] via-[#faf8f3] to-[#f0e9d8]">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div
+            animate={{
+              rotate: [0, 360],
+              scale: [1, 1.2, 1],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: 'linear',
+            }}
+            className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#C9A227]/5 blur-3xl"
+          />
+          <motion.div
+            animate={{
+              rotate: [360, 0],
+              scale: [1, 1.3, 1],
+            }}
+            transition={{
+              duration: 25,
+              repeat: Infinity,
+              ease: 'linear',
+            }}
+            className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[#8b7355]/5 blur-3xl"
+          />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="relative z-10 w-full max-w-md px-4"
+        >
+          {/* Decorative header */}
+          <div className="mb-8 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mb-4 flex justify-center"
             >
-              {isAuthenticating ? (
-                <span className="inline-flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Checking...
-                </span>
-              ) : (
-                "Unlock Gazette"
-              )}
-            </button>
-          </form>
-        </div>
+              <div className="relative">
+                <div className="absolute inset-0 animate-pulse rounded-full bg-[#C9A227]/20 blur-xl" />
+                <div className="relative rounded-full bg-gradient-to-br from-[#C9A227] to-[#8b7355] p-4 shadow-xl">
+                  <KeyRound className="h-8 w-8 text-white" />
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="font-display text-5xl font-black tracking-tight text-[#2C2416] drop-shadow-sm"
+            >
+              La Gazette de la Vie
+            </motion.h1>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="mt-4 flex items-center justify-center gap-3"
+            >
+              <div className="h-px w-16 bg-gradient-to-r from-transparent to-[#8b7355]" />
+              <svg className="h-3 w-3 text-[#8b7355]" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 2 L12 6 L17 7 L13.5 10.5 L14.5 16 L10 13.5 L5.5 16 L6.5 10.5 L3 7 L8 6 Z" />
+              </svg>
+              <div className="h-px w-16 bg-gradient-to-l from-transparent to-[#8b7355]" />
+            </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-4 font-serif text-lg text-[#5C4033]"
+            >
+              {slug}
+            </motion.p>
+          </div>
+
+          {/* Password form card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="relative overflow-hidden rounded-lg border-2 border-[#8b7355]/30 bg-white/95 shadow-2xl backdrop-blur-sm"
+          >
+            {/* Decorative elements */}
+            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-[#C9A227] via-[#8b7355] to-[#C9A227]" />
+
+            <div className="p-8">
+              <form onSubmit={handlePasswordSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="font-serif text-sm font-medium text-[#2C2416]">
+                    Mot de passe
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Entrez le mot de passe"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={isLoading}
+                      className="border-[#8b7355]/30 bg-[#faf8f3] font-serif placeholder:text-[#8b7355]/40 focus:border-[#C9A227] focus:ring-[#C9A227]"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-[#C9A227] to-[#8b7355] font-serif text-base font-medium text-white shadow-md transition-all hover:shadow-xl disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Vérification...
+                    </>
+                  ) : (
+                    'Accéder à la gazette'
+                  )}
+                </Button>
+              </form>
+            </div>
+
+            {/* Bottom decorative border */}
+            <div className="h-2 bg-gradient-to-r from-[#8b7355]/10 via-[#C9A227]/20 to-[#8b7355]/10" />
+          </motion.div>
+
+          {/* Footer text */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="mt-6 text-center font-serif text-sm text-[#8b7355]/70"
+          >
+            Cette gazette est protégée par mot de passe
+          </motion.p>
+        </motion.div>
       </div>
-    );
+    )
   }
 
-  if (isLoading && !viewerData) {
+  if (!isAuthenticated && !needsPassword) {
+    // Loading state
     return (
-      <div className="min-h-[calc(100vh-57px)] bg-cream/70 px-4 py-12 sm:px-8">
-        <div className="mx-auto flex max-w-md items-center justify-center gap-2 text-center text-sm text-muted">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading gazette...
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#f5f1e8] via-[#faf8f3] to-[#f0e9d8]">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center"
+        >
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#C9A227]" />
+          <p className="mt-4 font-serif text-lg text-[#5C4033]">Chargement de la gazette...</p>
+        </motion.div>
       </div>
-    );
+    )
   }
 
-  if (!viewerData) {
-    return (
-      <div className="min-h-[calc(100vh-57px)] bg-cream/70 px-4 py-12 sm:px-8">
-        <div className="mx-auto max-w-md text-center text-sm text-aged-red">
-          {statusMessage ?? "Unable to load gazette."}
-        </div>
-      </div>
-    );
+  if (!gazetteData) {
+    return null
   }
 
   return (
-    <GazetteViewer
-      projectName={viewerData.project.name}
-      slug={viewerData.project.slug}
-      shareUrl={shareUrl}
-      pages={pages}
-      activeIndex={activeIndex}
-      onNavigate={handleNavigate}
-      onShare={handleShare}
-      shareStatus={shareStatus}
-    />
-  );
+    <AnimatePresence mode="wait">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <GazetteViewer data={gazetteData} />
+      </motion.div>
+    </AnimatePresence>
+  )
 }

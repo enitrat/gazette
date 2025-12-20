@@ -164,7 +164,11 @@ export function resolveTemplateId(input?: string | null): TemplateId {
   return TEMPLATES.FULL_PAGE;
 }
 
-export async function initializeTemplateElements(pageId: string, templateId: TemplateId) {
+export async function initializeTemplateElements(
+  pageId: string,
+  templateId: TemplateId,
+  txOrDb: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0] = db
+) {
   const template = getTemplateDefinition(templateId);
   if (!template) {
     throw new Error(`Unknown template_id: ${templateId}`);
@@ -191,7 +195,7 @@ export async function initializeTemplateElements(pageId: string, templateId: Tem
     };
   });
 
-  await db.insert(schema.elements).values(values).run();
+  await txOrDb.insert(schema.elements).values(values).run();
 
   return values;
 }

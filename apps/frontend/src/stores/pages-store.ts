@@ -1,133 +1,173 @@
-import { create } from "zustand";
-import type { Template } from "@gazette/shared";
-import { TEMPLATES } from "@gazette/shared/constants";
-import { api, parseApiError } from "@/lib/api";
+import { create } from 'zustand';
+import type { PageListItem } from '@/lib/api';
+import api from '@/lib/api';
 
-export type PageSummary = {
-  id: string;
-  order: number;
-  templateId: Template;
-  title: string;
-  subtitle: string;
-  elementCount?: number;
-};
-
-type PagesState = {
-  pages: PageSummary[];
+interface PagesState {
+  pages: PageListItem[];
+  currentPageId: string | null;
   isLoading: boolean;
   error: string | null;
+
+  // Actions
   fetchPages: (projectId: string) => Promise<void>;
-  createPage: (
-    projectId: string,
-    templateId?: Template,
-    afterPageId?: string
-  ) => Promise<PageSummary | null>;
-  reorderPages: (projectId: string, pageIds: string[]) => Promise<boolean>;
-  setPages: (pages: PageSummary[]) => void;
-};
+  createPage: (projectId: string, templateId: string, afterPageId?: string) => Promise<void>;
+  updatePage: (pageId: string, data: { title?: string; subtitle?: string }) => Promise<void>;
+  deletePage: (pageId: string) => Promise<void>;
+  reorderPages: (projectId: string, pageIds: string[]) => Promise<void>;
+  setCurrentPage: (pageId: string | null) => void;
+
+  // Getters
+  getCurrentPage: () => PageListItem | null;
+}
 
 export const usePagesStore = create<PagesState>((set, get) => ({
   pages: [],
+  currentPageId: null,
   isLoading: false,
   error: null,
-  setPages: (pages) => set({ pages }),
-  fetchPages: async (projectId) => {
-    if (!projectId) {
-      set({ error: "Missing project ID.", pages: [] });
-      return;
-    }
 
+  fetchPages: async (projectId: string) => {
     set({ isLoading: true, error: null });
     try {
-      const data = await api.get(`projects/${projectId}/pages`).json<{ pages?: PageSummary[] }>();
-      const pages = Array.isArray(data.pages) ? data.pages : [];
-
-      pages.sort((a, b) => a.order - b.order);
+      const pages = await api.pages.list(projectId);
       set({ pages, isLoading: false });
     } catch (error) {
-      const parsed = await parseApiError(error);
-      set({
-        pages: [],
-        isLoading: false,
-        error: parsed.message,
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch pages';
+      set({ error: errorMessage, isLoading: false });
     }
   },
-  createPage: async (projectId, templateId = TEMPLATES.MASTHEAD, afterPageId) => {
-    if (!projectId) {
-      set({ error: "Missing project ID." });
-      return null;
-    }
 
+  createPage: async (projectId: string, templateId: string, afterPageId?: string) => {
+    set({ isLoading: true, error: null });
     try {
-      const created = await api
-        .post(`projects/${projectId}/pages`, {
-          json: {
-            templateId,
-            afterPageId,
-          },
-        })
-        .json<PageSummary>();
-      set((state) => {
-        const pages = [...state.pages, created].sort((a, b) => a.order - b.order);
-        return { pages };
-      });
-      return created;
-    } catch (error) {
-      const parsed = await parseApiError(error);
-      set({
-        error: parsed.message,
-      });
-      return null;
-    }
-  },
-  reorderPages: async (projectId, pageIds) => {
-    if (!projectId) {
-      set({ error: "Missing project ID." });
-      return false;
-    }
+      const newPage = await api.pages.create(projectId, templateId);
 
-    const previousPages = get().pages;
-    if (pageIds.length === 0 || previousPages.length === 0) {
-      return false;
-    }
+      // Convert CreatePageResponse to PageListItem for storage
+      const pageListItem: PageListItem = {
+        id: newPage.id,
+        order: newPage.order,
+        templateId: newPage.templateId,
+        title: newPage.title,
+        subtitle: newPage.subtitle,
+        elementCount: 0, // New page starts with 0 elements
+      };
 
-    const byId = new Map(previousPages.map((page) => [page.id, page]));
-    const seen = new Set<string>();
-    const nextPages: PageSummary[] = [];
+      // Add the new page to the store
+      const { pages } = get();
+      let updatedPages: PageListItem[];
 
-    for (const [index, pageId] of pageIds.entries()) {
-      const page = byId.get(pageId);
-      if (!page || seen.has(pageId)) {
-        continue;
+      if (afterPageId) {
+        // Insert after specified page
+        const afterIndex = pages.findIndex(p => p.id === afterPageId);
+        if (afterIndex !== -1) {
+          updatedPages = [
+            ...pages.slice(0, afterIndex + 1),
+            pageListItem,
+            ...pages.slice(afterIndex + 1),
+          ];
+        } else {
+          // If afterPageId not found, append to end
+          updatedPages = [...pages, pageListItem];
+        }
+      } else {
+        // Append to end
+        updatedPages = [...pages, pageListItem];
       }
-      seen.add(pageId);
-      nextPages.push({ ...page, order: index });
+
+      set({
+        pages: updatedPages,
+        currentPageId: newPage.id,
+        isLoading: false
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create page';
+      set({ error: errorMessage, isLoading: false });
+      throw error; // Re-throw to propagate to caller
     }
+  },
 
-    const remaining = previousPages
-      .filter((page) => !seen.has(page.id))
-      .sort((a, b) => a.order - b.order);
+  updatePage: async (pageId: string, data: { title?: string; subtitle?: string }) => {
+    set({ error: null });
+    try {
+      const updatedPage = await api.pages.update(pageId, data);
 
-    const mergedPages = [...nextPages, ...remaining].map((page, index) => ({
-      ...page,
-      order: index,
-    }));
+      // Update the page in the store (merge with existing to preserve elementCount)
+      const { pages } = get();
+      const updatedPages = pages.map(p => {
+        if (p.id === pageId) {
+          return {
+            ...p,
+            title: updatedPage.title,
+            subtitle: updatedPage.subtitle,
+          };
+        }
+        return p;
+      });
 
-    set({ pages: mergedPages, error: null });
+      set({ pages: updatedPages });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update page';
+      set({ error: errorMessage });
+    }
+  },
+
+  deletePage: async (pageId: string) => {
+    set({ error: null });
+    try {
+      await api.pages.delete(pageId);
+
+      // Remove the page from the store
+      const { pages, currentPageId } = get();
+      const updatedPages = pages.filter(p => p.id !== pageId);
+
+      // If the deleted page was current, clear selection or select another page
+      let newCurrentPageId = currentPageId;
+      if (currentPageId === pageId) {
+        newCurrentPageId = updatedPages.length > 0 ? updatedPages[0].id : null;
+      }
+
+      set({
+        pages: updatedPages,
+        currentPageId: newCurrentPageId
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete page';
+      set({ error: errorMessage });
+    }
+  },
+
+  reorderPages: async (projectId: string, pageIds: string[]) => {
+    set({ error: null });
+
+    // Optimistically update the order in the store
+    const { pages } = get();
+    const pageMap = new Map(pages.map(p => [p.id, p]));
+    const reorderedPages = pageIds
+      .map(id => pageMap.get(id))
+      .filter((p): p is PageListItem => p !== undefined);
+
+    // Store original order for rollback
+    const originalPages = [...pages];
+
+    set({ pages: reorderedPages });
 
     try {
-      await api.patch("pages/reorder", {
-        json: {
-          pageIds: mergedPages.map((page) => page.id),
-          projectId,
-        },
-      });
-      return true;
+      await api.pages.reorder(projectId, pageIds);
     } catch (error) {
-      const parsed = await parseApiError(error);
-      set({ pages: previousPages, error: parsed.message });
-      return false;
+      // Rollback on error
+      set({ pages: originalPages });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reorder pages';
+      set({ error: errorMessage });
     }
+  },
+
+  setCurrentPage: (pageId: string | null) => {
+    set({ currentPageId: pageId });
+  },
+
+  getCurrentPage: () => {
+    const { pages, currentPageId } = get();
+    if (!currentPageId) return null;
+    return pages.find(p => p.id === currentPageId) || null;
   },
 }));

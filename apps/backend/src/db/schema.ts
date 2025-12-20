@@ -74,6 +74,7 @@ export const elements = sqliteTable("elements", {
 
   // Text-specific fields (nullable for image elements)
   content: text("content"),
+  style: text("style"), // JSON string for text styling (fontFamily, fontSize, color, etc.)
 
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()

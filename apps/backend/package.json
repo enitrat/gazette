@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run --hot src/index.ts",
-    "dev:worker": "bun run --hot src/queue/worker.ts",
+    "dev": "bun run dev:server & bun run dev:worker",
+    "dev:server": "bun --env-file=.env run --hot src/index.ts",
+    "dev:worker": "bun --env-file=.env run --hot src/queue/worker.ts",
     "build": "bun build src/index.ts src/queue/worker.ts --outdir ./dist --target bun",
     "start": "bun run dist/index.js",
     "worker": "bun run src/queue/worker.ts",
@@ -27,6 +28,8 @@
     "hono": "^4.11.1",
     "ioredis": "^5.4.1",
     "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
+    "puppeteer": "^24.34.0",
     "sharp": "^0.33.5",
     "zod": "^4.2.1"
   },

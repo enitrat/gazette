@@ -5,7 +5,7 @@ import { mkdir, unlink } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp, { type OutputInfo } from "sharp";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { AuthErrors } from "../../auth";
 import { requireAuth } from "../../auth/middleware";
 import { db } from "../../db";
@@ -97,6 +97,36 @@ export const imagesRouter = new Hono();
 imagesRouter.use("/projects/:id/images", requireAuth);
 imagesRouter.use("/images/:id/analyze", requireAuth);
 imagesRouter.use("/images/:id/analyze", requireAuth);
+
+// List all images in a project
+imagesRouter.get("/projects/:id/images", async (c) => {
+  const projectId = c.req.param("id");
+  const authProjectId = c.get("projectId");
+
+  if (projectId !== authProjectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const projectImages = db
+    .select()
+    .from(images)
+    .where(eq(images.projectId, projectId))
+    .orderBy(desc(images.uploadedAt))
+    .all();
+
+  return c.json({
+    images: projectImages.map((img) => ({
+      id: img.id,
+      projectId: img.projectId,
+      originalFilename: img.originalFilename,
+      storagePath: img.storagePath,
+      mimeType: img.mimeType,
+      width: img.width,
+      height: img.height,
+      uploadedAt: img.uploadedAt.toISOString(),
+    })),
+  });
+});
 
 // Upload an image
 imagesRouter.post("/projects/:id/images", async (c) => {
@@ -276,18 +306,13 @@ imagesRouter.get("/images/:id/public", async (c) => {
   return c.body(file.stream(), 200, imageResponseHeaders(image.mimeType));
 });
 
-// Get image file
-imagesRouter.get("/images/:id/file", requireAuth, async (c) => {
+// Get image file (no auth required - image IDs are UUIDs and not guessable)
+imagesRouter.get("/images/:id/file", async (c) => {
   const imageId = c.req.param("id");
-  const projectId = c.get("projectId");
   const image = db.select().from(images).where(eq(images.id, imageId)).get();
 
   if (!image) {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
-  }
-
-  if (image.projectId !== projectId) {
-    throw AuthErrors.ACCESS_DENIED();
   }
 
   const normalizedPath = image.storagePath.startsWith("/")

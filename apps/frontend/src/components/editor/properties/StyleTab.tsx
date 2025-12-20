@@ -1,325 +1,317 @@
-import { useMemo } from "react";
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useElementsStore, type ElementWithStyle } from '@/stores/elements-store';
+import { SliderWithInput } from './SliderWithInput';
+import { ColorPicker } from './ColorPicker';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useElementsStore } from "@/stores/elements-store";
-import type { CanvasElement, TextStyle } from "@/types/editor";
-import { cn } from "@/lib/utils";
-import { FONT_OPTIONS, getDefaultTextStyle, resolveTextStyle } from "@/lib/editor-style";
-import { ColorPicker } from "@/components/editor/properties/ColorPicker";
-import { SliderWithInput } from "@/components/editor/properties/SliderWithInput";
-import {
-  TextAlignmentControl,
-  type TextAlignment,
-} from "@/components/editor/properties/TextAlignmentControl";
-import {
-  TextStyleToggles,
-  type TextStyleState,
-} from "@/components/editor/properties/TextStyleToggles";
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough
+} from 'lucide-react';
 
-const safeNumber = (value: string, fallback: number) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
+interface StyleTabProps {
+  element: ElementWithStyle;
+  onUpdate: (updates: Partial<ElementWithStyle>) => void;
+}
 
-type StyleTabProps = {
-  pageId?: string | null;
-  element?: CanvasElement | null;
-  elements: CanvasElement[];
-};
+const FONT_FAMILIES = [
+  { name: 'Playfair Display', value: 'Playfair Display' },
+  { name: 'Old Standard TT', value: 'Old Standard TT' },
+  { name: 'Libre Baskerville', value: 'Libre Baskerville' },
+  { name: 'EB Garamond', value: 'EB Garamond' },
+  { name: 'Inter', value: 'Inter' },
+];
 
-export function StyleTab({ pageId, element, elements }: StyleTabProps) {
+export function StyleTab({ element }: StyleTabProps) {
   const updateElementStyle = useElementsStore((state) => state.updateElementStyle);
-  const reorderElement = useElementsStore((state) => state.reorderElement);
 
-  const isText = element?.type !== "image" && element !== null && element !== undefined;
-  const styleOverrides = element?.style ?? {};
-  const displayStyle = useMemo(() => {
-    if (!element) return getDefaultTextStyle("headline");
-    return resolveTextStyle(element);
-  }, [element]);
-
-  const handleStyleChange = (next: Partial<TextStyle>) => {
-    if (!pageId || !element || !isText) return;
-    updateElementStyle(pageId, element.id, next);
-  };
-
-  const elementIndex = useMemo(() => {
-    if (!element) return -1;
-    return elements.findIndex((item) => item.id === element.id);
-  }, [element, elements]);
-
-  const canSendBackward = elementIndex > 0;
-  const canBringForward = elementIndex >= 0 && elementIndex < elements.length - 1;
-
-  if (!element) {
+  if (element.type === 'image') {
     return (
-      <div className="rounded-sm border border-dashed border-sepia/30 bg-cream/60 p-4">
-        <p className="font-ui text-xs text-muted">Select an element to edit its styles.</p>
+      <div className="p-4 space-y-4">
+        {/* Image Information */}
+        <div className="space-y-3">
+          <div className="text-center relative pb-3">
+            <h4 className="text-sm font-serif text-[#3D3327] tracking-wide">
+              Photographic Plate
+            </h4>
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
+          </div>
+
+          <div className="space-y-2 p-3 rounded border border-[#92764C]/20 bg-[#F4F1E8]/30">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-serif text-[#92764C] uppercase tracking-wider">
+                Dimensions
+              </span>
+              <span className="text-xs font-mono text-[#3D3327]">
+                {Math.round(element.position.width)} × {Math.round(element.position.height)}px
+              </span>
+            </div>
+
+            {element.imageId && (
+              <div className="flex justify-between items-center pt-2 border-t border-[#92764C]/10">
+                <span className="text-xs font-serif text-[#92764C] uppercase tracking-wider">
+                  Plate ID
+                </span>
+                <span className="text-xs font-mono text-[#3D3327] truncate max-w-[140px]">
+                  {element.imageId.slice(0, 8)}...
+                </span>
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-[#92764C]/70 text-center italic font-serif leading-relaxed">
+            Image styling options will be available in a future update.
+          </p>
+        </div>
       </div>
     );
   }
 
+  // Get default styles based on element type
+  const getDefaultStyle = () => {
+    switch (element.type) {
+      case 'headline':
+        return {
+          fontFamily: 'Playfair Display',
+          fontSize: 32,
+          fontWeight: 'bold' as const,
+          lineHeight: 1.2,
+          letterSpacing: -0.02,
+          color: '#2c1810',
+          textAlign: 'left' as const,
+          fontStyle: 'normal' as const,
+          textDecoration: 'none',
+        };
+      case 'subheading':
+        return {
+          fontFamily: 'Playfair Display',
+          fontSize: 20,
+          fontWeight: 'bold' as const,
+          lineHeight: 1.3,
+          letterSpacing: -0.01,
+          color: '#2c1810',
+          textAlign: 'left' as const,
+          fontStyle: 'normal' as const,
+          textDecoration: 'none',
+        };
+      case 'caption':
+        return {
+          fontFamily: 'Crimson Text',
+          fontSize: 14,
+          fontWeight: 'normal' as const,
+          lineHeight: 1.5,
+          letterSpacing: 0,
+          fontStyle: 'italic' as const,
+          color: '#4a3628',
+          textAlign: 'left' as const,
+          textDecoration: 'none',
+        };
+    }
+  };
+
+  // Text element styling - merge default with custom styles
+  const defaultStyle = getDefaultStyle();
+  const style = { ...defaultStyle, ...element.style };
+
+  const fontFamily = style.fontFamily;
+  const fontSize = style.fontSize;
+  const lineHeight = style.lineHeight;
+  const letterSpacing = style.letterSpacing;
+  const color = style.color;
+  const textAlign = style.textAlign;
+  const fontWeight = style.fontWeight === 'bold' || style.fontWeight === '700' ? 'bold' : 'normal';
+  const fontStyle = style.fontStyle;
+  const textDecoration = style.textDecoration;
+
+  const handleStyleUpdate = (updates: any) => {
+    updateElementStyle(element.id, updates);
+  };
+
   return (
-    <div className="space-y-6 px-1 py-2">
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-            Typography
-          </Label>
-        </div>
-        <div className={cn("space-y-3", !isText && "pointer-events-none opacity-50")}>
-          <div className="space-y-2">
-            <Label className="font-ui text-xs text-muted">Font Family</Label>
-            <Select
-              value={styleOverrides.fontFamily ?? ""}
-              onValueChange={(value) => handleStyleChange({ fontFamily: value })}
-              disabled={!isText}
-            >
-              <SelectTrigger className="input-vintage h-9">
-                <SelectValue placeholder="Inter, Serif, Interm, Iamb, s..." />
-              </SelectTrigger>
-              <SelectContent>
-                {FONT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <div className="p-4 space-y-6">
+      {/* Header */}
+      <div className="text-center relative pb-3">
+        <h4 className="text-sm font-serif text-[#3D3327] tracking-wide">
+          Typography & Ornament
+        </h4>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
+      </div>
 
-          <SliderWithInput
-            label="Font Size"
-            value={styleOverrides.fontSize ?? 18}
-            onChange={(value) => handleStyleChange({ fontSize: value })}
-            min={8}
-            max={72}
-            step={1}
-          />
-          <SliderWithInput
-            label="Line Height"
-            value={styleOverrides.lineHeight ?? 2}
-            onChange={(value) => handleStyleChange({ lineHeight: value })}
-            min={1}
-            max={3}
-            step={0.1}
-            displayScale={10}
-          />
-          <SliderWithInput
-            label="Letter Spacing"
-            value={styleOverrides.letterSpacing ?? 1}
-            onChange={(value) => handleStyleChange({ letterSpacing: value })}
-            min={-2}
-            max={10}
-            step={1}
-          />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <Label className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-          Color & Alignment
+      {/* Font Family */}
+      <div className="space-y-2">
+        <Label className="text-xs font-serif text-[#92764C] uppercase tracking-wider">
+          Typeface
         </Label>
-        <div className={cn("space-y-3", !isText && "pointer-events-none opacity-50")}>
-          <ColorPicker
-            value={styleOverrides.color ?? displayStyle.color ?? "#2C2416"}
-            onChange={(value) => handleStyleChange({ color: value })}
-          />
-          <TextAlignmentControl
-            value={(styleOverrides.textAlign ?? displayStyle.textAlign ?? "left") as TextAlignment}
-            onChange={(value) => handleStyleChange({ textAlign: value })}
-          />
-        </div>
-      </section>
+        <Select value={fontFamily} onValueChange={(value) => handleStyleUpdate({ fontFamily: value })}>
+          <SelectTrigger className="border-[#92764C]/30 bg-[#F4F1E8]/50 text-[#3D3327] hover:border-[#D4AF37] transition-all duration-200">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="border-2 border-[#92764C]/30 bg-[#F4F1E8]">
+            {FONT_FAMILIES.map((font) => (
+              <SelectItem
+                key={font.value}
+                value={font.value}
+                className="font-serif hover:bg-[#D4AF37]/10"
+              >
+                <span style={{ fontFamily: font.value }}>{font.name}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      <section className="space-y-3">
-        <Label className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-          Text Styling
+      {/* Ornamental Divider */}
+      <div className="relative h-px bg-gradient-to-r from-transparent via-[#92764C]/30 to-transparent">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#F4F1E8] border border-[#92764C]/30" />
+      </div>
+
+      {/* Font Size */}
+      <SliderWithInput
+        label="Size"
+        value={fontSize}
+        min={8}
+        max={72}
+        step={1}
+        unit="pt"
+        onChange={(value) => handleStyleUpdate({ fontSize: value })}
+      />
+
+      {/* Line Height */}
+      <SliderWithInput
+        label="Leading"
+        value={lineHeight}
+        min={1.0}
+        max={3.0}
+        step={0.1}
+        onChange={(value) => handleStyleUpdate({ lineHeight: value })}
+      />
+
+      {/* Letter Spacing */}
+      <SliderWithInput
+        label="Tracking"
+        value={letterSpacing}
+        min={-2}
+        max={10}
+        step={0.1}
+        unit="pt"
+        onChange={(value) => handleStyleUpdate({ letterSpacing: value })}
+      />
+
+      {/* Ornamental Divider */}
+      <div className="relative h-px bg-gradient-to-r from-transparent via-[#92764C]/30 to-transparent">
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-[#F4F1E8] border border-[#92764C]/30" />
+      </div>
+
+      {/* Color */}
+      <ColorPicker
+        label="Ink Color"
+        value={color}
+        onChange={(value) => handleStyleUpdate({ color: value })}
+      />
+
+      {/* Text Alignment */}
+      <div className="space-y-2">
+        <Label className="text-xs font-serif text-[#92764C] uppercase tracking-wider">
+          Alignment
         </Label>
-        <div className={cn("space-y-2", !isText && "pointer-events-none opacity-50")}>
-          <TextStyleToggles
-            value={{
-              bold: Boolean(styleOverrides.bold ?? displayStyle.bold),
-              italic: Boolean(styleOverrides.italic ?? displayStyle.italic),
-              underline: Boolean(styleOverrides.underline ?? displayStyle.underline),
-              strikethrough: Boolean(styleOverrides.strikethrough ?? displayStyle.strikethrough),
-            }}
-            onChange={(value: TextStyleState) =>
-              handleStyleChange({
-                bold: value.bold,
-                italic: value.italic,
-                underline: value.underline,
-                strikethrough: value.strikethrough,
-              })
-            }
-          />
-        </div>
-      </section>
+        <ToggleGroup
+          type="single"
+          value={textAlign}
+          onValueChange={(value) => value && handleStyleUpdate({ textAlign: value })}
+          className="grid grid-cols-4 gap-1 p-1 border border-[#92764C]/30 rounded-md bg-[#F4F1E8]/30"
+        >
+          <ToggleGroupItem
+            value="left"
+            aria-label="Align left"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <AlignLeft className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="center"
+            aria-label="Align center"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <AlignCenter className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="right"
+            aria-label="Align right"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <AlignRight className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="justify"
+            aria-label="Justify"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <AlignJustify className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
 
-      <section className="space-y-3">
-        <Label className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-          Spacing
+      {/* Text Style Toggles */}
+      <div className="space-y-2">
+        <Label className="text-xs font-serif text-[#92764C] uppercase tracking-wider">
+          Ornamentation
         </Label>
-        <div className={cn("space-y-3", !isText && "pointer-events-none opacity-50")}>
-          <div className="space-y-2">
-            <Label className="font-ui text-xs text-muted">Margin</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Horizontal
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={styleOverrides.marginHorizontal ?? 0}
-                  onChange={(event) =>
-                    handleStyleChange({
-                      marginHorizontal: safeNumber(event.target.value, 0),
-                    })
-                  }
-                  className="input-vintage h-8 font-ui text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Vertical
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={styleOverrides.marginVertical ?? 0}
-                  onChange={(event) =>
-                    handleStyleChange({
-                      marginVertical: safeNumber(event.target.value, 0),
-                    })
-                  }
-                  className="input-vintage h-8 font-ui text-xs"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="font-ui text-xs text-muted">Padding</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Horizontal
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={styleOverrides.paddingHorizontal ?? 0}
-                  onChange={(event) =>
-                    handleStyleChange({
-                      paddingHorizontal: safeNumber(event.target.value, 0),
-                    })
-                  }
-                  className="input-vintage h-8 font-ui text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Vertical
-                </Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={styleOverrides.paddingVertical ?? 0}
-                  onChange={(event) =>
-                    handleStyleChange({
-                      paddingVertical: safeNumber(event.target.value, 0),
-                    })
-                  }
-                  className="input-vintage h-8 font-ui text-xs"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <Label className="font-ui text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-          Layering
-        </Label>
-        <TooltipProvider>
-          <div className="grid grid-cols-4 gap-1 rounded-sm border border-sepia/20 bg-cream/70 p-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8"
-                  onClick={() =>
-                    pageId && element ? reorderElement(pageId, element.id, "back") : null
-                  }
-                >
-                  <ArrowDownToLine className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Send to back</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8"
-                  disabled={!canSendBackward}
-                  onClick={() =>
-                    pageId && element ? reorderElement(pageId, element.id, "backward") : null
-                  }
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Send backward</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8"
-                  disabled={!canBringForward}
-                  onClick={() =>
-                    pageId && element ? reorderElement(pageId, element.id, "forward") : null
-                  }
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bring forward</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8"
-                  onClick={() =>
-                    pageId && element ? reorderElement(pageId, element.id, "front") : null
-                  }
-                >
-                  <ArrowUpToLine className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bring to front</TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
-      </section>
+        <ToggleGroup
+          type="multiple"
+          value={[
+            fontWeight === 'bold' ? 'bold' : '',
+            fontStyle === 'italic' ? 'italic' : '',
+            textDecoration.includes('underline') ? 'underline' : '',
+            textDecoration.includes('line-through') ? 'strikethrough' : '',
+          ].filter(Boolean)}
+          onValueChange={(values) => {
+            handleStyleUpdate({
+              fontWeight: values.includes('bold') ? 'bold' : 'normal',
+              fontStyle: values.includes('italic') ? 'italic' : 'normal',
+              textDecoration: [
+                values.includes('underline') ? 'underline' : '',
+                values.includes('strikethrough') ? 'line-through' : '',
+              ].filter(Boolean).join(' ') || 'none',
+            });
+          }}
+          className="grid grid-cols-4 gap-1 p-1 border border-[#92764C]/30 rounded-md bg-[#F4F1E8]/30"
+        >
+          <ToggleGroupItem
+            value="bold"
+            aria-label="Bold"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <Bold className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="italic"
+            aria-label="Italic"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <Italic className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="underline"
+            aria-label="Underline"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <Underline className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="strikethrough"
+            aria-label="Strikethrough"
+            className="data-[state=on]:bg-[#D4AF37] data-[state=on]:text-white hover:bg-[#D4AF37]/20"
+          >
+            <Strikethrough className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
     </div>
   );
 }
