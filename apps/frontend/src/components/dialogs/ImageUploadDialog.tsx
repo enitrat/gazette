@@ -1,19 +1,20 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { useUIStore } from '@/stores/ui-store';
-import { images } from '@/lib/api';
-import { Upload, FileImage, AlertCircle } from 'lucide-react';
-import { useAuthStore } from '@/stores/auth-store';
-import { useElementsStore } from '@/stores/elements-store';
-import { usePagesStore } from '@/stores/pages-store';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { useUIStore } from "@/stores/ui-store";
+import { images } from "@/lib/api";
+import { Upload, FileImage, AlertCircle } from "lucide-react";
+import { useAuthStore } from "@/stores/auth-store";
+import { useElementsStore } from "@/stores/elements-store";
+import { usePagesStore } from "@/stores/pages-store";
+import { CANVAS } from "@gazette/shared";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -33,19 +34,19 @@ export function ImageUploadDialog() {
       setError(null);
 
       // Validate file type
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-        setError('Please upload a JPEG, PNG, or WebP image');
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        setError("Please upload a JPEG, PNG, or WebP image");
         return;
       }
 
       // Validate file size
       if (file.size > MAX_FILE_SIZE) {
-        setError('File size must be less than 10MB');
+        setError("File size must be less than 10MB");
         return;
       }
 
       if (!currentProject) {
-        setError('No project selected');
+        setError("No project selected");
         return;
       }
 
@@ -66,8 +67,8 @@ export function ImageUploadDialog() {
         // Create image element on canvas at center if we have a current page
         if (currentPageId) {
           // Calculate center position and size based on image aspect ratio
-          const canvasWidth = 1200; // Default canvas width
-          const canvasHeight = 800; // Default canvas height
+          const canvasWidth = CANVAS.WIDTH;
+          const canvasHeight = CANVAS.HEIGHT;
           const maxWidth = 600;
           const maxHeight = 600;
 
@@ -91,7 +92,7 @@ export function ImageUploadDialog() {
           const y = (canvasHeight - height) / 2;
 
           await createElement(currentPageId, {
-            type: 'image',
+            type: "image",
             position: {
               x,
               y,
@@ -112,7 +113,7 @@ export function ImageUploadDialog() {
           setUploadProgress(0);
         }, 500);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed');
+        setError(err instanceof Error ? err.message : "Upload failed");
         setUploading(false);
         setUploadProgress(0);
       }
@@ -158,7 +159,7 @@ export function ImageUploadDialog() {
   };
 
   return (
-    <Dialog open={activeDialog === 'upload'} onOpenChange={closeDialog}>
+    <Dialog open={activeDialog === "upload"} onOpenChange={closeDialog}>
       <DialogContent className="sm:max-w-[550px] bg-[#f4f1e8] border-4 border-[#2c2416] shadow-2xl">
         {/* Ornamental corner decorations */}
         <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#d4af37]" />
@@ -191,17 +192,19 @@ export function ImageUploadDialog() {
               transition-all duration-300 group
               ${
                 isDragging
-                  ? 'border-[#d4af37] bg-[#d4af37]/10 shadow-lg'
-                  : 'border-[#2c2416]/40 hover:border-[#8b4513] hover:bg-[#2c2416]/5'
+                  ? "border-[#d4af37] bg-[#d4af37]/10 shadow-lg"
+                  : "border-[#2c2416]/40 hover:border-[#8b4513] hover:bg-[#2c2416]/5"
               }
             `}
-            style={{
-              backgroundImage: isDragging
-                ? 'none'
-                : 'repeating-linear-gradient(45deg, transparent, transparent 10px, #2c2416 10px, #2c2416 11px)',
-              backgroundSize: '100% 100%, 20px 20px',
-              backgroundBlendMode: 'multiply',
-            } as React.CSSProperties}
+            style={
+              {
+                backgroundImage: isDragging
+                  ? "none"
+                  : "repeating-linear-gradient(45deg, transparent, transparent 10px, #2c2416 10px, #2c2416 11px)",
+                backgroundSize: "100% 100%, 20px 20px",
+                backgroundBlendMode: "multiply",
+              } as React.CSSProperties
+            }
           >
             <input
               ref={fileInputRef}
@@ -218,8 +221,8 @@ export function ImageUploadDialog() {
                 p-4 rounded-full border-2 transition-all duration-300
                 ${
                   isDragging
-                    ? 'border-[#d4af37] bg-[#d4af37]/20 scale-110'
-                    : 'border-[#2c2416]/30 bg-[#2c2416]/5 group-hover:border-[#d4af37] group-hover:bg-[#d4af37]/10 group-hover:scale-105'
+                    ? "border-[#d4af37] bg-[#d4af37]/20 scale-110"
+                    : "border-[#2c2416]/30 bg-[#2c2416]/5 group-hover:border-[#d4af37] group-hover:bg-[#d4af37]/10 group-hover:scale-105"
                 }
               `}
               >
@@ -228,7 +231,7 @@ export function ImageUploadDialog() {
 
               <div className="space-y-2">
                 <p className="text-lg font-serif text-[#2c2416] font-semibold">
-                  {isDragging ? 'Release to upload' : 'Drop photograph here'}
+                  {isDragging ? "Release to upload" : "Drop photograph here"}
                 </p>
                 <p className="text-sm text-[#2c2416]/60 font-serif italic">
                   or click to select from archives
@@ -265,9 +268,7 @@ export function ImageUploadDialog() {
             <div className="flex items-start gap-3 p-4 border-2 border-[#8b4513] bg-[#8b4513]/10 rounded-sm animate-in fade-in-50">
               <AlertCircle className="w-5 h-5 text-[#8b4513] flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-serif font-semibold text-[#8b4513]">
-                  Publication Error
-                </p>
+                <p className="text-sm font-serif font-semibold text-[#8b4513]">Publication Error</p>
                 <p className="text-xs font-serif text-[#8b4513]/80 mt-1">{error}</p>
               </div>
             </div>
@@ -281,7 +282,7 @@ export function ImageUploadDialog() {
             disabled={uploading}
             className="w-full bg-[#2c2416] hover:bg-[#8b4513] text-[#f4f1e8] font-serif text-sm tracking-wider transition-all duration-300 shadow-md hover:shadow-lg border-2 border-[#2c2416] hover:border-[#d4af37]"
           >
-            {uploading ? 'PROCESSING...' : 'CANCEL'}
+            {uploading ? "PROCESSING..." : "CANCEL"}
           </Button>
         </div>
       </DialogContent>

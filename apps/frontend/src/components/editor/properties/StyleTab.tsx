@@ -1,9 +1,16 @@
-import { useElementsStore, type ElementWithStyle } from '@/stores/elements-store';
-import { SliderWithInput } from './SliderWithInput';
-import { ColorPicker } from './ColorPicker';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useElementsStore, type ElementWithStyle } from "@/stores/elements-store";
+import { SliderWithInput } from "./SliderWithInput";
+import { ColorPicker } from "./ColorPicker";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getMergedTextStyle, type TextElementTypeKey } from "@gazette/shared";
 import {
   AlignLeft,
   AlignCenter,
@@ -12,8 +19,8 @@ import {
   Bold,
   Italic,
   Underline,
-  Strikethrough
-} from 'lucide-react';
+  Strikethrough,
+} from "lucide-react";
 
 interface StyleTabProps {
   element: ElementWithStyle;
@@ -21,25 +28,23 @@ interface StyleTabProps {
 }
 
 const FONT_FAMILIES = [
-  { name: 'Playfair Display', value: 'Playfair Display' },
-  { name: 'Old Standard TT', value: 'Old Standard TT' },
-  { name: 'Libre Baskerville', value: 'Libre Baskerville' },
-  { name: 'EB Garamond', value: 'EB Garamond' },
-  { name: 'Inter', value: 'Inter' },
+  { name: "Playfair Display", value: "Playfair Display" },
+  { name: "Old Standard TT", value: "Old Standard TT" },
+  { name: "Libre Baskerville", value: "Libre Baskerville" },
+  { name: "EB Garamond", value: "EB Garamond" },
+  { name: "Inter", value: "Inter" },
 ];
 
 export function StyleTab({ element }: StyleTabProps) {
   const updateElementStyle = useElementsStore((state) => state.updateElementStyle);
 
-  if (element.type === 'image') {
+  if (element.type === "image") {
     return (
       <div className="p-4 space-y-4">
         {/* Image Information */}
         <div className="space-y-3">
           <div className="text-center relative pb-3">
-            <h4 className="text-sm font-serif text-[#3D3327] tracking-wide">
-              Photographic Plate
-            </h4>
+            <h4 className="text-sm font-serif text-[#3D3327] tracking-wide">Photographic Plate</h4>
             <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
           </div>
 
@@ -73,51 +78,7 @@ export function StyleTab({ element }: StyleTabProps) {
     );
   }
 
-  // Get default styles based on element type
-  const getDefaultStyle = () => {
-    switch (element.type) {
-      case 'headline':
-        return {
-          fontFamily: 'Playfair Display',
-          fontSize: 32,
-          fontWeight: 'bold' as const,
-          lineHeight: 1.2,
-          letterSpacing: -0.02,
-          color: '#2c1810',
-          textAlign: 'left' as const,
-          fontStyle: 'normal' as const,
-          textDecoration: 'none',
-        };
-      case 'subheading':
-        return {
-          fontFamily: 'Playfair Display',
-          fontSize: 20,
-          fontWeight: 'bold' as const,
-          lineHeight: 1.3,
-          letterSpacing: -0.01,
-          color: '#2c1810',
-          textAlign: 'left' as const,
-          fontStyle: 'normal' as const,
-          textDecoration: 'none',
-        };
-      case 'caption':
-        return {
-          fontFamily: 'Crimson Text',
-          fontSize: 14,
-          fontWeight: 'normal' as const,
-          lineHeight: 1.5,
-          letterSpacing: 0,
-          fontStyle: 'italic' as const,
-          color: '#4a3628',
-          textAlign: 'left' as const,
-          textDecoration: 'none',
-        };
-    }
-  };
-
-  // Text element styling - merge default with custom styles
-  const defaultStyle = getDefaultStyle();
-  const style = { ...defaultStyle, ...element.style };
+  const style = getMergedTextStyle(element.type as TextElementTypeKey, element.style);
 
   const fontFamily = style.fontFamily;
   const fontSize = style.fontSize;
@@ -125,7 +86,7 @@ export function StyleTab({ element }: StyleTabProps) {
   const letterSpacing = style.letterSpacing;
   const color = style.color;
   const textAlign = style.textAlign;
-  const fontWeight = style.fontWeight === 'bold' || style.fontWeight === '700' ? 'bold' : 'normal';
+  const fontWeight = style.fontWeight === "bold" || style.fontWeight === "700" ? "bold" : "normal";
   const fontStyle = style.fontStyle;
   const textDecoration = style.textDecoration;
 
@@ -137,9 +98,7 @@ export function StyleTab({ element }: StyleTabProps) {
     <div className="p-4 space-y-6">
       {/* Header */}
       <div className="text-center relative pb-3">
-        <h4 className="text-sm font-serif text-[#3D3327] tracking-wide">
-          Typography & Ornament
-        </h4>
+        <h4 className="text-sm font-serif text-[#3D3327] tracking-wide">Typography & Ornament</h4>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
       </div>
 
@@ -148,7 +107,10 @@ export function StyleTab({ element }: StyleTabProps) {
         <Label className="text-xs font-serif text-[#92764C] uppercase tracking-wider">
           Typeface
         </Label>
-        <Select value={fontFamily} onValueChange={(value) => handleStyleUpdate({ fontFamily: value })}>
+        <Select
+          value={fontFamily}
+          onValueChange={(value) => handleStyleUpdate({ fontFamily: value })}
+        >
           <SelectTrigger className="border-[#92764C]/30 bg-[#F4F1E8]/50 text-[#3D3327] hover:border-[#D4AF37] transition-all duration-200">
             <SelectValue />
           </SelectTrigger>
@@ -265,19 +227,22 @@ export function StyleTab({ element }: StyleTabProps) {
         <ToggleGroup
           type="multiple"
           value={[
-            fontWeight === 'bold' ? 'bold' : '',
-            fontStyle === 'italic' ? 'italic' : '',
-            textDecoration.includes('underline') ? 'underline' : '',
-            textDecoration.includes('line-through') ? 'strikethrough' : '',
+            fontWeight === "bold" ? "bold" : "",
+            fontStyle === "italic" ? "italic" : "",
+            textDecoration.includes("underline") ? "underline" : "",
+            textDecoration.includes("line-through") ? "strikethrough" : "",
           ].filter(Boolean)}
           onValueChange={(values) => {
             handleStyleUpdate({
-              fontWeight: values.includes('bold') ? 'bold' : 'normal',
-              fontStyle: values.includes('italic') ? 'italic' : 'normal',
-              textDecoration: [
-                values.includes('underline') ? 'underline' : '',
-                values.includes('strikethrough') ? 'line-through' : '',
-              ].filter(Boolean).join(' ') || 'none',
+              fontWeight: values.includes("bold") ? "bold" : "normal",
+              fontStyle: values.includes("italic") ? "italic" : "normal",
+              textDecoration:
+                [
+                  values.includes("underline") ? "underline" : "",
+                  values.includes("strikethrough") ? "line-through" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ") || "none",
             });
           }}
           className="grid grid-cols-4 gap-1 p-1 border border-[#92764C]/30 rounded-md bg-[#F4F1E8]/30"

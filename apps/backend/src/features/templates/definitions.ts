@@ -1,17 +1,39 @@
 import { db, schema } from "../../db";
 import {
+  CANVAS,
   TEMPLATES,
   type TemplateDefinition,
   type TemplateElementDefinition,
   type Template as TemplateId,
 } from "@gazette/shared";
 
-const TEMPLATE_CANVAS = {
+const BASE_TEMPLATE_CANVAS = {
   width: 1200,
   height: 1600,
 } as const;
 
-const FULL_PAGE_ELEMENTS: TemplateElementDefinition[] = [
+const TEMPLATE_CANVAS = {
+  width: CANVAS.WIDTH,
+  height: CANVAS.HEIGHT,
+} as const;
+
+const SCALE_X = CANVAS.WIDTH / BASE_TEMPLATE_CANVAS.width;
+const SCALE_Y = CANVAS.HEIGHT / BASE_TEMPLATE_CANVAS.height;
+
+const scalePosition = (position: TemplateElementDefinition["position"]) => ({
+  x: position.x * SCALE_X,
+  y: position.y * SCALE_Y,
+  width: position.width * SCALE_X,
+  height: position.height * SCALE_Y,
+});
+
+const scaleElements = (elements: TemplateElementDefinition[]) =>
+  elements.map((element) => ({
+    ...element,
+    position: scalePosition(element.position),
+  }));
+
+const FULL_PAGE_ELEMENTS_BASE: TemplateElementDefinition[] = [
   {
     type: "headline",
     position: { x: 80, y: 80, width: 1040, height: 100 },
@@ -28,7 +50,7 @@ const FULL_PAGE_ELEMENTS: TemplateElementDefinition[] = [
   },
 ];
 
-const TWO_COLUMNS_ELEMENTS: TemplateElementDefinition[] = [
+const TWO_COLUMNS_ELEMENTS_BASE: TemplateElementDefinition[] = [
   {
     type: "headline",
     position: { x: 80, y: 80, width: 1040, height: 90 },
@@ -54,7 +76,7 @@ const TWO_COLUMNS_ELEMENTS: TemplateElementDefinition[] = [
   },
 ];
 
-const THREE_GRID_ELEMENTS: TemplateElementDefinition[] = [
+const THREE_GRID_ELEMENTS_BASE: TemplateElementDefinition[] = [
   {
     type: "headline",
     position: { x: 80, y: 80, width: 1040, height: 90 },
@@ -89,7 +111,7 @@ const THREE_GRID_ELEMENTS: TemplateElementDefinition[] = [
   },
 ];
 
-const MASTHEAD_ELEMENTS: TemplateElementDefinition[] = [
+const MASTHEAD_ELEMENTS_BASE: TemplateElementDefinition[] = [
   {
     type: "headline",
     position: { x: 80, y: 80, width: 1040, height: 140 },
@@ -110,6 +132,11 @@ const MASTHEAD_ELEMENTS: TemplateElementDefinition[] = [
     content: "",
   },
 ];
+
+const FULL_PAGE_ELEMENTS = scaleElements(FULL_PAGE_ELEMENTS_BASE);
+const TWO_COLUMNS_ELEMENTS = scaleElements(TWO_COLUMNS_ELEMENTS_BASE);
+const THREE_GRID_ELEMENTS = scaleElements(THREE_GRID_ELEMENTS_BASE);
+const MASTHEAD_ELEMENTS = scaleElements(MASTHEAD_ELEMENTS_BASE);
 
 const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
   {

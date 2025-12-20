@@ -9,7 +9,16 @@ import JSZip from "jszip";
 import puppeteer from "puppeteer";
 import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
-import { DEFAULTS, ELEMENT_TYPES, CANVAS, TEXT_STYLES, GAZETTE_COLORS } from "@gazette/shared";
+import {
+  DEFAULTS,
+  ELEMENT_TYPES,
+  CANVAS,
+  GAZETTE_COLORS,
+  getMergedTextStyle,
+  textStyleToCss,
+  type TextElementTypeKey,
+  type PartialTextStyle,
+} from "@gazette/shared";
 
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
@@ -23,7 +32,7 @@ const videoRoot = join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
 const CANVAS_WIDTH = CANVAS.WIDTH;
 const CANVAS_HEIGHT = CANVAS.HEIGHT;
 const GOOGLE_FONTS_URL =
-  "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700;1,800&family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap";
 
 type ExportPosition = {
   x: number;
@@ -38,6 +47,7 @@ type ExportElement = {
   type: string;
   position: ExportPosition;
   content?: string | null;
+  style?: PartialTextStyle | null;
   imageId?: string | null;
   cropData?: { x: number; y: number; zoom: number } | null;
   videoUrl?: string | null;
@@ -74,6 +84,7 @@ type HtmlExportPayload = {
 
 let cachedFontCss: string | null = null;
 let pendingFontCss: Promise<string> | null = null;
+const FONT_FETCH_TIMEOUT_MS = 5000;
 
 const sanitizeFilename = (value: string, fallback = "export") => {
   const sanitized = value.trim().replace(/[^a-z0-9._-]+/gi, "_");
@@ -94,26 +105,25 @@ const formatText = (value: string | null | undefined) => {
   return escapeHtml(value).replace(/\n/g, "<br/>");
 };
 
-type TextElementType = "headline" | "subheading" | "caption";
+/**
+ * Build CSS style string for image crop data (position and zoom).
+ * Matches the styling used in the canvas editor (CanvasElement.tsx).
+ */
+const buildImageCropStyle = (cropData?: { x: number; y: number; zoom: number } | null): string => {
+  if (!cropData) return "";
+  return `object-position: ${-cropData.x}px ${-cropData.y}px; transform: scale(${cropData.zoom});`;
+};
 
-interface TextStyle {
-  fontFamily: string;
-  fontSize: number;
-  fontWeight: string;
-  lineHeight: number;
-  letterSpacing: number;
-  color: string;
-  textAlign: string;
-  fontStyle: string;
-  textDecoration: string;
-}
-
-const getTextStyleCss = (elementType: TextElementType): string => {
-  const style = TEXT_STYLES[elementType] as TextStyle;
-  const fontSize = typeof style.fontSize === "number" ? `${style.fontSize}px` : style.fontSize;
-  const letterSpacing = typeof style.letterSpacing === "number" ? `${style.letterSpacing}em` : style.letterSpacing;
-
-  return `font-family: "${style.fontFamily}", Georgia, serif; font-size: ${fontSize}; font-weight: ${style.fontWeight}; line-height: ${style.lineHeight}; letter-spacing: ${letterSpacing}; color: ${style.color}; text-align: ${style.textAlign}; font-style: ${style.fontStyle};`;
+/**
+ * Get CSS string for a text element, merging default styles with custom overrides.
+ * Uses the shared getMergedTextStyle and textStyleToCss helpers for consistency with editor.
+ */
+const getElementTextStyleCss = (
+  elementType: TextElementTypeKey,
+  customStyle?: PartialTextStyle | null
+): string => {
+  const mergedStyle = getMergedTextStyle(elementType, customStyle);
+  return textStyleToCss(mergedStyle);
 };
 
 const extractVideoJobId = (value: string | null | undefined) => {
@@ -136,6 +146,16 @@ const readImageDataUri = async (image: typeof schema.images.$inferSelect) => {
   return dataUri;
 };
 
+const fetchWithTimeout = async (url: string, timeoutMs = FONT_FETCH_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const inlineExternalUrls = async (css: string) => {
   const matches = Array.from(css.matchAll(/url\(([^)]+)\)/g));
   const urls = new Set<string>();
@@ -147,18 +167,25 @@ const inlineExternalUrls = async (css: string) => {
     }
   }
 
+  const results = await Promise.all(
+    Array.from(urls).map(async (url) => {
+      try {
+        const response = await fetchWithTimeout(url);
+        if (!response.ok) return null;
+        const mime = response.headers.get("content-type") ?? "application/octet-stream";
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const dataUri = `data:${mime};base64,${buffer.toString("base64")}`;
+        return { url, dataUri };
+      } catch {
+        return null;
+      }
+    })
+  );
+
   let output = css;
-  for (const url of urls) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) continue;
-      const mime = response.headers.get("content-type") ?? "application/octet-stream";
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const dataUri = `data:${mime};base64,${buffer.toString("base64")}`;
-      output = output.replaceAll(url, dataUri);
-    } catch {
-      // Ignore failed font fetches and fall back to system fonts.
-    }
+  for (const result of results) {
+    if (!result) continue;
+    output = output.replaceAll(result.url, result.dataUri);
   }
 
   return output;
@@ -170,7 +197,7 @@ const getInlineFontCss = async () => {
 
   pendingFontCss = (async () => {
     try {
-      const response = await fetch(GOOGLE_FONTS_URL);
+      const response = await fetchWithTimeout(GOOGLE_FONTS_URL);
       if (!response.ok) {
         return "";
       }
@@ -205,7 +232,7 @@ const buildBaseCss = () => `
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Crimson Text", Georgia, serif;
+  font-family: "EB Garamond", Garamond, serif;
   background-color: var(--color-cream);
   color: var(--color-ink);
   line-height: 1.6;
@@ -325,6 +352,7 @@ main {
   height: 100%;
   display: block;
   object-fit: cover;
+  object-position: center;
 }
 
 .missing-media {
@@ -393,11 +421,12 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
           const videoAsset = videoAssetMap.get(element.id);
           const poster = imageData ? ` poster="${imageData.dataUri}"` : "";
           const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
+          const cropStyle = buildImageCropStyle(element.cropData);
 
           if (videoAsset) {
             return `
               <div class="element image" style="${style}">
-                <video class="media" src="${videoAsset}"${poster} loop autoplay muted playsinline controls preload="metadata"></video>
+                <video class="media" src="${videoAsset}"${poster} loop autoplay muted playsinline controls preload="metadata" style="${cropStyle}"></video>
               </div>
             `;
           }
@@ -405,7 +434,7 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
           if (imageData) {
             return `
               <div class="element image" style="${style}">
-                <img class="media" src="${imageData.dataUri}" alt="${label}" loading="lazy" />
+                <img class="media" src="${imageData.dataUri}" alt="${label}" loading="lazy" style="${cropStyle}" />
               </div>
             `;
           }
@@ -418,8 +447,8 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
         }
 
         const text = formatText(element.content ?? "");
-        const textType = element.type as TextElementType;
-        const textStyleCss = getTextStyleCss(textType);
+        const textType = element.type as TextElementTypeKey;
+        const textStyleCss = getElementTextStyleCss(textType, element.style);
         return `
           <div class="element text-element" style="${style} ${textStyleCss}">${text}</div>
         `;
@@ -571,12 +600,23 @@ const fetchBaseExportData = async (projectId: string): Promise<BaseExportPayload
       continue;
     }
 
+    // Parse the style JSON if present
+    let parsedStyle: PartialTextStyle | null = null;
+    if (record.style) {
+      try {
+        parsedStyle = JSON.parse(record.style) as PartialTextStyle;
+      } catch {
+        // Invalid JSON, use defaults
+      }
+    }
+
     const element: ExportElement = {
       id: record.id,
       pageId: record.pageId,
       type: record.type,
       position,
       content: record.content ?? "",
+      style: parsedStyle,
     };
 
     const list = elementsByPage.get(record.pageId) ?? [];
@@ -766,11 +806,12 @@ const buildPdfHtml = async (payload: HtmlExportPayload) => {
         if (element.type === ELEMENT_TYPES.IMAGE) {
           const imageData = element.imageId ? payload.imageDataById.get(element.imageId) : null;
           const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
+          const cropStyle = buildImageCropStyle(element.cropData);
 
           if (imageData) {
             return `
               <div class="element image" style="${style}">
-                <img class="media" src="${imageData.dataUri}" alt="${label}" />
+                <img class="media" src="${imageData.dataUri}" alt="${label}" style="${cropStyle}" />
               </div>
             `;
           }
@@ -783,8 +824,8 @@ const buildPdfHtml = async (payload: HtmlExportPayload) => {
         }
 
         const text = formatText(element.content ?? "");
-        const textType = element.type as TextElementType;
-        const textStyleCss = getTextStyleCss(textType);
+        const textType = element.type as TextElementTypeKey;
+        const textStyleCss = getElementTextStyleCss(textType, element.style);
         return `
           <div class="element text-element" style="${style} ${textStyleCss}">${text}</div>
         `;
@@ -851,7 +892,28 @@ export const buildPdfExport = async (projectId: string) => {
 
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
+    page.setDefaultNavigationTimeout(60000);
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.evaluate(() => {
+      return new Promise<void>((resolve) => {
+        const doc = (globalThis as { document?: { fonts?: { ready?: Promise<unknown> } } })
+          .document;
+        if (!doc?.fonts?.ready) {
+          resolve();
+          return;
+        }
+
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+
+        doc.fonts.ready.then(finish).catch(finish);
+        setTimeout(finish, 3000);
+      });
+    });
 
     const pdfBuffer = await page.pdf({
       width: `${CANVAS_WIDTH}px`,
@@ -871,7 +933,11 @@ export const buildPdfExport = async (projectId: string) => {
 
 const SLIDESHOW_SECONDS_PER_PAGE = 15;
 
-const buildSlideshowPageHtml = (payload: HtmlExportPayload, pageIndex: number, videoAssetMap: Map<string, string>) => {
+const buildSlideshowPageHtml = (
+  payload: HtmlExportPayload,
+  pageIndex: number,
+  videoAssetMap: Map<string, string>
+) => {
   const fontCss = cachedFontCss || "";
   const baseCss = buildBaseCss();
   const page = payload.pages[pageIndex];
@@ -888,11 +954,12 @@ const buildSlideshowPageHtml = (payload: HtmlExportPayload, pageIndex: number, v
         const videoAsset = videoAssetMap.get(element.id);
         const poster = imageData ? ` poster="${imageData.dataUri}"` : "";
         const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
+        const cropStyle = buildImageCropStyle(element.cropData);
 
         if (videoAsset) {
           return `
             <div class="element image" style="${style}">
-              <video class="media" src="${videoAsset}"${poster} loop autoplay muted playsinline preload="auto"></video>
+              <video class="media" src="${videoAsset}"${poster} loop autoplay muted playsinline preload="auto" style="${cropStyle}"></video>
             </div>
           `;
         }
@@ -900,7 +967,7 @@ const buildSlideshowPageHtml = (payload: HtmlExportPayload, pageIndex: number, v
         if (imageData) {
           return `
             <div class="element image" style="${style}">
-              <img class="media" src="${imageData.dataUri}" alt="${label}" />
+              <img class="media" src="${imageData.dataUri}" alt="${label}" style="${cropStyle}" />
             </div>
           `;
         }
@@ -913,8 +980,8 @@ const buildSlideshowPageHtml = (payload: HtmlExportPayload, pageIndex: number, v
       }
 
       const text = formatText(element.content ?? "");
-      const textType = element.type as TextElementType;
-      const textStyleCss = getTextStyleCss(textType);
+      const textType = element.type as TextElementTypeKey;
+      const textStyleCss = getElementTextStyleCss(textType, element.style);
       return `
         <div class="element text-element" style="${style} ${textStyleCss}">${text}</div>
       `;
@@ -1000,7 +1067,11 @@ export const buildVideoSlideshowExport = async (projectId: string) => {
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--autoplay-policy=no-user-gesture-required"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--autoplay-policy=no-user-gesture-required",
+    ],
   });
 
   try {
@@ -1042,15 +1113,24 @@ export const buildVideoSlideshowExport = async (projectId: string) => {
     const outputPath = join(workDir, "slideshow.mp4");
     await runFFmpeg([
       "-y",
-      "-f", "concat",
-      "-safe", "0",
-      "-i", concatPath,
-      "-vf", `scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=decrease,pad=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:(ow-iw)/2:(oh-ih)/2`,
-      "-c:v", "libx264",
-      "-pix_fmt", "yuv420p",
-      "-preset", "medium",
-      "-crf", "23",
-      "-movflags", "+faststart",
+      "-f",
+      "concat",
+      "-safe",
+      "0",
+      "-i",
+      concatPath,
+      "-vf",
+      `scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=decrease,pad=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:(ow-iw)/2:(oh-ih)/2`,
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      "-preset",
+      "medium",
+      "-crf",
+      "23",
+      "-movflags",
+      "+faststart",
       outputPath,
     ]);
 

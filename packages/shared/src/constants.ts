@@ -117,18 +117,18 @@ export const TEXT_STYLES = {
     textDecoration: "none",
   },
   subheading: {
-    fontFamily: "Playfair Display",
+    fontFamily: "Libre Baskerville",
     fontSize: 20,
     fontWeight: "bold" as const,
     lineHeight: 1.3,
     letterSpacing: -0.01,
     color: "#2c1810",
     textAlign: "left" as const,
-    fontStyle: "normal" as const,
+    fontStyle: "italic" as const,
     textDecoration: "none",
   },
   caption: {
-    fontFamily: "Crimson Text",
+    fontFamily: "EB Garamond",
     fontSize: 14,
     fontWeight: "normal" as const,
     lineHeight: 1.5,
@@ -148,3 +148,85 @@ export const GAZETTE_COLORS = {
   cream: "#fdf8e8",
   caption: "#4a3628",
 } as const;
+
+// Text element type string literal for styling functions
+export type TextElementTypeKey = "headline" | "subheading" | "caption";
+
+// Partial text style for custom overrides
+export type PartialTextStyle = {
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  lineHeight?: number;
+  letterSpacing?: number;
+  color?: string;
+  textAlign?: string;
+  fontStyle?: string;
+  textDecoration?: string;
+};
+
+// Full text style with all properties
+export type FullTextStyle = {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: string;
+  lineHeight: number;
+  letterSpacing: number;
+  color: string;
+  textAlign: string;
+  fontStyle: string;
+  textDecoration: string;
+};
+
+/**
+ * Get merged text style for an element type, with optional custom overrides.
+ * This is the single source of truth for text styling across editor and export.
+ */
+export function getMergedTextStyle(
+  elementType: TextElementTypeKey,
+  customStyle?: PartialTextStyle | null
+): FullTextStyle {
+  const defaults = TEXT_STYLES[elementType];
+  return {
+    fontFamily: customStyle?.fontFamily ?? defaults.fontFamily,
+    fontSize: customStyle?.fontSize ?? defaults.fontSize,
+    fontWeight: customStyle?.fontWeight ?? defaults.fontWeight,
+    lineHeight: customStyle?.lineHeight ?? defaults.lineHeight,
+    letterSpacing: customStyle?.letterSpacing ?? defaults.letterSpacing,
+    color: customStyle?.color ?? defaults.color,
+    textAlign: customStyle?.textAlign ?? defaults.textAlign,
+    fontStyle: customStyle?.fontStyle ?? defaults.fontStyle,
+    textDecoration: customStyle?.textDecoration ?? defaults.textDecoration,
+  };
+}
+
+/**
+ * Convert text style to CSS string for use in export/SSR.
+ * Uses em for letter-spacing as the values are designed for relative sizing.
+ */
+export function textStyleToCss(style: FullTextStyle): string {
+  const fontSize = `${style.fontSize}px`;
+  const letterSpacing = `${style.letterSpacing}em`;
+  const fontFamily = style.fontFamily.replace(/'/g, "\\'");
+
+  return `font-family: '${fontFamily}', Georgia, serif; font-size: ${fontSize}; font-weight: ${style.fontWeight}; line-height: ${style.lineHeight}; letter-spacing: ${letterSpacing}; color: ${style.color}; text-align: ${style.textAlign}; font-style: ${style.fontStyle}; text-decoration: ${style.textDecoration};`;
+}
+
+/**
+ * Convert text style to inline style object for use in editor/React.
+ * Uses em for letter-spacing as the values are designed for relative sizing.
+ * Returns a plain object that can be cast to React.CSSProperties.
+ */
+export function textStyleToInlineStyle(style: FullTextStyle): Record<string, string | number> {
+  return {
+    fontFamily: `"${style.fontFamily}", Georgia, serif`,
+    fontSize: `${style.fontSize}px`,
+    fontWeight: style.fontWeight,
+    lineHeight: style.lineHeight,
+    letterSpacing: `${style.letterSpacing}em`,
+    color: style.color,
+    textAlign: style.textAlign,
+    fontStyle: style.fontStyle,
+    textDecoration: style.textDecoration,
+  };
+}

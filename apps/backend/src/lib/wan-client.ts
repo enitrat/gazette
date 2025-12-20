@@ -1,5 +1,4 @@
 import { Buffer } from "node:buffer";
-import { randomUUID } from "node:crypto";
 
 export type WanTaskStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELED" | "UNKNOWN";
 
@@ -23,8 +22,9 @@ export type WanTaskResult = {
   raw?: unknown;
 };
 
-const DEFAULT_BASE_URL = "https://dashscope-intl.aliyuncs.com/api/v1";
-const DEFAULT_MODEL = "wan2.6-i2v";
+const DEFAULT_BASE_URL = "https://api.evolink.ai/v1";
+const DEFAULT_FILES_BASE_URL = "https://files-api.evolink.ai/api/v1";
+const DEFAULT_MODEL = "wan2.6-image-to-video";
 const DEFAULT_POLL_INTERVAL_MS = 15000;
 const DEFAULT_MAX_POLL_MS = 12 * 60 * 1000;
 
@@ -34,8 +34,9 @@ const getEnvNumber = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const getBaseUrl = () => process.env.WAN_BASE_URL || DEFAULT_BASE_URL;
-const getModel = () => process.env.WAN_MODEL || DEFAULT_MODEL;
+const getBaseUrl = () => DEFAULT_BASE_URL;
+const getFilesBaseUrl = () => DEFAULT_FILES_BASE_URL;
+const getModel = () => DEFAULT_MODEL;
 
 const getApiKey = () => {
   const apiKey = process.env.WAN_API_KEY;
@@ -66,17 +67,66 @@ const parseJson = async (response: Response) => {
 };
 
 const toTaskStatus = (value: unknown): WanTaskStatus => {
-  switch (value) {
-    case "PENDING":
-    case "RUNNING":
-    case "SUCCEEDED":
-    case "FAILED":
-    case "CANCELED":
-    case "UNKNOWN":
-      return value;
+  const normalized = typeof value === "string" ? value.toLowerCase() : "";
+  switch (normalized) {
+    case "pending":
+      return "PENDING";
+    case "processing":
+      return "RUNNING";
+    case "completed":
+      return "SUCCEEDED";
+    case "failed":
+      return "FAILED";
+    case "canceled":
+    case "cancelled":
+      return "CANCELED";
     default:
       return "UNKNOWN";
   }
+};
+
+const uploadBase64Image = async (base64Data: string) => {
+  const apiKey = getApiKey();
+  const filesBaseUrl = getFilesBaseUrl();
+
+  const response = await fetch(`${filesBaseUrl}/files/upload/base64`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      base64_data: base64Data,
+    }),
+  });
+
+  const data = await parseJson(response);
+  const success =
+    typeof data === "object" &&
+    data !== null &&
+    "success" in data &&
+    Boolean((data as { success?: boolean }).success);
+  if (!response.ok || !success) {
+    const message =
+      (data &&
+        typeof data === "object" &&
+        ("msg" in data || "message" in data) &&
+        ((data as { msg?: string }).msg || (data as { message?: string }).message)) ||
+      `WAN file upload failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  const fileUrl =
+    (data as { data?: { file_url?: string; fileUrl?: string } }).data?.file_url ||
+    (data as { data?: { file_url?: string; fileUrl?: string } }).data?.fileUrl;
+
+  if (!fileUrl) {
+    throw new Error("WAN file upload response missing file_url");
+  }
+
+  console.log("File uploaded to: ", fileUrl);
+
+  return fileUrl;
 };
 
 export const createWanTask = async (request: WanVideoRequest) => {
@@ -85,36 +135,41 @@ export const createWanTask = async (request: WanVideoRequest) => {
   const model = getModel();
 
   const imageSource =
-    request.imageDataUrl ||
     request.imageUrl ||
+    request.imageDataUrl ||
     (request.imagePath ? await toDataUrl(request.imagePath, request.imageMimeType) : undefined);
 
   if (!imageSource) {
     throw new Error("WAN request missing image input");
   }
 
-  const body = {
+  const imageUrl = request.imageUrl ? request.imageUrl : await uploadBase64Image(imageSource);
+  const body: Record<string, unknown> = {
     model,
-    input: {
-      prompt: request.prompt,
-      img_url: imageSource,
-      negative_prompt: request.negativePrompt,
-    },
-    parameters: {
-      duration: request.durationSeconds,
-      resolution: request.resolution,
-      seed: request.seed,
-      prompt_extend: request.promptExtend,
-    },
+    prompt: request.prompt,
+    image_urls: [imageUrl],
   };
 
-  const response = await fetch(`${baseUrl}/services/aigc/video-generation/video-synthesis`, {
+  if (request.durationSeconds !== undefined) {
+    if (![5, 10, 15].includes(request.durationSeconds)) {
+      throw new Error("WAN durationSeconds must be 5, 10, or 15");
+    }
+    body.duration = request.durationSeconds;
+  }
+
+  if (request.resolution) {
+    body.quality = request.resolution === "1080p" ? "1080p" : "720p";
+  }
+
+  if (request.promptExtend !== undefined) {
+    body.prompt_extend = request.promptExtend;
+  }
+
+  const response = await fetch(`${baseUrl}/videos/generations`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "X-DashScope-Async": "enable",
-      "X-Request-Id": randomUUID(),
     },
     body: JSON.stringify(body),
   });
@@ -124,19 +179,16 @@ export const createWanTask = async (request: WanVideoRequest) => {
     const message =
       (data &&
         typeof data === "object" &&
-        "message" in data &&
-        (data as { message?: string }).message) ||
+        ("message" in data || "msg" in data) &&
+        ((data as { message?: string }).message || (data as { msg?: string }).msg)) ||
       `WAN task creation failed (${response.status})`;
     throw new Error(message);
   }
 
-  const taskId =
-    (data as { output?: { task_id?: string; taskId?: string } }).output?.task_id ||
-    (data as { output?: { task_id?: string; taskId?: string } }).output?.taskId ||
-    (data as { task_id?: string }).task_id;
+  const taskId = (data as { id?: string }).id;
 
   if (!taskId) {
-    throw new Error("WAN task creation response missing task_id");
+    throw new Error("WAN task creation response missing id");
   }
 
   return { taskId, raw: data };
@@ -163,20 +215,17 @@ export const getWanTaskStatus = async (taskId: string): Promise<WanTaskResult> =
     throw new Error(message);
   }
 
-  const output = (
-    data as { output?: { video_url?: string; videoUrl?: string; videos?: unknown[] } }
-  ).output;
+  const results = (data as { results?: unknown }).results;
+  const firstResult = Array.isArray(results) ? results[0] : undefined;
   const videoUrl =
-    output?.video_url ||
-    output?.videoUrl ||
-    (Array.isArray(output?.videos) && output?.videos.length
-      ? (output.videos[0] as { video_url?: string; url?: string }).video_url ||
-        (output.videos[0] as { url?: string }).url
-      : undefined);
+    typeof firstResult === "string"
+      ? firstResult
+      : (firstResult as { url?: string; video_url?: string } | undefined)?.video_url ||
+        (firstResult as { url?: string } | undefined)?.url;
 
   return {
     taskId,
-    status: toTaskStatus((data as { task_status?: string }).task_status),
+    status: toTaskStatus((data as { status?: string }).status),
     videoUrl,
     raw: data,
   };

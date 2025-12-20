@@ -1,10 +1,14 @@
-import { useElementsStore, type ElementWithStyle } from '@/stores/elements-store';
-import { useElementDrag } from '@/hooks/use-element-drag';
-import { SelectionOverlay } from './SelectionOverlay';
-import { TextEditor } from './TextEditor';
-import api, { videos } from '@/lib/api';
-import { Loader2, Clock, AlertCircle, Play } from 'lucide-react';
-import { TEXT_STYLES } from '@gazette/shared';
+import { useElementsStore, type ElementWithStyle } from "@/stores/elements-store";
+import { useElementDrag } from "@/hooks/use-element-drag";
+import { SelectionOverlay } from "./SelectionOverlay";
+import { TextEditor } from "./TextEditor";
+import api, { videos } from "@/lib/api";
+import { Loader2, Clock, AlertCircle, Play } from "lucide-react";
+import {
+  getMergedTextStyle,
+  textStyleToInlineStyle,
+  type TextElementTypeKey,
+} from "@gazette/shared";
 
 interface CanvasElementProps {
   element: ElementWithStyle;
@@ -33,17 +37,17 @@ export function CanvasElement({ element }: CanvasElementProps) {
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (element.type !== 'image') {
+    if (element.type !== "image") {
       startEditing(element.id);
     }
   };
 
   const renderContent = () => {
-    if (element.type === 'image') {
-      const hasVideo = element.videoStatus === 'complete' && element.videoUrl;
-      const isPending = element.videoStatus === 'pending';
-      const isProcessing = element.videoStatus === 'processing';
-      const isFailed = element.videoStatus === 'failed';
+    if (element.type === "image") {
+      const hasVideo = element.videoStatus === "complete" && element.videoUrl;
+      const isPending = element.videoStatus === "pending";
+      const isProcessing = element.videoStatus === "processing";
+      const isFailed = element.videoStatus === "failed";
       const showStatusOverlay = isPending || isProcessing || isFailed;
 
       return (
@@ -66,7 +70,7 @@ export function CanvasElement({ element }: CanvasElementProps) {
               style={{
                 objectPosition: element.cropData
                   ? `${-element.cropData.x}px ${-element.cropData.y}px`
-                  : 'center',
+                  : "center",
                 transform: element.cropData ? `scale(${element.cropData.zoom})` : undefined,
               }}
               draggable={false}
@@ -130,14 +134,16 @@ export function CanvasElement({ element }: CanvasElementProps) {
       );
     }
 
-    // Text elements
-    const defaultStyle = getDefaultTextStyle(element.type);
-    const textStyle = { ...defaultStyle, ...element.style };
+    // Text elements - use shared helper for consistent styling with export
+    const mergedStyle = getMergedTextStyle(element.type as TextElementTypeKey, element.style);
+    const inlineStyle = textStyleToInlineStyle(mergedStyle);
 
     if (isEditing) {
       return (
         <TextEditor
-          element={element as Extract<ElementWithStyle, { type: 'headline' | 'subheading' | 'caption' }>}
+          element={
+            element as Extract<ElementWithStyle, { type: "headline" | "subheading" | "caption" }>
+          }
         />
       );
     }
@@ -146,18 +152,10 @@ export function CanvasElement({ element }: CanvasElementProps) {
       <div
         className="h-full w-full p-2"
         style={{
-          fontFamily: textStyle.fontFamily,
-          fontSize: typeof textStyle.fontSize === 'number' ? `${textStyle.fontSize}px` : textStyle.fontSize,
-          fontWeight: textStyle.fontWeight,
-          lineHeight: textStyle.lineHeight,
-          letterSpacing: typeof textStyle.letterSpacing === 'number' ? `${textStyle.letterSpacing}px` : textStyle.letterSpacing,
-          color: textStyle.color,
-          textAlign: textStyle.textAlign,
-          fontStyle: textStyle.fontStyle,
-          textDecoration: textStyle.textDecoration,
-          wordWrap: 'break-word',
-          overflowWrap: 'break-word',
-          overflow: 'hidden',
+          ...inlineStyle,
+          wordWrap: "break-word",
+          overflowWrap: "break-word",
+          overflow: "hidden",
         }}
       >
         {element.content || getPlaceholder(element.type)}
@@ -168,17 +166,18 @@ export function CanvasElement({ element }: CanvasElementProps) {
   return (
     <div
       style={{
-        position: 'absolute',
+        position: "absolute",
         left: element.position.x,
         top: element.position.y,
         width: element.position.width,
         height: element.position.height,
-        cursor: isDragging ? 'grabbing' : isEditing ? 'text' : 'grab',
-        userSelect: isEditing ? 'text' : 'none',
-        transition: isDragging ? 'none' : 'box-shadow 0.2s ease',
-        boxShadow: isSelected && !isEditing
-          ? '0 4px 12px rgba(59, 130, 246, 0.15)'
-          : '0 1px 3px rgba(0, 0, 0, 0.08)',
+        cursor: isDragging ? "grabbing" : isEditing ? "text" : "grab",
+        userSelect: isEditing ? "text" : "none",
+        transition: isDragging ? "none" : "box-shadow 0.2s ease",
+        boxShadow:
+          isSelected && !isEditing
+            ? "0 4px 12px rgba(59, 130, 246, 0.15)"
+            : "0 1px 3px rgba(0, 0, 0, 0.08)",
       }}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
@@ -191,17 +190,13 @@ export function CanvasElement({ element }: CanvasElementProps) {
   );
 }
 
-function getDefaultTextStyle(type: 'headline' | 'subheading' | 'caption') {
-  return TEXT_STYLES[type];
-}
-
-function getPlaceholder(type: 'headline' | 'subheading' | 'caption') {
+function getPlaceholder(type: "headline" | "subheading" | "caption") {
   switch (type) {
-    case 'headline':
-      return 'Double-click to edit headline';
-    case 'subheading':
-      return 'Double-click to edit subheading';
-    case 'caption':
-      return 'Double-click to edit caption';
+    case "headline":
+      return "Double-click to edit headline";
+    case "subheading":
+      return "Double-click to edit subheading";
+    case "caption":
+      return "Double-click to edit caption";
   }
 }

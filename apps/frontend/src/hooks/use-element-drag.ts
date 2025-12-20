@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SerializedElement } from '@/lib/api';
-import { useElementsStore } from '@/stores/elements-store';
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SerializedElement } from "@/lib/api";
+import { useElementsStore } from "@/stores/elements-store";
+import { CANVAS } from "@gazette/shared";
 
 interface DragState {
   isDragging: boolean;
@@ -17,7 +18,12 @@ interface UseElementDragOptions {
   disabled?: boolean;
 }
 
-export function useElementDrag({ element, onDragStart, onDragEnd, disabled }: UseElementDragOptions) {
+export function useElementDrag({
+  element,
+  onDragStart,
+  onDragEnd,
+  disabled,
+}: UseElementDragOptions) {
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false,
     startX: 0,
@@ -41,8 +47,8 @@ export function useElementDrag({ element, onDragStart, onDragEnd, disabled }: Us
 
       e.stopPropagation();
 
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
       setDragState({
         isDragging: true,
@@ -63,8 +69,8 @@ export function useElementDrag({ element, onDragStart, onDragEnd, disabled }: Us
     const handleMove = (e: MouseEvent | TouchEvent) => {
       e.preventDefault();
 
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
       const state = dragStateRef.current;
       const deltaX = clientX - state.startX;
@@ -73,9 +79,9 @@ export function useElementDrag({ element, onDragStart, onDragEnd, disabled }: Us
       const newX = state.startElementX + deltaX;
       const newY = state.startElementY + deltaY;
 
-      // Constrain to gazette page bounds (800x1100)
-      const constrainedX = Math.max(0, Math.min(800 - element.position.width, newX));
-      const constrainedY = Math.max(0, Math.min(1100 - element.position.height, newY));
+      // Constrain to gazette page bounds
+      const constrainedX = Math.max(0, Math.min(CANVAS.WIDTH - element.position.width, newX));
+      const constrainedY = Math.max(0, Math.min(CANVAS.HEIGHT - element.position.height, newY));
 
       // Update local state immediately for smooth dragging
       updateElementLocal(element.id, {
@@ -104,7 +110,7 @@ export function useElementDrag({ element, onDragStart, onDragEnd, disabled }: Us
             position: finalElement.position,
           });
         } catch (error) {
-          console.error('Failed to update element position:', error);
+          console.error("Failed to update element position:", error);
         }
       }
 
@@ -112,18 +118,26 @@ export function useElementDrag({ element, onDragStart, onDragEnd, disabled }: Us
     };
 
     // Add event listeners
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleEnd);
-    document.addEventListener('touchmove', handleMove, { passive: false });
-    document.addEventListener('touchend', handleEnd);
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleEnd);
+    document.addEventListener("touchmove", handleMove, { passive: false });
+    document.addEventListener("touchend", handleEnd);
 
     return () => {
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleEnd);
-      document.removeEventListener('touchmove', handleMove);
-      document.removeEventListener('touchend', handleEnd);
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("mouseup", handleEnd);
+      document.removeEventListener("touchmove", handleMove);
+      document.removeEventListener("touchend", handleEnd);
     };
-  }, [dragState.isDragging, element.id, element.position.width, element.position.height, updateElementLocal, updateElement, onDragEnd]);
+  }, [
+    dragState.isDragging,
+    element.id,
+    element.position.width,
+    element.position.height,
+    updateElementLocal,
+    updateElement,
+    onDragEnd,
+  ]);
 
   return {
     isDragging: dragState.isDragging,

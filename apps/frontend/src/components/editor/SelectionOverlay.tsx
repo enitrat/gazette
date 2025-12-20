@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SerializedElement } from '@/lib/api';
-import { useElementsStore } from '@/stores/elements-store';
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SerializedElement } from "@/lib/api";
+import { useElementsStore } from "@/stores/elements-store";
+import { CANVAS } from "@gazette/shared";
 
-type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 interface SelectionOverlayProps {
   element: SerializedElement;
@@ -43,8 +44,8 @@ export function SelectionOverlay({ element }: SelectionOverlayProps) {
     (handle: ResizeHandle) => (e: React.MouseEvent | React.TouchEvent) => {
       e.stopPropagation();
 
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
       setResizeState({
         isResizing: true,
@@ -66,8 +67,8 @@ export function SelectionOverlay({ element }: SelectionOverlayProps) {
     const handleMove = (e: MouseEvent | TouchEvent) => {
       e.preventDefault();
 
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
 
       const state = resizeStateRef.current;
       const deltaX = clientX - state.startX;
@@ -80,35 +81,35 @@ export function SelectionOverlay({ element }: SelectionOverlayProps) {
 
       // Calculate new dimensions based on handle
       switch (state.handle) {
-        case 'e':
+        case "e":
           newWidth = Math.max(50, state.startWidth + deltaX);
           break;
-        case 'w':
+        case "w":
           newWidth = Math.max(50, state.startWidth - deltaX);
           newX = state.startLeft + (state.startWidth - newWidth);
           break;
-        case 's':
+        case "s":
           newHeight = Math.max(30, state.startHeight + deltaY);
           break;
-        case 'n':
+        case "n":
           newHeight = Math.max(30, state.startHeight - deltaY);
           newY = state.startTop + (state.startHeight - newHeight);
           break;
-        case 'se':
+        case "se":
           newWidth = Math.max(50, state.startWidth + deltaX);
           newHeight = Math.max(30, state.startHeight + deltaY);
           break;
-        case 'sw':
+        case "sw":
           newWidth = Math.max(50, state.startWidth - deltaX);
           newHeight = Math.max(30, state.startHeight + deltaY);
           newX = state.startLeft + (state.startWidth - newWidth);
           break;
-        case 'ne':
+        case "ne":
           newWidth = Math.max(50, state.startWidth + deltaX);
           newHeight = Math.max(30, state.startHeight - deltaY);
           newY = state.startTop + (state.startHeight - newHeight);
           break;
-        case 'nw':
+        case "nw":
           newWidth = Math.max(50, state.startWidth - deltaX);
           newHeight = Math.max(30, state.startHeight - deltaY);
           newX = state.startLeft + (state.startWidth - newWidth);
@@ -117,8 +118,8 @@ export function SelectionOverlay({ element }: SelectionOverlayProps) {
       }
 
       // Constrain to gazette bounds
-      newX = Math.max(0, Math.min(800 - newWidth, newX));
-      newY = Math.max(0, Math.min(1100 - newHeight, newY));
+      newX = Math.max(0, Math.min(CANVAS.WIDTH - newWidth, newX));
+      newY = Math.max(0, Math.min(CANVAS.HEIGHT - newHeight, newY));
 
       updateElementLocal(element.id, {
         position: {
@@ -144,21 +145,21 @@ export function SelectionOverlay({ element }: SelectionOverlayProps) {
             position: finalElement.position,
           });
         } catch (error) {
-          console.error('Failed to update element size:', error);
+          console.error("Failed to update element size:", error);
         }
       }
     };
 
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleEnd);
-    document.addEventListener('touchmove', handleMove, { passive: false });
-    document.addEventListener('touchend', handleEnd);
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleEnd);
+    document.addEventListener("touchmove", handleMove, { passive: false });
+    document.addEventListener("touchend", handleEnd);
 
     return () => {
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleEnd);
-      document.removeEventListener('touchmove', handleMove);
-      document.removeEventListener('touchend', handleEnd);
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("mouseup", handleEnd);
+      document.removeEventListener("touchmove", handleMove);
+      document.removeEventListener("touchend", handleEnd);
     };
   }, [resizeState.isResizing, element.id, updateElementLocal, updateElement]);
 
@@ -169,111 +170,175 @@ export function SelectionOverlay({ element }: SelectionOverlayProps) {
   const touchTargetOffset = (touchTargetSize - visualSize) / 2;
 
   const handleStyle = {
-    position: 'absolute' as const,
+    position: "absolute" as const,
     width: `${visualSize}px`,
     height: `${visualSize}px`,
-    backgroundColor: '#3b82f6',
-    border: '2px solid white',
-    borderRadius: '50%',
-    cursor: 'pointer',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-    transition: 'transform 0.15s ease',
-    touchAction: 'none',
+    backgroundColor: "#3b82f6",
+    border: "2px solid white",
+    borderRadius: "50%",
+    cursor: "pointer",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+    transition: "transform 0.15s ease",
+    touchAction: "none",
   };
 
   // Invisible larger touch target
   const touchTargetStyle = {
-    position: 'absolute' as const,
+    position: "absolute" as const,
     width: `${touchTargetSize}px`,
     height: `${touchTargetSize}px`,
     left: `${-touchTargetOffset}px`,
     top: `${-touchTargetOffset}px`,
-    pointerEvents: 'auto' as const,
+    pointerEvents: "auto" as const,
   };
 
   const handleHoverStyle = {
-    transform: 'scale(1.15)',
+    transform: "scale(1.15)",
   };
 
   return (
     <div
       style={{
-        position: 'absolute',
+        position: "absolute",
         left: -2,
         top: -2,
         width: element.position.width + 4,
         height: element.position.height + 4,
-        border: '2px solid #3b82f6',
-        pointerEvents: 'none',
-        borderRadius: '2px',
-        boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.2)',
+        border: "2px solid #3b82f6",
+        pointerEvents: "none",
+        borderRadius: "2px",
+        boxShadow: "0 0 0 1px rgba(59, 130, 246, 0.2)",
       }}
     >
       {/* Corner handles with larger touch targets */}
-      <div style={{ position: 'absolute', left: -8, top: -8, cursor: 'nw-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('nw')} onTouchStart={handleResizeStart('nw')} />
+      <div style={{ position: "absolute", left: -8, top: -8, cursor: "nw-resize" }}>
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("nw")}
+          onTouchStart={handleResizeStart("nw")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
-      <div style={{ position: 'absolute', right: -8, top: -8, cursor: 'ne-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('ne')} onTouchStart={handleResizeStart('ne')} />
+      <div style={{ position: "absolute", right: -8, top: -8, cursor: "ne-resize" }}>
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("ne")}
+          onTouchStart={handleResizeStart("ne")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
-      <div style={{ position: 'absolute', right: -8, bottom: -8, cursor: 'se-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('se')} onTouchStart={handleResizeStart('se')} />
+      <div style={{ position: "absolute", right: -8, bottom: -8, cursor: "se-resize" }}>
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("se")}
+          onTouchStart={handleResizeStart("se")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
-      <div style={{ position: 'absolute', left: -8, bottom: -8, cursor: 'sw-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('sw')} onTouchStart={handleResizeStart('sw')} />
+      <div style={{ position: "absolute", left: -8, bottom: -8, cursor: "sw-resize" }}>
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("sw")}
+          onTouchStart={handleResizeStart("sw")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
 
       {/* Edge handles with larger touch targets */}
-      <div style={{ position: 'absolute', left: '50%', top: -8, transform: 'translateX(-50%)', cursor: 'n-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('n')} onTouchStart={handleResizeStart('n')} />
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: -8,
+          transform: "translateX(-50%)",
+          cursor: "n-resize",
+        }}
+      >
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("n")}
+          onTouchStart={handleResizeStart("n")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
-      <div style={{ position: 'absolute', right: -8, top: '50%', transform: 'translateY(-50%)', cursor: 'e-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('e')} onTouchStart={handleResizeStart('e')} />
+      <div
+        style={{
+          position: "absolute",
+          right: -8,
+          top: "50%",
+          transform: "translateY(-50%)",
+          cursor: "e-resize",
+        }}
+      >
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("e")}
+          onTouchStart={handleResizeStart("e")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
-      <div style={{ position: 'absolute', left: '50%', bottom: -8, transform: 'translateX(-50%)', cursor: 's-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('s')} onTouchStart={handleResizeStart('s')} />
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          bottom: -8,
+          transform: "translateX(-50%)",
+          cursor: "s-resize",
+        }}
+      >
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("s")}
+          onTouchStart={handleResizeStart("s")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
-      <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', cursor: 'w-resize' }}>
-        <div style={touchTargetStyle} onMouseDown={handleResizeStart('w')} onTouchStart={handleResizeStart('w')} />
+      <div
+        style={{
+          position: "absolute",
+          left: -8,
+          top: "50%",
+          transform: "translateY(-50%)",
+          cursor: "w-resize",
+        }}
+      >
         <div
-          style={{ ...handleStyle, position: 'relative', pointerEvents: 'none' }}
+          style={touchTargetStyle}
+          onMouseDown={handleResizeStart("w")}
+          onTouchStart={handleResizeStart("w")}
+        />
+        <div
+          style={{ ...handleStyle, position: "relative", pointerEvents: "none" }}
           onMouseEnter={(e) => Object.assign(e.currentTarget.style, handleHoverStyle)}
-          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: 'scale(1)' })}
+          onMouseLeave={(e) => Object.assign(e.currentTarget.style, { transform: "scale(1)" })}
         />
       </div>
     </div>
