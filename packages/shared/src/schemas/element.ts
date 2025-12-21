@@ -79,6 +79,9 @@ export const CreateElementSchema = z.discriminatedUnion("type", [
     type: z.literal("image"),
     position: PositionSchema,
     imageId: z.string().uuid().optional(),
+    // Optional video fields for creating elements from existing videos
+    videoUrl: z.string().optional(),
+    videoStatus: VideoStatus.optional(),
   }),
   z.object({
     type: z.enum(["headline", "subheading", "caption"]),

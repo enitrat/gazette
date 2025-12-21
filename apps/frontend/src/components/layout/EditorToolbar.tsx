@@ -7,26 +7,21 @@ import {
   Activity,
   Share2,
   Download,
-  Save
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  Save,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useUIStore } from '@/stores/ui-store';
-import { useElementsStore } from '@/stores/elements-store';
-import { usePagesStore } from '@/stores/pages-store';
-import { useState } from 'react';
+} from "@/components/ui/dropdown-menu";
+import { useUIStore } from "@/stores/ui-store";
+import { useElementsStore } from "@/stores/elements-store";
+import { usePagesStore } from "@/stores/pages-store";
+import { useState } from "react";
 
 export function EditorToolbar() {
   const openDialog = useUIStore((state) => state.openDialog);
@@ -41,14 +36,14 @@ export function EditorToolbar() {
 
     // Create a caption element at the center of the canvas
     await createElement(currentPageId, {
-      type: 'caption',
+      type: "caption",
       position: {
         x: 400,
         y: 300,
         width: 300,
         height: 100,
       },
-      content: 'Cliquez pour modifier',
+      content: "Cliquez pour modifier",
     });
   };
 
@@ -60,23 +55,24 @@ export function EditorToolbar() {
   const handleSave = async () => {
     setIsSaving(true);
     // Simulate save - in real implementation, this would trigger a save operation
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, 800));
     setIsSaving(false);
   };
 
   const handleExport = () => {
-    openDialog('export');
+    openDialog("export");
   };
 
   return (
     <TooltipProvider delayDuration={300}>
       <div className="toolbar-wrapper relative border-b border-[#8b7355]/20 bg-gradient-to-b from-[#f5ebe0] to-[#f0e6d7] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5),0_1px_2px_0_rgba(0,0,0,0.05)]">
         {/* Vintage newspaper texture overlay */}
-        <div className="pointer-events-none absolute inset-0 opacity-[0.015] mix-blend-multiply"
-             style={{
-               backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-               backgroundSize: '200px 200px'
-             }}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.015] mix-blend-multiply"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+            backgroundSize: "200px 200px",
+          }}
         />
 
         {/* Decorative top border line - vintage press bar effect */}
@@ -90,7 +86,7 @@ export function EditorToolbar() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openDialog('template')}
+                  onClick={() => openDialog("template")}
                   className="toolbar-button group relative h-8 border-[#8b7355]/30 bg-white/60 font-serif text-xs font-medium text-[#2C2416] shadow-sm backdrop-blur-sm transition-all hover:border-[#8b7355]/50 hover:bg-white hover:shadow-md hover:-translate-y-0.5"
                 >
                   <Plus className="mr-1.5 h-3.5 w-3.5 transition-transform group-hover:rotate-90" />
@@ -99,7 +95,10 @@ export function EditorToolbar() {
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#8b7355] opacity-40" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
                 <p>Add Page</p>
               </TooltipContent>
             </Tooltip>
@@ -109,16 +108,19 @@ export function EditorToolbar() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openDialog('upload')}
+                  onClick={() => openDialog("upload")}
                   className="toolbar-button group relative h-8 border-[#8b7355]/30 bg-white/60 font-serif text-xs font-medium text-[#2C2416] shadow-sm backdrop-blur-sm transition-all hover:border-[#8b7355]/50 hover:bg-white hover:shadow-md hover:-translate-y-0.5"
                 >
                   <ImageIcon className="mr-1.5 h-3.5 w-3.5 transition-transform group-hover:scale-110" />
-                  <span className="tracking-wide">Image</span>
+                  <span className="tracking-wide">Media</span>
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#8b7355] opacity-40" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
-                <p>Add Image</p>
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
+                <p>Add Media</p>
               </TooltipContent>
             </Tooltip>
 
@@ -136,13 +138,19 @@ export function EditorToolbar() {
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#8b7355] opacity-40" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
                 <p>Add Text</p>
               </TooltipContent>
             </Tooltip>
           </div>
 
-          <Separator orientation="vertical" className="mx-2 h-6 bg-gradient-to-b from-transparent via-[#8b7355]/30 to-transparent" />
+          <Separator
+            orientation="vertical"
+            className="mx-2 h-6 bg-gradient-to-b from-transparent via-[#8b7355]/30 to-transparent"
+          />
 
           {/* Edit Group */}
           <div className="flex items-center gap-1">
@@ -160,13 +168,19 @@ export function EditorToolbar() {
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#f5ebe0] opacity-60" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
                 <p>Delete Selected</p>
               </TooltipContent>
             </Tooltip>
           </div>
 
-          <Separator orientation="vertical" className="mx-2 h-6 bg-gradient-to-b from-transparent via-[#8b7355]/30 to-transparent" />
+          <Separator
+            orientation="vertical"
+            className="mx-2 h-6 bg-gradient-to-b from-transparent via-[#8b7355]/30 to-transparent"
+          />
 
           {/* Generation Group */}
           <div className="flex items-center gap-1">
@@ -175,7 +189,7 @@ export function EditorToolbar() {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => openDialog('generation')}
+                  onClick={() => openDialog("generation")}
                   className="toolbar-button group relative h-8 border border-[#C9A227]/40 bg-gradient-to-b from-[#d4af37] to-[#C9A227] font-serif text-xs font-medium text-[#2C2416] shadow-sm transition-all hover:border-[#C9A227]/60 hover:from-[#e0bb3e] hover:to-[#d4af37] hover:shadow-md hover:-translate-y-0.5"
                 >
                   <Sparkles className="mr-1.5 h-3.5 w-3.5 transition-all group-hover:rotate-12 group-hover:scale-110" />
@@ -185,7 +199,10 @@ export function EditorToolbar() {
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#2C2416] opacity-50" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
                 <p>Generate Videos for All Images</p>
               </TooltipContent>
             </Tooltip>
@@ -195,7 +212,7 @@ export function EditorToolbar() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openDialog('progress')}
+                  onClick={() => openDialog("progress")}
                   className="toolbar-button group relative h-8 border-[#8b7355]/30 bg-white/60 font-serif text-xs font-medium text-[#2C2416] shadow-sm backdrop-blur-sm transition-all hover:border-[#8b7355]/50 hover:bg-white hover:shadow-md hover:-translate-y-0.5"
                 >
                   <Activity className="mr-1.5 h-3.5 w-3.5 transition-transform group-hover:scale-110" />
@@ -203,13 +220,19 @@ export function EditorToolbar() {
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#8b7355] opacity-40" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
                 <p>View Generation Progress</p>
               </TooltipContent>
             </Tooltip>
           </div>
 
-          <Separator orientation="vertical" className="mx-2 h-6 bg-gradient-to-b from-transparent via-[#8b7355]/30 to-transparent" />
+          <Separator
+            orientation="vertical"
+            className="mx-2 h-6 bg-gradient-to-b from-transparent via-[#8b7355]/30 to-transparent"
+          />
 
           {/* Share/Export Group */}
           <div className="flex items-center gap-1">
@@ -218,7 +241,7 @@ export function EditorToolbar() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openDialog('share')}
+                  onClick={() => openDialog("share")}
                   className="toolbar-button group relative h-8 border-[#8b7355]/30 bg-white/60 font-serif text-xs font-medium text-[#2C2416] shadow-sm backdrop-blur-sm transition-all hover:border-[#8b7355]/50 hover:bg-white hover:shadow-md hover:-translate-y-0.5"
                 >
                   <Share2 className="mr-1.5 h-3.5 w-3.5 transition-transform group-hover:scale-110" />
@@ -226,7 +249,10 @@ export function EditorToolbar() {
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#8b7355] opacity-40" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
                 <p>Share Project</p>
               </TooltipContent>
             </Tooltip>
@@ -246,7 +272,10 @@ export function EditorToolbar() {
                     </Button>
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+                <TooltipContent
+                  side="bottom"
+                  className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+                >
                   <p>Export Options</p>
                 </TooltipContent>
               </Tooltip>
@@ -279,13 +308,18 @@ export function EditorToolbar() {
                   disabled={isSaving}
                   className="toolbar-button group relative h-8 border border-[#C9A227]/40 bg-gradient-to-b from-[#d4af37] to-[#C9A227] font-serif text-xs font-medium text-[#2C2416] shadow-sm transition-all hover:border-[#C9A227]/60 hover:from-[#e0bb3e] hover:to-[#d4af37] hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50"
                 >
-                  <Save className={`mr-1.5 h-3.5 w-3.5 transition-transform ${isSaving ? 'animate-pulse' : 'group-hover:scale-110'}`} />
-                  <span className="tracking-wide">{isSaving ? 'Saving...' : 'Save'}</span>
+                  <Save
+                    className={`mr-1.5 h-3.5 w-3.5 transition-transform ${isSaving ? "animate-pulse" : "group-hover:scale-110"}`}
+                  />
+                  <span className="tracking-wide">{isSaving ? "Saving..." : "Save"}</span>
                   <div className="absolute inset-0 rounded-md bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                   <div className="absolute -bottom-1 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-[#2C2416] opacity-50" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]">
+              <TooltipContent
+                side="bottom"
+                className="border-[#8b7355]/30 bg-[#f5ebe0] text-xs font-serif text-[#2C2416]"
+              >
                 <p>Save Changes</p>
               </TooltipContent>
             </Tooltip>

@@ -1,11 +1,12 @@
 import { Hono } from "hono";
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { Buffer } from "node:buffer";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { AuthErrors, requireAuth } from "../../auth";
 import { db } from "../../db";
-import { elements, generationJobs, pages } from "../../db/schema";
+import { elements, generationJobs, pages, videos } from "../../db/schema";
 import {
   ELEMENT_TYPES,
   ERROR_CODES,
@@ -17,6 +18,7 @@ import {
 import { errorResponse } from "../shared/http";
 import { generationQueue } from "../../queue/queue";
 import type { GenerationJobPayload } from "../../queue/jobs/types";
+import { getWanTaskStatus, downloadVideo } from "../../lib/wan-client";
 
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
@@ -106,10 +108,14 @@ export const generationRouter = new Hono();
 
 generationRouter.use("/projects/:id/generate", requireAuth);
 generationRouter.use("/generation/:id", requireAuth);
+generationRouter.use("/generation/:id/retry", requireAuth);
 generationRouter.use("/jobs/:id", requireAuth);
 generationRouter.use("/pages/:id/generate", requireAuth);
 generationRouter.use("/projects/:id/generation/status", requireAuth);
-generationRouter.use("/videos/:id/file", requireAuth);
+generationRouter.use("/projects/:id/videos", requireAuth);
+// Note: /videos/:id/file does NOT require auth (like /images/:id/file)
+// because <video> elements can't send Authorization headers.
+// Security is maintained by unpredictable UUID-based file names.
 
 // Start video generation (page)
 
@@ -291,6 +297,7 @@ generationRouter.post("/projects/:id/generate", async (c) => {
     await updateElementVideo(item.elementId, {
       videoStatus: VIDEO_STATUS.PENDING,
       animationPrompt: item.prompt,
+      videoUrl: null,
     });
 
     try {
@@ -378,6 +385,7 @@ generationRouter.get("/projects/:id/generation/status", async (c) => {
     .select({
       id: generationJobs.id,
       elementId: generationJobs.elementId,
+      imageId: generationJobs.imageId,
       status: generationJobs.status,
       progress: generationJobs.progress,
       videoUrl: generationJobs.videoUrl,
@@ -450,27 +458,326 @@ generationRouter.delete("/generation/:id", async (c) => {
   return c.body(null, 204);
 });
 
-// Serve generated video files
+// Retry a failed job
 
-generationRouter.get("/videos/:id/file", async (c) => {
+generationRouter.post("/generation/:id/retry", async (c) => {
   const jobId = c.req.param("id");
   const projectId = c.get("projectId");
 
   const jobAccess = await ensureJobAccess(jobId, projectId);
   if (!jobAccess) {
-    return errorResponse(c, 404, ERROR_CODES.NOT_FOUND, "Video not found");
+    return errorResponse(c, 404, ERROR_CODES.NOT_FOUND, "Generation job not found");
   }
   if (jobAccess === "FORBIDDEN") {
     throw AuthErrors.ACCESS_DENIED();
   }
 
-  const videoPath = join(videoRoot, `${jobId}.mp4`);
-  const file = Bun.file(videoPath);
-  if (!(await file.exists())) {
-    return errorResponse(c, 404, ERROR_CODES.NOT_FOUND, "Video file not found");
+  if (jobAccess.status !== JOB_STATUS.FAILED) {
+    return errorResponse(c, 400, ERROR_CODES.INVALID_INPUT, "Only failed jobs can be retried");
   }
 
-  return c.body(file.stream(), 200, {
-    "Content-Type": "video/mp4",
+  // If we have a WAN task ID, check if the external task actually succeeded
+  // (it may have been marked failed locally due to timeout but succeeded externally)
+  if (jobAccess.wanTaskId) {
+    try {
+      const externalStatus = await getWanTaskStatus(jobAccess.wanTaskId);
+
+      if (externalStatus.status === "SUCCEEDED" && externalStatus.videoUrl) {
+        // The task actually succeeded! Recover the video instead of retrying
+        const videoFilename = `${jobId}.mp4`;
+        const filePath = join(videoRoot, videoFilename);
+
+        await downloadVideo(externalStatus.videoUrl, filePath);
+
+        // Update the job as complete
+        updateJob(jobId, {
+          status: JOB_STATUS.COMPLETE,
+          progress: 100,
+          videoUrl: `/api/videos/${jobId}/file`,
+          error: null,
+        });
+
+        // Update the element
+        await updateElementVideo(jobAccess.elementId, {
+          videoStatus: VIDEO_STATUS.COMPLETE,
+          videoUrl: `/api/videos/${jobId}/file`,
+        });
+
+        // Create video record if it doesn't exist
+        const existingVideo = db
+          .select()
+          .from(videos)
+          .where(eq(videos.generationJobId, jobId))
+          .get();
+        if (!existingVideo) {
+          db.insert(videos)
+            .values({
+              id: crypto.randomUUID(),
+              projectId,
+              generationJobId: jobId,
+              sourceImageId: jobAccess.imageId,
+              filename: `generated-${jobId}.mp4`,
+              storagePath: `${UPLOAD_DIR}/${VIDEO_SUBDIR}/${videoFilename}`,
+              mimeType: "video/mp4",
+            })
+            .run();
+        }
+
+        return c.json(
+          {
+            id: jobId,
+            elementId: jobAccess.elementId,
+            status: JOB_STATUS.COMPLETE,
+            recovered: true,
+            message: "Video recovered from external API - generation had actually succeeded",
+          },
+          200
+        );
+      }
+
+      // If still pending/running externally, don't create a duplicate
+      if (externalStatus.status === "PENDING" || externalStatus.status === "RUNNING") {
+        return c.json(
+          {
+            id: jobId,
+            elementId: jobAccess.elementId,
+            status: JOB_STATUS.PROCESSING,
+            message: "External task is still processing - please wait",
+          },
+          200
+        );
+      }
+    } catch {
+      // External check failed - proceed with creating a new job
+    }
+  }
+
+  const now = sql`(unixepoch())`;
+  const newJobId = crypto.randomUUID();
+
+  // Create a new job based on the failed one
+  db.insert(generationJobs)
+    .values({
+      id: newJobId,
+      elementId: jobAccess.elementId,
+      imageId: jobAccess.imageId,
+      prompt: jobAccess.prompt,
+      status: JOB_STATUS.QUEUED,
+      progress: 0,
+      metadata: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
+
+  await updateElementVideo(jobAccess.elementId, {
+    videoStatus: VIDEO_STATUS.PENDING,
+    videoUrl: null,
   });
+
+  try {
+    await enqueueGenerationJob({
+      type: "generate-video",
+      jobId: newJobId,
+      projectId,
+      elementId: jobAccess.elementId,
+      imageId: jobAccess.imageId,
+      promptOverride: jobAccess.prompt || null,
+    });
+
+    // Delete the old failed job now that the new one is queued
+    db.delete(generationJobs).where(eq(generationJobs.id, jobId)).run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to enqueue generation job";
+    await updateJob(newJobId, {
+      status: JOB_STATUS.FAILED,
+      progress: 0,
+      error: message,
+    });
+    await updateElementVideo(jobAccess.elementId, { videoStatus: VIDEO_STATUS.FAILED });
+  }
+
+  return c.json(
+    {
+      id: newJobId,
+      elementId: jobAccess.elementId,
+      status: JOB_STATUS.QUEUED,
+      retriedFrom: jobId,
+    },
+    201
+  );
+});
+
+// Serve video files (no auth - UUID provides security through obscurity)
+// Handles both generated videos (by job ID) and uploaded videos (by video ID)
+
+generationRouter.get("/videos/:id/file", async (c) => {
+  const id = c.req.param("id");
+
+  // Validate ID format (UUID) to prevent path traversal
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(id)) {
+    return errorResponse(c, 400, ERROR_CODES.INVALID_INPUT, "Invalid video ID format");
+  }
+
+  // First try as job ID (generated video - stored as {jobId}.mp4)
+  const generatedVideoPath = join(videoRoot, `${id}.mp4`);
+  const generatedFile = Bun.file(generatedVideoPath);
+  if (await generatedFile.exists()) {
+    return c.body(generatedFile.stream(), 200, {
+      "Content-Type": "video/mp4",
+    });
+  }
+
+  // Then try as video ID (uploaded video - look up in database)
+  const video = db.select().from(videos).where(eq(videos.id, id)).get();
+  if (video) {
+    const normalizedPath = video.storagePath.startsWith("/")
+      ? video.storagePath.slice(1)
+      : video.storagePath;
+    const uploadedFilePath = join(appRoot, normalizedPath);
+    const uploadedFile = Bun.file(uploadedFilePath);
+
+    if (await uploadedFile.exists()) {
+      return c.body(uploadedFile.stream(), 200, {
+        "Content-Type": video.mimeType,
+      });
+    }
+  }
+
+  return errorResponse(c, 404, ERROR_CODES.NOT_FOUND, "Video file not found");
+});
+
+// List all videos in a project (for media library)
+
+generationRouter.get("/projects/:id/videos", async (c) => {
+  const projectId = c.req.param("id");
+  const authProjectId = c.get("projectId");
+
+  if (projectId !== authProjectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const projectVideos = db
+    .select()
+    .from(videos)
+    .where(eq(videos.projectId, projectId))
+    .orderBy(desc(videos.createdAt))
+    .all();
+
+  return c.json({
+    videos: projectVideos.map((video) => ({
+      id: video.id,
+      projectId: video.projectId,
+      generationJobId: video.generationJobId,
+      sourceImageId: video.sourceImageId,
+      filename: video.filename,
+      storagePath: video.storagePath,
+      mimeType: video.mimeType,
+      width: video.width,
+      height: video.height,
+      durationSeconds: video.durationSeconds,
+      fileSize: video.fileSize,
+      createdAt:
+        video.createdAt instanceof Date
+          ? video.createdAt.toISOString()
+          : new Date((video.createdAt as number) * 1000).toISOString(),
+      // URL for playback - uses video ID for uploaded videos, or job ID for generated ones
+      url: `/api/videos/${video.generationJobId || video.id}/file`,
+    })),
+  });
+});
+
+// Upload a video file
+
+const MAX_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
+const ALLOWED_VIDEO_MIME_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+
+generationRouter.post("/projects/:id/videos", async (c) => {
+  const projectId = c.req.param("id");
+  const authProjectId = c.get("projectId");
+
+  if (projectId !== authProjectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const contentType = c.req.header("content-type") ?? "";
+  if (!contentType.includes("multipart/form-data")) {
+    return errorResponse(
+      c,
+      415,
+      ERROR_CODES.INVALID_INPUT,
+      "Content-Type must be multipart/form-data"
+    );
+  }
+
+  const body = await c.req.parseBody();
+  const file = body.video || body.file || body.upload;
+
+  if (!file || !(file instanceof File)) {
+    return errorResponse(c, 400, ERROR_CODES.VALIDATION_ERROR, "No video file provided");
+  }
+
+  if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+    return errorResponse(c, 413, ERROR_CODES.VALIDATION_ERROR, "File too large (max 100MB)");
+  }
+
+  // Check mime type
+  const mimeType = file.type || "video/mp4";
+  if (!ALLOWED_VIDEO_MIME_TYPES.has(mimeType)) {
+    return errorResponse(
+      c,
+      400,
+      ERROR_CODES.VALIDATION_ERROR,
+      "Invalid file type (only MP4, WebM, MOV allowed)"
+    );
+  }
+
+  const videoId = crypto.randomUUID();
+  const originalFilename = file.name || "upload.mp4";
+  const extension =
+    mimeType === "video/webm" ? ".webm" : mimeType === "video/quicktime" ? ".mov" : ".mp4";
+  const filename = `${videoId}${extension}`;
+  const storagePath = `${UPLOAD_DIR}/${VIDEO_SUBDIR}/${filename}`;
+  const filePath = join(videoRoot, filename);
+
+  // Write the file
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await Bun.write(filePath, buffer);
+
+  // Get file size
+  let fileSize: number | null = null;
+  try {
+    const stats = await stat(filePath);
+    fileSize = stats.size;
+  } catch {
+    // Ignore - fileSize will be null
+  }
+
+  // Insert video record
+  db.insert(videos)
+    .values({
+      id: videoId,
+      projectId,
+      generationJobId: null,
+      sourceImageId: null,
+      filename: originalFilename,
+      storagePath,
+      mimeType,
+      fileSize,
+    })
+    .run();
+
+  return c.json(
+    {
+      id: videoId,
+      projectId,
+      filename: originalFilename,
+      mimeType,
+      fileSize,
+      url: `/api/videos/${videoId}/file`,
+      createdAt: new Date().toISOString(),
+    },
+    201
+  );
 });

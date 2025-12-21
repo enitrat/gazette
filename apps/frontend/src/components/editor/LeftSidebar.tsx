@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -6,27 +6,27 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-} from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { useMemo } from 'react';
-import { useShallow } from 'zustand/shallow';
-import { Plus, Newspaper, Image as ImageIcon, FileText } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { usePagesStore } from '@/stores/pages-store';
-import { useElementsStore } from '@/stores/elements-store';
-import { useAuthStore } from '@/stores/auth-store';
-import { useUIStore } from '@/stores/ui-store';
-import { PageCard } from './PageCard';
-import { ContentLibrary } from './ContentLibrary';
+} from "@dnd-kit/sortable";
+import { useMemo } from "react";
+import { useShallow } from "zustand/shallow";
+import { Plus, Newspaper, Image as ImageIcon, FileText } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { usePagesStore } from "@/stores/pages-store";
+import { useElementsStore } from "@/stores/elements-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { useUIStore } from "@/stores/ui-store";
+import { PageCard } from "./PageCard";
+import { ContentLibrary } from "./ContentLibrary";
 
 export function LeftSidebar() {
   const project = useAuthStore((state) => state.project);
@@ -51,7 +51,6 @@ export function LeftSidebar() {
     if (project?.id) {
       fetchPages(project.id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
   // Auto-select first page if none is selected and pages exist
@@ -101,7 +100,7 @@ export function LeftSidebar() {
 
   const handleAddPage = () => {
     // Open the template dialog to let user choose a template
-    openDialog('template');
+    openDialog("template");
   };
 
   const handleDuplicatePage = async (pageId: string) => {
@@ -122,11 +121,11 @@ export function LeftSidebar() {
 
   // Calculate stats - use useMemo to avoid infinite loops (see CLAUDE.md)
   const imageElements = useMemo(
-    () => allElements.filter((el) => el.type === 'image'),
+    () => allElements.filter((el) => el.type === "image"),
     [allElements]
   );
   const textElements = useMemo(
-    () => allElements.filter((el) => el.type !== 'image'),
+    () => allElements.filter((el) => el.type !== "image"),
     [allElements]
   );
 
@@ -139,15 +138,11 @@ export function LeftSidebar() {
             <Newspaper className="h-6 w-6 text-sepia" strokeWidth={2} />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="truncate font-masthead text-base font-bold text-ink">
-              La Gazette
-            </h2>
+            <h2 className="truncate font-masthead text-base font-bold text-ink">La Gazette</h2>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1">
                 <FileText className="h-3 w-3 text-muted" />
-                <span className="font-ui text-[10px] text-muted">
-                  {textElements.length} text
-                </span>
+                <span className="font-ui text-[10px] text-muted">{textElements.length} text</span>
               </div>
               <span className="text-sepia/30">·</span>
               <div className="flex items-center gap-1">

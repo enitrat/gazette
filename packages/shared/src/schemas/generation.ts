@@ -22,7 +22,7 @@ export const GenerationJobSchema = z.object({
   prompt: z.string().max(500),
   status: JobStatus,
   progress: z.number().min(0).max(100),
-  videoUrl: z.string().url().nullable(),
+  videoUrl: z.string().nullable(), // Relative path like /api/videos/:id/file
   error: z.string().nullable(),
   metadata: GenerationMetadataSchema.nullable(),
   createdAt: z.date(),
@@ -42,13 +42,15 @@ export const GenerationRequestSchema = z.object({
 });
 
 // Generation job status item (subset of full job)
-export const GenerationJobStatusItemSchema = GenerationJobSchema.pick({
-  id: true,
-  elementId: true,
-  status: true,
-  progress: true,
-  videoUrl: true,
-  error: true,
+// Note: imageId is optional to handle potential edge cases with old data
+export const GenerationJobStatusItemSchema = z.object({
+  id: z.string().uuid(),
+  elementId: z.string().uuid(),
+  imageId: z.string().uuid().optional(),
+  status: JobStatus,
+  progress: z.number().min(0).max(100),
+  videoUrl: z.string().nullable(),
+  error: z.string().nullable(),
 });
 
 // Generation status response

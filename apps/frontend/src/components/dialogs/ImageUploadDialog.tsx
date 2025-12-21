@@ -9,14 +9,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useUIStore } from "@/stores/ui-store";
-import { images } from "@/lib/api";
+import { images, videos } from "@/lib/api";
 import { Upload, FileImage, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useElementsStore } from "@/stores/elements-store";
 import { usePagesStore } from "@/stores/pages-store";
 import { CANVAS } from "@gazette/shared";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
 export function ImageUploadDialog() {
   const { activeDialog, closeDialog, triggerMediaRefresh } = useUIStore();
@@ -33,15 +36,20 @@ export function ImageUploadDialog() {
     async (file: File) => {
       setError(null);
 
+      const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
+      const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+
       // Validate file type
-      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        setError("Please upload a JPEG, PNG, or WebP image");
+      if (!isImage && !isVideo) {
+        setError("Please upload an image (JPEG, PNG, WebP) or video (MP4, WebM, MOV)");
         return;
       }
 
       // Validate file size
-      if (file.size > MAX_FILE_SIZE) {
-        setError("File size must be less than 10MB");
+      const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
+      const maxSizeLabel = isImage ? "10MB" : "100MB";
+      if (file.size > maxSize) {
+        setError(`File size must be less than ${maxSizeLabel}`);
         return;
       }
 
@@ -59,48 +67,56 @@ export function ImageUploadDialog() {
           setUploadProgress((prev) => Math.min(prev + 10, 90));
         }, 200);
 
-        const uploadedImage = await images.upload(currentProject.id, file);
+        if (isImage) {
+          const uploadedImage = await images.upload(currentProject.id, file);
 
-        clearInterval(progressInterval);
-        setUploadProgress(100);
+          clearInterval(progressInterval);
+          setUploadProgress(100);
 
-        // Create image element on canvas at center if we have a current page
-        if (currentPageId) {
-          // Calculate center position and size based on image aspect ratio
-          const canvasWidth = CANVAS.WIDTH;
-          const canvasHeight = CANVAS.HEIGHT;
-          const maxWidth = 600;
-          const maxHeight = 600;
+          // Create image element on canvas at center if we have a current page
+          if (currentPageId) {
+            // Calculate center position and size based on image aspect ratio
+            const canvasWidth = CANVAS.WIDTH;
+            const canvasHeight = CANVAS.HEIGHT;
+            const maxWidth = 600;
+            const maxHeight = 600;
 
-          // Calculate dimensions maintaining aspect ratio
-          let width = uploadedImage.width;
-          let height = uploadedImage.height;
+            // Calculate dimensions maintaining aspect ratio
+            let width = uploadedImage.width;
+            let height = uploadedImage.height;
 
-          if (width > maxWidth || height > maxHeight) {
-            const aspectRatio = width / height;
-            if (width > height) {
-              width = maxWidth;
-              height = maxWidth / aspectRatio;
-            } else {
-              height = maxHeight;
-              width = maxHeight * aspectRatio;
+            if (width > maxWidth || height > maxHeight) {
+              const aspectRatio = width / height;
+              if (width > height) {
+                width = maxWidth;
+                height = maxWidth / aspectRatio;
+              } else {
+                height = maxHeight;
+                width = maxHeight * aspectRatio;
+              }
             }
+
+            // Center the image on the canvas
+            const x = (canvasWidth - width) / 2;
+            const y = (canvasHeight - height) / 2;
+
+            await createElement(currentPageId, {
+              type: "image",
+              position: {
+                x,
+                y,
+                width,
+                height,
+              },
+              imageId: uploadedImage.id,
+            });
           }
+        } else {
+          // Upload video (no element creation on canvas)
+          await videos.upload(currentProject.id, file);
 
-          // Center the image on the canvas
-          const x = (canvasWidth - width) / 2;
-          const y = (canvasHeight - height) / 2;
-
-          await createElement(currentPageId, {
-            type: "image",
-            position: {
-              x,
-              y,
-              width,
-              height,
-            },
-            imageId: uploadedImage.id,
-          });
+          clearInterval(progressInterval);
+          setUploadProgress(100);
         }
 
         // Trigger media library refresh
@@ -171,12 +187,12 @@ export function ImageUploadDialog() {
           <DialogTitle className="text-3xl font-serif text-center text-[#2c2416] tracking-wide border-b-2 border-[#2c2416] pb-3">
             <span className="inline-block relative">
               <Upload className="inline-block w-6 h-6 mr-2 mb-1" />
-              UPLOAD PHOTOGRAPH
+              UPLOAD MEDIA
               <div className="absolute -bottom-1 left-0 right-0 h-px bg-[#d4af37]" />
             </span>
           </DialogTitle>
           <DialogDescription className="text-center text-[#2c2416]/70 text-sm italic font-serif">
-            Add imagery to your editorial masterpiece
+            Add images or videos to your editorial masterpiece
           </DialogDescription>
         </DialogHeader>
 
@@ -209,7 +225,7 @@ export function ImageUploadDialog() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
               onChange={handleFileSelect}
               className="hidden"
               disabled={uploading}
@@ -231,7 +247,7 @@ export function ImageUploadDialog() {
 
               <div className="space-y-2">
                 <p className="text-lg font-serif text-[#2c2416] font-semibold">
-                  {isDragging ? "Release to upload" : "Drop photograph here"}
+                  {isDragging ? "Release to upload" : "Drop media here"}
                 </p>
                 <p className="text-sm text-[#2c2416]/60 font-serif italic">
                   or click to select from archives
@@ -241,7 +257,7 @@ export function ImageUploadDialog() {
               {!uploading && (
                 <div className="pt-2 border-t border-[#2c2416]/20 w-full">
                   <p className="text-xs text-[#2c2416]/50 font-serif">
-                    Accepted formats: JPEG, PNG, WebP • Maximum size: 10MB
+                    Images: JPEG, PNG, WebP (max 10MB) • Videos: MP4, WebM, MOV (max 100MB)
                   </p>
                 </div>
               )}
@@ -252,7 +268,7 @@ export function ImageUploadDialog() {
           {uploading && (
             <div className="space-y-3 animate-in fade-in-50 slide-in-from-bottom-5">
               <div className="flex items-center justify-between text-sm font-serif">
-                <span className="text-[#2c2416]/70">Developing photograph...</span>
+                <span className="text-[#2c2416]/70">Uploading media...</span>
                 <span className="text-[#d4af37] font-semibold">{uploadProgress}%</span>
               </div>
               <Progress

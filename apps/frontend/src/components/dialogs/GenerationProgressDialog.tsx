@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useUIStore } from '@/stores/ui-store';
-import { useAuthStore } from '@/stores/auth-store';
-import { generation } from '@/lib/api';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useUIStore } from "@/stores/ui-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { generation } from "@/lib/api";
 import {
   Video,
   CheckCircle2,
@@ -21,8 +21,9 @@ import {
   Minimize2,
   RefreshCw,
   AlertCircle,
-} from 'lucide-react';
-import type { GenerationJobStatusItem } from '@gazette/shared';
+  RotateCcw,
+} from "lucide-react";
+import type { GenerationJobStatusItem } from "@gazette/shared";
 
 const STATUS_ICONS = {
   complete: <CheckCircle2 className="w-5 h-5 text-[#2e7d32]" />,
@@ -32,61 +33,89 @@ const STATUS_ICONS = {
 };
 
 const STATUS_LABELS = {
-  complete: 'Complete',
-  processing: 'Processing',
-  queued: 'Queued',
-  failed: 'Failed',
+  complete: "Complete",
+  processing: "Processing",
+  queued: "Queued",
+  failed: "Failed",
 };
 
 const STATUS_COLORS = {
-  complete: 'border-[#2e7d32] bg-[#2e7d32]/10',
-  processing: 'border-[#d4af37] bg-[#d4af37]/10 animate-pulse',
-  queued: 'border-[#2c2416]/20 bg-[#2c2416]/5',
-  failed: 'border-[#8b4513] bg-[#8b4513]/10',
+  complete: "border-[#2e7d32] bg-[#2e7d32]/10",
+  processing: "border-[#d4af37] bg-[#d4af37]/10 animate-pulse",
+  queued: "border-[#2c2416]/20 bg-[#2c2416]/5",
+  failed: "border-[#8b4513] bg-[#8b4513]/10",
 };
 
 export function GenerationProgressDialog() {
-  const { activeDialog, closeDialog } = useUIStore();
+  const { activeDialog, closeDialog, triggerMediaRefresh } = useUIStore();
   const { currentProject } = useAuthStore();
   const [jobs, setJobs] = useState<GenerationJobStatusItem[]>([]);
+  const previousJobsRef = useRef<GenerationJobStatusItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [retryingJobs, setRetryingJobs] = useState<Set<string>>(new Set());
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     if (!currentProject) return;
 
     try {
       const projectJobs = await generation.getProjectStatus(currentProject.id);
+      const prev = previousJobsRef.current;
       setJobs(projectJobs);
+      const prevComplete = new Set(
+        prev.filter((job) => job.status === "complete").map((job) => job.id)
+      );
+      const newlyCompleted = projectJobs.some(
+        (job) => job.status === "complete" && !prevComplete.has(job.id)
+      );
+      if (newlyCompleted) {
+        triggerMediaRefresh();
+      }
+      previousJobsRef.current = projectJobs;
       setError(null);
       setLastUpdate(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch generation status');
+      setError(err instanceof Error ? err.message : "Failed to fetch generation status");
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentProject, triggerMediaRefresh]);
+
+  const handleRetry = useCallback(async (jobId: string) => {
+    setRetryingJobs((prev) => new Set(prev).add(jobId));
+    try {
+      await generation.retryJob(jobId);
+      // Refresh jobs list after retry
+      await fetchJobs();
+    } catch (err) {
+      console.error("Failed to retry job:", err);
+    } finally {
+      setRetryingJobs((prev) => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  }, []);
 
   useEffect(() => {
-    if (activeDialog === 'progress' && currentProject) {
+    if (activeDialog === "progress" && currentProject) {
       fetchJobs();
 
       // Auto-refresh every 3 seconds
       const interval = setInterval(fetchJobs, 3000);
       return () => clearInterval(interval);
     }
-  }, [activeDialog, currentProject]);
+  }, [activeDialog, currentProject, fetchJobs]);
 
-  const hasActiveJobs = jobs.some(
-    (job) => job.status === 'processing' || job.status === 'queued'
-  );
+  const hasActiveJobs = jobs.some((job) => job.status === "processing" || job.status === "queued");
 
-  const completedCount = jobs.filter((job) => job.status === 'complete').length;
+  const completedCount = jobs.filter((job) => job.status === "complete").length;
   const totalCount = jobs.length;
 
   return (
-    <Dialog open={activeDialog === 'progress'} onOpenChange={closeDialog}>
+    <Dialog open={activeDialog === "progress"} onOpenChange={closeDialog}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] bg-[#f4f1e8] border-4 border-[#2c2416] shadow-2xl">
         {/* Ornamental corners */}
         <div className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-[#d4af37]" />
@@ -111,7 +140,7 @@ export function GenerationProgressDialog() {
         <div className="flex items-center justify-between py-3 px-4 bg-[#2c2416]/5 border-y-2 border-[#2c2416]/20">
           <div className="flex items-center gap-3">
             <div
-              className={`w-2 h-2 rounded-full ${hasActiveJobs ? 'bg-[#d4af37] animate-pulse' : 'bg-[#2e7d32]'}`}
+              className={`w-2 h-2 rounded-full ${hasActiveJobs ? "bg-[#d4af37] animate-pulse" : "bg-[#2e7d32]"}`}
             />
             <span className="text-sm font-serif font-semibold text-[#2c2416]">
               {completedCount} of {totalCount} completed
@@ -167,15 +196,17 @@ export function GenerationProgressDialog() {
                     ${STATUS_COLORS[job.status]}
                     animate-in fade-in-50 slide-in-from-left-5
                   `}
-                  style={{
-                    animationDelay: `${index * 50}ms`,
-                    backgroundImage:
-                      job.status === 'processing'
-                        ? 'repeating-linear-gradient(45deg, transparent, transparent 8px, #d4af37 8px, #d4af37 9px)'
-                        : 'none',
-                    backgroundSize: '100% 100%, 15px 15px',
-                    backgroundBlendMode: 'multiply',
-                  } as React.CSSProperties}
+                  style={
+                    {
+                      animationDelay: `${index * 50}ms`,
+                      backgroundImage:
+                        job.status === "processing"
+                          ? "repeating-linear-gradient(45deg, transparent, transparent 8px, #d4af37 8px, #d4af37 9px)"
+                          : "none",
+                      backgroundSize: "100% 100%, 15px 15px",
+                      backgroundBlendMode: "multiply",
+                    } as React.CSSProperties
+                  }
                 >
                   <div className="flex items-start gap-3">
                     {/* Status icon */}
@@ -196,23 +227,23 @@ export function GenerationProgressDialog() {
                           className={`
                           text-xs font-serif font-semibold px-2 py-1 rounded-sm border
                           ${
-                            job.status === 'complete'
-                              ? 'border-[#2e7d32] text-[#2e7d32] bg-[#2e7d32]/10'
-                              : job.status === 'failed'
-                                ? 'border-[#8b4513] text-[#8b4513] bg-[#8b4513]/10'
-                                : 'border-[#2c2416]/30 text-[#2c2416]/70'
+                            job.status === "complete"
+                              ? "border-[#2e7d32] text-[#2e7d32] bg-[#2e7d32]/10"
+                              : job.status === "failed"
+                                ? "border-[#8b4513] text-[#8b4513] bg-[#8b4513]/10"
+                                : "border-[#2c2416]/30 text-[#2c2416]/70"
                           }
                         `}
                         >
-                          {job.status === 'complete' && '✓'}
-                          {job.status === 'processing' && '⟳'}
-                          {job.status === 'queued' && '◷'}
-                          {job.status === 'failed' && '✗'}
+                          {job.status === "complete" && "✓"}
+                          {job.status === "processing" && "⟳"}
+                          {job.status === "queued" && "◷"}
+                          {job.status === "failed" && "✗"}
                         </span>
                       </div>
 
                       {/* Progress bar for processing jobs */}
-                      {job.status === 'processing' && (
+                      {job.status === "processing" && (
                         <div className="space-y-1.5">
                           <Progress
                             value={job.progress || 0}
@@ -230,14 +261,29 @@ export function GenerationProgressDialog() {
                         </div>
                       )}
 
-                      {/* Error message for failed jobs */}
-                      {job.status === 'failed' && job.error && (
-                        <p className="text-xs font-serif text-[#8b4513] mt-2 italic">
-                          {job.error}
-                        </p>
+                      {/* Error message and retry button for failed jobs */}
+                      {job.status === "failed" && (
+                        <div className="mt-2 flex items-start justify-between gap-2">
+                          {job.error && (
+                            <p className="text-xs font-serif text-[#8b4513] italic flex-1">
+                              {job.error}
+                            </p>
+                          )}
+                          <button
+                            onClick={() => handleRetry(job.id)}
+                            disabled={retryingJobs.has(job.id)}
+                            className="flex items-center gap-1.5 px-2 py-1 text-xs font-serif font-semibold text-[#8b4513] border border-[#8b4513] rounded-sm hover:bg-[#8b4513] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                            title="Retry this job"
+                          >
+                            {retryingJobs.has(job.id) ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <RotateCcw className="w-3 h-3" />
+                            )}
+                            Retry
+                          </button>
+                        </div>
                       )}
-
-                      {/* Note: GenerationJobStatusItem doesn't include updatedAt */}
                     </div>
                   </div>
                 </div>

@@ -89,17 +89,19 @@ const ImageElementResponseSchema = z.object({
 });
 
 // Text style schema for API responses
-const TextStyleResponseSchema = z.object({
-  fontFamily: z.string().optional(),
-  fontSize: z.number().positive().optional(),
-  fontWeight: z.enum(["normal", "bold", "400", "700"]).optional(),
-  fontStyle: z.enum(["normal", "italic"]).optional(),
-  lineHeight: z.number().positive().optional(),
-  letterSpacing: z.number().optional(),
-  color: z.string().optional(),
-  textAlign: z.enum(["left", "center", "right", "justify"]).optional(),
-  textDecoration: z.string().optional(),
-}).nullable();
+const TextStyleResponseSchema = z
+  .object({
+    fontFamily: z.string().optional(),
+    fontSize: z.number().positive().optional(),
+    fontWeight: z.enum(["normal", "bold", "400", "700"]).optional(),
+    fontStyle: z.enum(["normal", "italic"]).optional(),
+    lineHeight: z.number().positive().optional(),
+    letterSpacing: z.number().optional(),
+    color: z.string().optional(),
+    textAlign: z.enum(["left", "center", "right", "justify"]).optional(),
+    textDecoration: z.string().optional(),
+  })
+  .nullable();
 
 // Text element response
 const TextElementResponseSchema = z.object({
@@ -154,6 +156,32 @@ export const SerializedImageSchema = z.object({
 // GET /projects/:id/images
 export const ImagesListResponseSchema = z.object({
   images: z.array(SerializedImageSchema),
+});
+
+// =============================================================================
+// Videos API Responses
+// =============================================================================
+
+// Serialized video for API responses
+export const SerializedVideoSchema = z.object({
+  id: z.string().uuid(),
+  projectId: z.string().uuid(),
+  generationJobId: z.string().uuid().nullable(),
+  sourceImageId: z.string().uuid().nullable(),
+  filename: z.string(),
+  storagePath: z.string(),
+  mimeType: z.string(),
+  width: z.number().int().nonnegative().nullable(),
+  height: z.number().int().nonnegative().nullable(),
+  durationSeconds: z.number().int().nonnegative().nullable(),
+  fileSize: z.number().int().nonnegative().nullable(),
+  createdAt: DateStringSchema,
+  url: z.string(),
+});
+
+// GET /projects/:id/videos
+export const VideosListResponseSchema = z.object({
+  videos: z.array(SerializedVideoSchema),
 });
 
 // =============================================================================
@@ -351,6 +379,9 @@ export type UpdateElementResponse = z.infer<typeof UpdateElementResponseSchema>;
 export type SerializedImage = z.infer<typeof SerializedImageSchema>;
 export type ImagesListResponse = z.infer<typeof ImagesListResponseSchema>;
 
+export type SerializedVideo = z.infer<typeof SerializedVideoSchema>;
+export type VideosListResponse = z.infer<typeof VideosListResponseSchema>;
+
 export type TemplatesListResponse = z.infer<typeof TemplatesListResponseSchema>;
 
 export type StartPageGenerationResponse = z.infer<typeof StartPageGenerationResponseSchema>;
@@ -402,6 +433,11 @@ export function validateUpdateElementResponse(data: unknown) {
 // Images
 export function validateImagesListResponse(data: unknown) {
   return ImagesListResponseSchema.safeParse(data);
+}
+
+// Videos
+export function validateVideosListResponse(data: unknown) {
+  return VideosListResponseSchema.safeParse(data);
 }
 
 // Templates

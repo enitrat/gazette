@@ -1,19 +1,19 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useUIStore } from '@/stores/ui-store';
-import { useAuthStore } from '@/stores/auth-store';
-import { usePagesStore } from '@/stores/pages-store';
-import api, { images } from '@/lib/api';
-import type { SerializedElement } from '@/lib/api';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useUIStore } from "@/stores/ui-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { usePagesStore } from "@/stores/pages-store";
+import api, { images } from "@/lib/api";
+import type { SerializedElement } from "@/lib/api";
 import {
   Sparkles,
   Loader2,
@@ -22,11 +22,11 @@ import {
   FileText,
   Play,
   ChevronRight,
-} from 'lucide-react';
-import { toast } from 'sonner';
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface ImageElementWithPage {
-  element: SerializedElement & { type: 'image' };
+  element: SerializedElement & { type: "image" };
   pageTitle: string;
   pageOrder: number;
 }
@@ -44,7 +44,7 @@ export function GenerationReviewDialog() {
 
   // Fetch all image elements from all pages
   useEffect(() => {
-    if (activeDialog !== 'generation' || !currentProject || pages.length === 0) {
+    if (activeDialog !== "generation" || !currentProject || pages.length === 0) {
       return;
     }
 
@@ -62,7 +62,12 @@ export function GenerationReviewDialog() {
 
           // Filter image elements
           const pageImageElements = elements.filter(
-            (el): el is SerializedElement & { type: 'image' } => el.type === 'image'
+            (el): el is SerializedElement & { type: "image" } => {
+              if (el.type !== "image") return false;
+              if (el.videoStatus === "complete" && el.videoUrl) return false;
+              if (el.videoStatus === "pending" || el.videoStatus === "processing") return false;
+              return true;
+            }
           );
 
           for (const element of pageImageElements) {
@@ -73,7 +78,7 @@ export function GenerationReviewDialog() {
             });
 
             // Initialize prompt from element or empty string
-            initialPrompts[element.id] = element.animationPrompt || '';
+            initialPrompts[element.id] = element.animationPrompt || "";
           }
         }
 
@@ -83,7 +88,7 @@ export function GenerationReviewDialog() {
         setImageElements(allImageElements);
         setPrompts(initialPrompts);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch elements');
+        setError(err instanceof Error ? err.message : "Failed to fetch elements");
       } finally {
         setLoading(false);
       }
@@ -108,8 +113,8 @@ export function GenerationReviewDialog() {
       // First, update all prompts that have been modified
       const updatePromises = imageElements
         .filter((item) => {
-          const currentPrompt = prompts[item.element.id] || '';
-          const originalPrompt = item.element.animationPrompt || '';
+          const currentPrompt = prompts[item.element.id] || "";
+          const originalPrompt = item.element.animationPrompt || "";
           return currentPrompt !== originalPrompt;
         })
         .map((item) =>
@@ -129,16 +134,16 @@ export function GenerationReviewDialog() {
         await api.generation.generatePage(pageId);
       }
 
-      toast.success('Generation started', {
+      toast.success("Generation started", {
         description: `Started generation for ${imageElements.length} image(s)`,
       });
 
       // Close this dialog and open progress dialog
       closeDialog();
-      setTimeout(() => openDialog('progress'), 100);
+      setTimeout(() => openDialog("progress"), 100);
     } catch (err) {
-      toast.error('Failed to start generation', {
-        description: err instanceof Error ? err.message : 'Unknown error',
+      toast.error("Failed to start generation", {
+        description: err instanceof Error ? err.message : "Unknown error",
       });
     } finally {
       setGenerating(false);
@@ -154,7 +159,7 @@ export function GenerationReviewDialog() {
 
   return (
     <Dialog
-      open={activeDialog === 'generation'}
+      open={activeDialog === "generation"}
       onOpenChange={(open) => {
         if (!open) closeDialog();
       }}
@@ -185,7 +190,7 @@ export function GenerationReviewDialog() {
             <div className="flex items-center gap-2">
               <ImageIcon className="w-4 h-4 text-[#2c2416]/60" />
               <span className="text-sm font-serif text-[#2c2416]">
-                {imageElements.length} image{imageElements.length !== 1 ? 's' : ''}
+                {imageElements.length} image{imageElements.length !== 1 ? "s" : ""}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -229,9 +234,7 @@ export function GenerationReviewDialog() {
                   <ImageIcon className="w-8 h-8 text-[#2c2416]/30" />
                 </div>
                 <div>
-                  <p className="text-sm font-serif font-semibold text-[#2c2416]">
-                    No images found
-                  </p>
+                  <p className="text-sm font-serif font-semibold text-[#2c2416]">No images found</p>
                   <p className="text-xs font-serif text-[#2c2416]/60 mt-1">
                     Add images to your pages to generate animated videos
                   </p>
@@ -277,10 +280,8 @@ export function GenerationReviewDialog() {
                           Animation Prompt
                         </label>
                         <Textarea
-                          value={prompts[item.element.id] || ''}
-                          onChange={(e) =>
-                            handlePromptChange(item.element.id, e.target.value)
-                          }
+                          value={prompts[item.element.id] || ""}
+                          onChange={(e) => handlePromptChange(item.element.id, e.target.value)}
                           onKeyDown={(e) => e.stopPropagation()}
                           placeholder="Describe how this image should animate (e.g., 'Gentle camera zoom in with soft wind motion')"
                           className="min-h-[60px] text-sm font-serif bg-white border-[#2c2416]/20 focus:border-[#d4af37] focus:ring-[#d4af37]/20 placeholder:text-[#2c2416]/40 resize-none"
@@ -329,7 +330,7 @@ export function GenerationReviewDialog() {
                 <>
                   <Play className="w-4 h-4 mr-2" />
                   Generate {imageElements.length} Video
-                  {imageElements.length !== 1 ? 's' : ''}
+                  {imageElements.length !== 1 ? "s" : ""}
                 </>
               )}
             </Button>

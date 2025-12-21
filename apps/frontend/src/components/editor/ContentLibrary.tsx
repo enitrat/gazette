@@ -1,27 +1,36 @@
-import { useState, useEffect } from 'react';
-import { useDraggable } from '@dnd-kit/core';
-import { Type, Heading1, Heading2, FileText, Image as ImageIcon, LayoutTemplate } from 'lucide-react';
+import { useState, useEffect, useCallback } from "react";
+import { useDraggable } from "@dnd-kit/core";
+import {
+  Type,
+  Heading1,
+  Heading2,
+  FileText,
+  Image as ImageIcon,
+  LayoutTemplate,
+  Video,
+  Download,
+} from "lucide-react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import api from '@/lib/api';
-import { useUIStore } from '@/stores/ui-store';
-import type { SerializedImage, TemplateDefinition } from '@gazette/shared';
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import api from "@/lib/api";
+import { useUIStore } from "@/stores/ui-store";
+import type { SerializedImage, SerializedVideo, TemplateDefinition } from "@gazette/shared";
 
 interface DraggableItemProps {
   id: string;
-  type: 'element' | 'media' | 'template';
+  type: "element" | "media" | "template";
   data: any;
   children: React.ReactNode;
   className?: string;
 }
 
-function DraggableItem({ id, type, data, children, className = '' }: DraggableItemProps) {
+function DraggableItem({ id, type, data, children, className = "" }: DraggableItemProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { type, ...data },
@@ -34,7 +43,7 @@ function DraggableItem({ id, type, data, children, className = '' }: DraggableIt
       {...attributes}
       className={`
         cursor-grab touch-none transition-all active:cursor-grabbing
-        ${isDragging ? 'opacity-50 scale-95' : 'opacity-100 scale-100'}
+        ${isDragging ? "opacity-50 scale-95" : "opacity-100 scale-100"}
         ${className}
       `}
     >
@@ -45,53 +54,75 @@ function DraggableItem({ id, type, data, children, className = '' }: DraggableIt
 
 export function ContentLibrary({ projectId }: { projectId: string }) {
   const [images, setImages] = useState<SerializedImage[]>([]);
-  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [videos, setVideos] = useState<SerializedVideo[]>([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const mediaRefreshTrigger = useUIStore((state) => state.mediaRefreshTrigger);
 
   useEffect(() => {
-    const fetchImages = async () => {
-      setIsLoadingImages(true);
+    const fetchMedia = async () => {
+      setIsLoadingMedia(true);
+
+      // Fetch images and videos independently so one failure doesn't affect the other
       try {
         const projectImages = await api.images.list(projectId);
         setImages(projectImages);
       } catch (error) {
-        console.error('Failed to fetch images:', error);
+        console.error("Failed to fetch images:", error);
         setImages([]);
-      } finally {
-        setIsLoadingImages(false);
       }
+
+      try {
+        const projectVideos = await api.videos.list(projectId);
+        setVideos(projectVideos);
+      } catch (error) {
+        console.error("Failed to fetch videos:", error);
+        setVideos([]);
+      }
+
+      setIsLoadingMedia(false);
     };
 
-    fetchImages();
+    fetchMedia();
   }, [projectId, mediaRefreshTrigger]);
+
+  const handleDownloadVideo = useCallback((video: SerializedVideo, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const videoUrl = api.videos.getUrl(video.url);
+    const link = document.createElement("a");
+    link.href = videoUrl;
+    link.download = video.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
 
   // Template definitions
   const templates: TemplateDefinition[] = [
     {
-      id: 'full-page',
-      name: 'Full Page',
-      description: 'Single column layout',
+      id: "full-page",
+      name: "Full Page",
+      description: "Single column layout",
       canvas: { width: 816, height: 1056 },
       elements: [],
     },
     {
-      id: 'two-columns',
-      name: 'Two Columns',
-      description: 'Classic newspaper layout',
+      id: "two-columns",
+      name: "Two Columns",
+      description: "Classic newspaper layout",
       canvas: { width: 816, height: 1056 },
       elements: [],
     },
     {
-      id: 'three-grid',
-      name: 'Three Grid',
-      description: 'Multi-column grid',
+      id: "three-grid",
+      name: "Three Grid",
+      description: "Multi-column grid",
       canvas: { width: 816, height: 1056 },
       elements: [],
     },
     {
-      id: 'masthead',
-      name: 'Masthead',
-      description: 'Header with title',
+      id: "masthead",
+      name: "Masthead",
+      description: "Header with title",
       canvas: { width: 816, height: 1056 },
       elements: [],
     },
@@ -100,30 +131,30 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
   // Text element types
   const textElements = [
     {
-      id: 'headline',
-      label: 'Headline',
+      id: "headline",
+      label: "Headline",
       icon: Heading1,
-      description: 'Large title text',
+      description: "Large title text",
       defaultSize: { width: 400, height: 80 },
     },
     {
-      id: 'subheading',
-      label: 'Subheading',
+      id: "subheading",
+      label: "Subheading",
       icon: Heading2,
-      description: 'Secondary heading',
+      description: "Secondary heading",
       defaultSize: { width: 350, height: 60 },
     },
     {
-      id: 'caption',
-      label: 'Caption',
+      id: "caption",
+      label: "Caption",
       icon: Type,
-      description: 'Body text',
+      description: "Body text",
       defaultSize: { width: 300, height: 120 },
     },
   ];
 
   return (
-    <Accordion type="multiple" defaultValue={['elements', 'media', 'templates']} className="w-full">
+    <Accordion type="multiple" defaultValue={["elements", "media", "templates"]} className="w-full">
       {/* Elements Section */}
       <AccordionItem value="elements" className="border-b border-sepia/20">
         <AccordionTrigger className="px-2 py-3 font-headline text-sm font-semibold text-ink hover:bg-parchment/30 hover:no-underline">
@@ -157,15 +188,14 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
 
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-sm bg-sepia/10 transition-colors group-hover:bg-gold/20">
-                    <element.icon className="h-4 w-4 text-sepia group-hover:text-gold" strokeWidth={2} />
+                    <element.icon
+                      className="h-4 w-4 text-sepia group-hover:text-gold"
+                      strokeWidth={2}
+                    />
                   </div>
                   <div className="flex-1">
-                    <p className="font-ui text-xs font-semibold text-ink">
-                      {element.label}
-                    </p>
-                    <p className="font-ui text-[10px] text-muted">
-                      {element.description}
-                    </p>
+                    <p className="font-ui text-xs font-semibold text-ink">{element.label}</p>
+                    <p className="font-ui text-[10px] text-muted">{element.description}</p>
                   </div>
                   <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-sepia/5">
                     <svg
@@ -200,17 +230,17 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
               variant="outline"
               className="ml-auto border-sepia/30 bg-cream/50 text-[10px] font-ui text-sepia"
             >
-              {images.length}
+              {images.length + videos.length}
             </Badge>
           </div>
         </AccordionTrigger>
         <AccordionContent className="px-2 pb-3 pt-2">
-          {isLoadingImages ? (
+          {isLoadingMedia ? (
             <div className="py-8 text-center">
               <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-sepia/20 border-t-gold" />
               <p className="mt-2 font-ui text-xs text-muted">Loading media...</p>
             </div>
-          ) : images.length === 0 ? (
+          ) : images.length === 0 && videos.length === 0 ? (
             <div className="rounded-sm border border-dashed border-sepia/30 bg-cream/20 py-8 text-center">
               <ImageIcon className="mx-auto h-8 w-8 text-sepia/30" strokeWidth={1.5} />
               <p className="mt-2 font-ui text-xs font-medium text-ink">No media yet</p>
@@ -221,6 +251,51 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
           ) : (
             <ScrollArea className="h-64">
               <div className="grid grid-cols-2 gap-2">
+                {/* Videos */}
+                {videos.map((video) => (
+                  <DraggableItem
+                    key={video.id}
+                    id={`video-${video.id}`}
+                    type="media"
+                    data={{
+                      videoId: video.id,
+                      videoUrl: video.url,
+                      sourceImageId: video.sourceImageId,
+                    }}
+                    className="group relative aspect-square overflow-hidden rounded-sm border border-sepia/20 bg-ink/5 hover:border-gold/40 hover:shadow-sm"
+                  >
+                    <video
+                      src={api.videos.getUrl(video.url)}
+                      className="h-full w-full object-cover"
+                      muted
+                      loop
+                      onMouseEnter={(e) => e.currentTarget.play()}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.pause();
+                        e.currentTarget.currentTime = 0;
+                      }}
+                    />
+                    {/* Video badge */}
+                    <div className="absolute left-1 top-1 flex items-center gap-1 rounded-sm bg-ink/70 px-1.5 py-0.5">
+                      <Video className="h-3 w-3 text-white" strokeWidth={2} />
+                      <span className="font-ui text-[9px] font-medium text-white">Video</span>
+                    </div>
+                    {/* Download button */}
+                    <button
+                      onClick={(e) => handleDownloadVideo(video, e)}
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-sm bg-ink/70 opacity-0 transition-opacity hover:bg-gold/80 group-hover:opacity-100"
+                      title="Download video"
+                    >
+                      <Download className="h-3 w-3 text-white" strokeWidth={2} />
+                    </button>
+                    {/* Overlay on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none" />
+                    <p className="absolute bottom-1 left-1 right-8 truncate font-ui text-[9px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      {video.filename}
+                    </p>
+                  </DraggableItem>
+                ))}
+                {/* Images */}
                 {images.map((image) => (
                   <DraggableItem
                     key={image.id}
@@ -281,13 +356,9 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
 
                 {/* Template name overlay */}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 via-ink/40 to-transparent p-2">
-                  <p className="font-ui text-[10px] font-semibold text-white">
-                    {template.name}
-                  </p>
+                  <p className="font-ui text-[10px] font-semibold text-white">{template.name}</p>
                   {template.description && (
-                    <p className="font-ui text-[9px] text-cream/80">
-                      {template.description}
-                    </p>
+                    <p className="font-ui text-[9px] text-cream/80">{template.description}</p>
                   )}
                 </div>
 

@@ -2,6 +2,9 @@ import { GoogleGenAI } from "@google/genai";
 import { VALIDATION } from "@gazette/shared";
 import type { AnimationSuggestion, ImageAnalysisResult } from "@gazette/shared";
 import { randomUUID } from "node:crypto";
+import { createLogger } from "./logger";
+
+const log = createLogger("gemini-client");
 
 const DEFAULT_MODEL = "gemini-3-flash-preview";
 const MAX_RETRIES = 3;
@@ -190,11 +193,14 @@ export async function analyzeImage(params: {
     }
   }
 
-  console.warn("Gemini analysis failed, returning empty suggestions.", {
-    imageId: params.imageId,
-    error: lastError instanceof Error ? lastError.message : lastError,
-    traceId: randomUUID(),
-  });
+  log.warn(
+    {
+      imageId: params.imageId,
+      err: lastError instanceof Error ? lastError.message : lastError,
+      traceId: randomUUID(),
+    },
+    "Gemini analysis failed, returning empty suggestions"
+  );
 
   return toAnalysisResult(params.imageId, { sceneDescription: "", suggestions: [] }, maxCount);
 }

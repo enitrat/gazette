@@ -1,11 +1,8 @@
 import { Hono } from "hono";
-import { unlink } from "node:fs/promises";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { requireAuth } from "../../auth/middleware";
 import { db } from "../../db";
-import { elements, images, pages, type ElementRecord } from "../../db/schema";
+import { elements, pages, type ElementRecord } from "../../db/schema";
 import {
   DEFAULTS,
   ELEMENT_TYPES,
@@ -15,24 +12,7 @@ import {
 } from "@gazette/shared";
 import { errorResponse } from "../shared/http";
 
-const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const MAX_PHOTOS_PER_PAGE = 5;
-
-const safeUnlink = async (filePath: string) => {
-  try {
-    await unlink(filePath);
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code?: string }).code === "ENOENT"
-    ) {
-      return;
-    }
-    throw error;
-  }
-};
 
 const serializeElement = (record: ElementRecord) => {
   const position = {
@@ -209,8 +189,8 @@ elementsRouter.post("/pages/:id/elements", async (c) => {
       cropY: null,
       cropZoom: null,
       animationPrompt: null,
-      videoUrl: null,
-      videoStatus: "none",
+      videoUrl: validation.data.videoUrl ?? null,
+      videoStatus: validation.data.videoStatus ?? "none",
       content: null,
     };
   } else {
@@ -351,28 +331,8 @@ elementsRouter.delete("/elements/:id", async (c) => {
 
   db.delete(elements).where(eq(elements.id, elementId)).run();
 
-  if (existing.imageId) {
-    const usage = db
-      .select({ count: sql<number>`count(*)` })
-      .from(elements)
-      .where(eq(elements.imageId, existing.imageId))
-      .get();
-
-    if ((usage?.count ?? 0) === 0) {
-      const image = db
-        .select()
-        .from(images)
-        .where(and(eq(images.id, existing.imageId), eq(images.projectId, projectId)))
-        .get();
-      if (image) {
-        db.delete(images).where(eq(images.id, existing.imageId)).run();
-        const normalizedPath = image.storagePath.startsWith("/")
-          ? image.storagePath.slice(1)
-          : image.storagePath;
-        await safeUnlink(join(appRoot, normalizedPath));
-      }
-    }
-  }
+  // Note: Do not auto-delete uploaded images when their last element is removed.
+  // Media library should retain all uploads unless explicitly deleted by the user.
 
   return c.body(null, 204);
 });

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './constants';
+import { API_BASE_URL } from "./constants";
 import {
   PagesListResponseSchema,
   CreatePageResponseSchema,
@@ -7,6 +7,7 @@ import {
   CreateElementResponseSchema,
   UpdateElementResponseSchema,
   ImagesListResponseSchema,
+  VideosListResponseSchema,
   TemplatesListResponseSchema,
   StartPageGenerationResponseSchema,
   GenerationJobResponseSchema,
@@ -20,36 +21,49 @@ import {
   type UpdatePageResponse,
   type SerializedElement,
   type SerializedImage,
+  type SerializedVideo,
   type GenerationJobResponse,
   type AccessProjectResponse,
   type GetProjectResponse,
   type ViewProjectResponse,
-} from '@gazette/shared';
-import type { Image, TemplateDefinition } from '@gazette/shared';
+} from "@gazette/shared";
+import type { Image, TemplateDefinition } from "@gazette/shared";
 import {
   apiClient,
   validatedGet,
   validatedPost,
   validatedPut,
   validatedDelete,
-} from './validated-fetch';
+} from "./validated-fetch";
 
 // Re-export types for use in components
 export type { PageListItem, SerializedElement, ViewProjectResponse };
 
 // Simplified Project type for frontend use (without passwordHash)
-export type FrontendProject = Omit<AccessProjectResponse, 'token'>;
+export type FrontendProject = Omit<AccessProjectResponse, "token">;
 
 // Project endpoints
 export const projects = {
-  create: async (name: string, password: string): Promise<{ token: string; project: FrontendProject }> => {
-    const response = await validatedPost('projects', AccessProjectResponseSchema, { name, password });
+  create: async (
+    name: string,
+    password: string
+  ): Promise<{ token: string; project: FrontendProject }> => {
+    const response = await validatedPost("projects", AccessProjectResponseSchema, {
+      name,
+      password,
+    });
     const { token, ...project } = response;
     return { token, project };
   },
 
-  access: async (name: string, password: string): Promise<{ token: string; project: FrontendProject }> => {
-    const response = await validatedPost('projects/access', AccessProjectResponseSchema, { name, password });
+  access: async (
+    name: string,
+    password: string
+  ): Promise<{ token: string; project: FrontendProject }> => {
+    const response = await validatedPost("projects/access", AccessProjectResponseSchema, {
+      name,
+      password,
+    });
     const { token, ...project } = response;
     return { token, project };
   },
@@ -70,7 +84,10 @@ export const pages = {
     return validatedPost(`projects/${projectId}/pages`, CreatePageResponseSchema, { templateId });
   },
 
-  update: async (pageId: string, data: Partial<UpdatePageResponse>): Promise<UpdatePageResponse> => {
+  update: async (
+    pageId: string,
+    data: Partial<UpdatePageResponse>
+  ): Promise<UpdatePageResponse> => {
     return validatedPut(`pages/${pageId}`, UpdatePageResponseSchema, data);
   },
 
@@ -79,7 +96,7 @@ export const pages = {
   },
 
   reorder: async (projectId: string, pageIds: string[]): Promise<void> => {
-    await apiClient.patch('pages/reorder', { json: { projectId, pageIds } });
+    await apiClient.patch("pages/reorder", { json: { projectId, pageIds } });
   },
 };
 
@@ -94,7 +111,10 @@ export const elements = {
     return validatedPost(`pages/${pageId}/elements`, CreateElementResponseSchema, data);
   },
 
-  update: async (elementId: string, data: Partial<SerializedElement>): Promise<SerializedElement> => {
+  update: async (
+    elementId: string,
+    data: Partial<SerializedElement>
+  ): Promise<SerializedElement> => {
     return validatedPut(`elements/${elementId}`, UpdateElementResponseSchema, data);
   },
 
@@ -112,7 +132,7 @@ export const images = {
 
   upload: async (projectId: string, file: File): Promise<Image> => {
     const formData = new FormData();
-    formData.append('image', file);
+    formData.append("image", file);
     return apiClient.post(`projects/${projectId}/images`, { body: formData }).json();
   },
 
@@ -127,11 +147,30 @@ export const images = {
 
 // Video endpoints
 export const videos = {
+  list: async (projectId: string): Promise<SerializedVideo[]> => {
+    const response = await validatedGet(`projects/${projectId}/videos`, VideosListResponseSchema);
+    return response.videos;
+  },
+
+  upload: async (
+    projectId: string,
+    file: File
+  ): Promise<{ id: string; url: string; filename: string }> => {
+    const formData = new FormData();
+    formData.append("video", file);
+    return apiClient.post(`projects/${projectId}/videos`, { body: formData }).json();
+  },
+
   getUrl: (videoUrl: string): string => {
-    // videoUrl from backend is like "/api/videos/:jobId/file"
+    // videoUrl from backend is like "/api/videos/:id/file"
     // We need to prepend the base URL (without /api since videoUrl includes it)
-    const baseWithoutApi = API_BASE_URL.replace(/\/api$/, '');
+    const baseWithoutApi = API_BASE_URL.replace(/\/api$/, "");
     return `${baseWithoutApi}${videoUrl}`;
+  },
+
+  getDownloadUrl: (videoId: string): string => {
+    const baseWithoutApi = API_BASE_URL.replace(/\/api$/, "");
+    return `${baseWithoutApi}/api/videos/${videoId}/file`;
   },
 };
 
@@ -146,15 +185,24 @@ export const generation = {
   },
 
   getProjectStatus: async (projectId: string) => {
-    const response = await validatedGet(`projects/${projectId}/generation/status`, GenerationStatusResponseSchema);
+    const response = await validatedGet(
+      `projects/${projectId}/generation/status`,
+      GenerationStatusResponseSchema
+    );
     return response.jobs;
+  },
+
+  retryJob: async (
+    jobId: string
+  ): Promise<{ id: string; elementId: string; status: string; retriedFrom: string }> => {
+    return apiClient.post(`generation/${jobId}/retry`).json();
   },
 };
 
 // Template endpoints
 export const templates = {
   list: async (): Promise<TemplateDefinition[]> => {
-    const response = await validatedGet('templates', TemplatesListResponseSchema);
+    const response = await validatedGet("templates", TemplatesListResponseSchema);
     return response.templates;
   },
 };
@@ -197,6 +245,7 @@ export default {
   pages,
   elements,
   images,
+  videos,
   generation,
   templates,
   viewer,

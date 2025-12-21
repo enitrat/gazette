@@ -84,6 +84,26 @@ export const elements = sqliteTable("elements", {
     .default(sql`(unixepoch())`),
 });
 
+// Videos table (generated videos)
+export const videos = sqliteTable("videos", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  generationJobId: text("generation_job_id"),
+  sourceImageId: text("source_image_id").references(() => images.id),
+  filename: text("filename").notNull(),
+  storagePath: text("storage_path").notNull(),
+  mimeType: text("mime_type").notNull().default("video/mp4"),
+  width: integer("width"),
+  height: integer("height"),
+  durationSeconds: integer("duration_seconds"),
+  fileSize: integer("file_size"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 // Generation jobs table
 export const generationJobs = sqliteTable("generation_jobs", {
   id: text("id").primaryKey(),
@@ -99,6 +119,7 @@ export const generationJobs = sqliteTable("generation_jobs", {
   videoUrl: text("video_url"),
   error: text("error"),
   metadata: text("metadata"),
+  wanTaskId: text("wan_task_id"), // External Evolink/WAN task ID for recovery
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -119,6 +140,9 @@ export type NewImage = typeof images.$inferInsert;
 
 export type ElementRecord = typeof elements.$inferSelect;
 export type NewElement = typeof elements.$inferInsert;
+
+export type VideoRecord = typeof videos.$inferSelect;
+export type NewVideo = typeof videos.$inferInsert;
 
 export type GenerationJobRecord = typeof generationJobs.$inferSelect;
 export type NewGenerationJob = typeof generationJobs.$inferInsert;

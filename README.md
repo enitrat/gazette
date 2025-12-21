@@ -129,6 +129,12 @@ Or just the backend:
 bun run start:backend
 ```
 
+### Deployment (VPS)
+
+Deployment is handled by `deploy.sh` and a PM2 config in `ops/ecosystem.config.cjs`.
+For full VPS setup, env management, and one-click SSH deploy instructions, see
+`docs/TECHNICAL_ARCHITECTURE.md`.
+
 ## Code Quality
 
 ### Type Checking

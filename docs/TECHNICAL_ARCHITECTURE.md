@@ -400,7 +400,15 @@ cd /opt/gazette
 # Configure environment
 sudo nano /etc/gazette/gazette.env
 sudo chmod 600 /etc/gazette/gazette.env
+```
 
+Notes on `.env` management:
+
+- The production env file **lives on the VPS** at `/etc/gazette/gazette.env` and is not checked into git.
+- After editing the env file, rerun `deploy.sh` (or `pm2 startOrReload ... --update-env`) so PM2 picks up changes.
+- You can override the env file path via `ENV_FILE=/path/to/file` when running `deploy.sh`.
+
+```bash
 # Build and migrate
 set -a && source /etc/gazette/gazette.env && set +a
 ./scripts/build-production.sh
@@ -411,6 +419,39 @@ pm2 startOrReload ops/ecosystem.config.cjs --env production --update-env
 pm2 save
 pm2 startup
 ```
+
+#### One-Click Deploy (SSH)
+
+`deploy.sh` can be run on the VPS, or from your laptop as a one-click SSH deploy that runs the exact same steps on the server (git pull → build → migrate → PM2 reload).
+
+From your local machine:
+
+```bash
+REMOTE_HOST=your.vps.ip \
+REMOTE_USER=gazette \
+REMOTE_APP_DIR=/opt/gazette \
+./deploy.sh
+```
+
+Optional SSH conveniences:
+
+- **Rsync file sync** (useful if you have local uncommitted changes):
+  ```bash
+  SYNC=1 SKIP_GIT=1 \
+  REMOTE_HOST=your.vps.ip \
+  REMOTE_USER=gazette \
+  REMOTE_APP_DIR=/opt/gazette \
+  ./deploy.sh
+  ```
+- **Sync env file** (only if you want to update it from local):
+  ```bash
+  SYNC_ENV=1 ENV_FILE_LOCAL=./ops/gazette.env \
+  REMOTE_HOST=your.vps.ip \
+  REMOTE_USER=gazette \
+  ./deploy.sh
+  ```
+
+By default, deploys use **git pull on the server**; no file sync happens unless you set `SYNC=1`.
 
 ### 5.6 Caddy Reverse Proxy + HTTPS
 
@@ -453,6 +494,8 @@ Production PM2 configuration lives in `ops/ecosystem.config.cjs` and runs:
 - Root script `bun run build:production` is available for CI/CD use.
 - `VITE_API_URL` must be set in the environment before running the frontend build.
 - `deploy.sh` performs git pull, build, migrations, and PM2 reloads on the VPS.
+  - It can also be run locally with `REMOTE_HOST=...` to trigger a one-click SSH deploy.
+  - Environment variables are loaded from `/etc/gazette/gazette.env` by default.
 
 ### 5.9 Redis Production Setup
 

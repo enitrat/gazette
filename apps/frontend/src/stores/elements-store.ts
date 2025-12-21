@@ -1,11 +1,12 @@
-import { create } from 'zustand';
-import type { CreateElement, UpdateElement, TextStyle } from '@gazette/shared';
-import type { SerializedElement } from '@/lib/api';
-import api from '@/lib/api';
-import { toast } from 'sonner';
+import { create } from "zustand";
+import type { CreateElement, UpdateElement, TextStyle } from "@gazette/shared";
+import type { SerializedElement } from "@/lib/api";
+import api from "@/lib/api";
+import { toast } from "sonner";
+import { useUIStore } from "./ui-store";
 
 // Re-export TextStyle from shared for convenience
-export type { TextStyle } from '@gazette/shared';
+export type { TextStyle } from "@gazette/shared";
 
 // Extended element with optional local style
 // Note: style can be null (from API) or undefined (not set)
@@ -62,14 +63,14 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
       const elements = await api.elements.list(pageId);
       set({ elements, isLoading: false });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch elements';
+      const errorMessage = error instanceof Error ? error.message : "Failed to fetch elements";
       set({ error: errorMessage, isLoading: false });
 
       // Show error toast with retry option
-      toast.error('Failed to load elements', {
+      toast.error("Failed to load elements", {
         description: errorMessage,
         action: {
-          label: 'Retry',
+          label: "Retry",
           onClick: () => get().fetchElements(pageId),
         },
       });
@@ -85,22 +86,22 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
       const { elements } = get();
       set({
         elements: [...elements, newElement],
-        selectedId: newElement.id
+        selectedId: newElement.id,
       });
 
-      toast.success('Element added', {
-        description: 'Your element has been added to the page',
+      toast.success("Element added", {
+        description: "Your element has been added to the page",
       });
 
       return newElement;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create element';
+      const errorMessage = error instanceof Error ? error.message : "Failed to create element";
       set({ error: errorMessage });
 
-      toast.error('Failed to create element', {
+      toast.error("Failed to create element", {
         description: errorMessage,
         action: {
-          label: 'Retry',
+          label: "Retry",
           onClick: () => get().createElement(pageId, data),
         },
       });
@@ -112,14 +113,14 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
   updateElement: async (elementId: string, data: UpdateElement) => {
     // Store original element for rollback
     const { elements } = get();
-    const originalElement = elements.find(e => e.id === elementId);
+    const originalElement = elements.find((e) => e.id === elementId);
 
     set({ error: null });
     try {
       const updatedElement = await api.elements.update(elementId, data);
 
       // Update the element in the store, preserving local-only properties (style)
-      const updatedElements = elements.map(e => {
+      const updatedElements = elements.map((e) => {
         if (e.id === elementId) {
           return {
             ...updatedElement,
@@ -131,21 +132,19 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
 
       set({ elements: updatedElements });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update element';
+      const errorMessage = error instanceof Error ? error.message : "Failed to update element";
       set({ error: errorMessage });
 
       // Rollback to original element on error
       if (originalElement) {
-        const rolledBackElements = elements.map(e =>
-          e.id === elementId ? originalElement : e
-        );
+        const rolledBackElements = elements.map((e) => (e.id === elementId ? originalElement : e));
         set({ elements: rolledBackElements });
       }
 
-      toast.error('Failed to update element', {
+      toast.error("Failed to update element", {
         description: errorMessage,
         action: {
-          label: 'Retry',
+          label: "Retry",
           onClick: () => get().updateElement(elementId, data),
         },
       });
@@ -157,27 +156,33 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
   deleteElement: async (elementId: string) => {
     // Store original state for rollback
     const { elements, selectedId } = get();
-    const deletedElement = elements.find(e => e.id === elementId);
+    const deletedElement = elements.find((e) => e.id === elementId);
 
     // Optimistically remove the element
-    const updatedElements = elements.filter(e => e.id !== elementId);
+    const updatedElements = elements.filter((e) => e.id !== elementId);
     const newSelectedId = selectedId === elementId ? null : selectedId;
 
     set({
       elements: updatedElements,
       selectedId: newSelectedId,
       editingId: null,
-      error: null
+      error: null,
     });
 
     try {
       await api.elements.delete(elementId);
 
-      toast.success('Element deleted', {
-        description: 'The element has been removed from the page',
+      // If the deleted element had an image, refresh the media list
+      // because the backend may have deleted orphaned images
+      if (deletedElement?.type === "image" && deletedElement.imageId) {
+        useUIStore.getState().triggerMediaRefresh();
+      }
+
+      toast.success("Element deleted", {
+        description: "The element has been removed from the page",
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete element';
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete element";
       set({ error: errorMessage });
 
       // Rollback - restore the deleted element
@@ -188,10 +193,10 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
         });
       }
 
-      toast.error('Failed to delete element', {
+      toast.error("Failed to delete element", {
         description: errorMessage,
         action: {
-          label: 'Retry',
+          label: "Retry",
           onClick: () => get().deleteElement(elementId),
         },
       });
@@ -218,7 +223,7 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
     const { selectedId, elements } = get();
     if (!selectedId) return;
 
-    const element = elements.find(e => e.id === selectedId);
+    const element = elements.find((e) => e.id === selectedId);
     if (element) {
       set({ clipboard: element });
     }
@@ -229,50 +234,51 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
     if (!clipboard) return;
 
     // Create a copy of the element with offset position
-    const createData: CreateElement = clipboard.type === 'image'
-      ? {
-          type: 'image',
-          position: {
-            x: clipboard.position.x + 20,
-            y: clipboard.position.y + 20,
-            width: clipboard.position.width,
-            height: clipboard.position.height,
-          },
-          imageId: clipboard.imageId || undefined,
-        }
-      : {
-          type: clipboard.type,
-          position: {
-            x: clipboard.position.x + 20,
-            y: clipboard.position.y + 20,
-            width: clipboard.position.width,
-            height: clipboard.position.height,
-          },
-          content: clipboard.content || '',
-        };
+    const createData: CreateElement =
+      clipboard.type === "image"
+        ? {
+            type: "image",
+            position: {
+              x: clipboard.position.x + 20,
+              y: clipboard.position.y + 20,
+              width: clipboard.position.width,
+              height: clipboard.position.height,
+            },
+            imageId: clipboard.imageId || undefined,
+          }
+        : {
+            type: clipboard.type,
+            position: {
+              x: clipboard.position.x + 20,
+              y: clipboard.position.y + 20,
+              width: clipboard.position.width,
+              height: clipboard.position.height,
+            },
+            content: clipboard.content || "",
+          };
 
     try {
       await get().createElement(pageId, createData);
     } catch (error) {
       // Error already handled in createElement
-      console.error('Failed to paste element:', error);
+      console.error("Failed to paste element:", error);
     }
   },
 
   getSelectedElement: () => {
     const { elements, selectedId } = get();
     if (!selectedId) return null;
-    return elements.find(e => e.id === selectedId) || null;
+    return elements.find((e) => e.id === selectedId) || null;
   },
 
   getElementById: (id: string) => {
     const { elements } = get();
-    return elements.find(e => e.id === id) || null;
+    return elements.find((e) => e.id === id) || null;
   },
 
   updateElementLocal: (id: string, updates: Partial<ElementWithStyle>) => {
     const { elements } = get();
-    const updatedElements = elements.map(e => {
+    const updatedElements = elements.map((e) => {
       if (e.id === id) {
         // Properly merge updates while preserving the discriminated union type
         return { ...e, ...updates } as ElementWithStyle;
@@ -284,14 +290,14 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
 
   updateElementStyle: async (id: string, styleUpdates: Partial<TextStyle>) => {
     const { elements } = get();
-    const element = elements.find(e => e.id === id);
+    const element = elements.find((e) => e.id === id);
     if (!element) return;
 
     // Merge with existing style
     const newStyle = { ...(element.style || {}), ...styleUpdates };
 
     // Update local state immediately for responsive UI
-    const updatedElements = elements.map(e => {
+    const updatedElements = elements.map((e) => {
       if (e.id === id) {
         return {
           ...e,
@@ -306,7 +312,7 @@ export const useElementsStore = create<ElementsState>((set, get) => ({
     try {
       await api.elements.update(id, { style: newStyle });
     } catch (error) {
-      console.error('Failed to persist style:', error);
+      console.error("Failed to persist style:", error);
       // Rollback on error
       set({ elements });
     }

@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { requestId } from "hono/request-id";
 import { HTTPException } from "hono/http-exception";
@@ -14,6 +13,10 @@ import pagesRouter from "./routes/pages";
 import { systemRouter } from "./features/system/router";
 import { viewRouter } from "./routes/view";
 import { exportRouter } from "./routes/export";
+import { pinoLogger } from "./lib/hono-logger";
+import { createLogger } from "./lib/logger";
+
+const serverLog = createLogger("server");
 
 // Environment configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -25,7 +28,7 @@ export const app = new Hono();
 
 // Middleware
 app.use("*", requestId());
-app.use("*", logger());
+app.use("*", pinoLogger());
 app.use(
   "*",
   secureHeaders({
@@ -98,7 +101,7 @@ app.onError((err, c) => {
   }
 
   // Log unexpected errors
-  console.error(`[ERROR] ${c.req.method} ${c.req.path}:`, err);
+  serverLog.error({ err, method: c.req.method, path: c.req.path }, "Unhandled error");
 
   return c.json(
     {
@@ -112,10 +115,10 @@ app.onError((err, c) => {
 });
 
 // Start server
-if (NODE_ENV === "development") {
-  console.warn(`Starting server in ${NODE_ENV} mode...`);
-  console.warn(`CORS origin: ${CORS_ORIGIN}`);
-}
+serverLog.info(
+  { port: PORT, env: NODE_ENV, corsOrigin: CORS_ORIGIN },
+  `Server starting on port ${PORT}`
+);
 
 export default {
   port: PORT,

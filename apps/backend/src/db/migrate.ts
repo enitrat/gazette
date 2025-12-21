@@ -1,14 +1,15 @@
 import { Database } from "bun:sqlite";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("db-migrate");
 
 const DB_PATH = process.env.DATABASE_URL || "./data/gazette.db";
 const MIGRATIONS_DIR = join(import.meta.dir, "migrations");
 
 async function migrate() {
-  console.warn("Starting database migration...");
-  console.warn(`Database path: ${DB_PATH}`);
-  console.warn(`Migrations directory: ${MIGRATIONS_DIR}`);
+  log.info({ dbPath: DB_PATH, migrationsDir: MIGRATIONS_DIR }, "Starting database migration");
 
   // Ensure data directory exists
   const dataDir = DB_PATH.substring(0, DB_PATH.lastIndexOf("/"));
@@ -39,23 +40,23 @@ async function migrate() {
       .map((row) => row.name)
   );
 
-  console.warn(`Applied migrations: ${appliedMigrations.size}`);
+  log.info({ count: appliedMigrations.size }, "Applied migrations");
 
   // Read migration files
   const files = await readdir(MIGRATIONS_DIR);
   const sqlFiles = files.filter((f) => f.endsWith(".sql")).sort();
 
-  console.warn(`Found ${sqlFiles.length} migration files`);
+  log.info({ count: sqlFiles.length }, "Found migration files");
 
   let appliedCount = 0;
 
   for (const file of sqlFiles) {
     if (appliedMigrations.has(file)) {
-      console.warn(`  [SKIP] ${file} (already applied)`);
+      log.debug({ file }, "Skipping already applied migration");
       continue;
     }
 
-    console.warn(`  [APPLY] ${file}`);
+    log.info({ file }, "Applying migration");
 
     // Read and execute migration
     const sqlPath = join(MIGRATIONS_DIR, file);
@@ -68,9 +69,9 @@ async function migrate() {
       db.run("INSERT INTO _migrations (name) VALUES (?)", [file]);
       appliedCount++;
 
-      console.warn(`  [OK] ${file}`);
+      log.info({ file }, "Migration applied successfully");
     } catch (error) {
-      console.error(`  [ERROR] ${file}: ${error}`);
+      log.error({ file, err: error }, "Migration failed");
       db.close();
       process.exit(1);
     }
@@ -78,11 +79,11 @@ async function migrate() {
 
   db.close();
 
-  console.warn(`\nMigration complete. Applied ${appliedCount} new migrations.`);
+  log.info({ appliedCount }, "Migration complete");
 }
 
 // Run if executed directly
 migrate().catch((error) => {
-  console.error("Migration failed:", error);
+  log.fatal({ err: error }, "Migration failed");
   process.exit(1);
 });
