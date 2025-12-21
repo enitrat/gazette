@@ -5,67 +5,67 @@
 
 @layer base {
   :root {
-    /* Vintage Newspaper Color Palette */
-    --background: 48 45% 95%; /* Cream #FDF8E8 */
-    --foreground: 30 30% 15%; /* Ink #2C2416 */
+    /* NYT/WSJ Editorial Color Palette */
+    --background: 0 0% 98%; /* Newsprint #FAFAFA */
+    --foreground: 0 0% 7%; /* Deep black #121212 */
 
-    --card: 42 55% 85%; /* Parchment #F4E4BC */
-    --card-foreground: 30 30% 15%; /* Ink #2C2416 */
+    --card: 0 0% 100%; /* Pure white */
+    --card-foreground: 0 0% 7%; /* Deep black */
 
-    --popover: 42 55% 85%; /* Parchment #F4E4BC */
-    --popover-foreground: 30 30% 15%; /* Ink #2C2416 */
+    --popover: 0 0% 100%; /* Pure white */
+    --popover-foreground: 0 0% 7%; /* Deep black */
 
-    --primary: 45 70% 47%; /* Gold #C9A227 */
-    --primary-foreground: 30 30% 15%; /* Ink #2C2416 */
+    --primary: 0 0% 7%; /* Black accent #121212 */
+    --primary-foreground: 0 0% 100%; /* White */
 
-    --secondary: 20 30% 28%; /* Sepia #5C4033 */
-    --secondary-foreground: 48 45% 95%; /* Cream #FDF8E8 */
+    --secondary: 0 0% 96%; /* Light gray #F5F5F5 */
+    --secondary-foreground: 0 0% 7%; /* Deep black */
 
-    --muted: 30 20% 60%; /* Muted Brown #8B7355 */
-    --muted-foreground: 30 30% 35%; /* Darker text */
+    --muted: 0 0% 96%; /* Light gray #F5F5F5 */
+    --muted-foreground: 0 0% 40%; /* Medium gray #666666 */
 
-    --accent: 42 55% 85%; /* Light Parchment */
-    --accent-foreground: 30 30% 15%; /* Ink #2C2416 */
+    --accent: 0 0% 96%; /* Light gray */
+    --accent-foreground: 0 0% 7%; /* Deep black */
 
-    --destructive: 20 50% 32%; /* Aged Red #8B4513 */
-    --destructive-foreground: 48 45% 95%; /* Cream #FDF8E8 */
+    --destructive: 0 72% 51%; /* Red #DC2626 */
+    --destructive-foreground: 0 0% 100%; /* White */
 
-    --border: 20 30% 28% / 0.2; /* Sepia with opacity */
-    --input: 20 30% 28% / 0.3; /* Sepia with opacity */
-    --ring: 45 70% 47%; /* Gold #C9A227 */
+    --border: 0 0% 88%; /* Border gray #E0E0E0 */
+    --input: 0 0% 88%; /* Input border */
+    --ring: 0 0% 7%; /* Black ring */
 
     --radius: 0.25rem;
   }
 
   .dark {
-    /* Dark mode variants for vintage theme */
-    --background: 30 30% 10%; /* Dark ink */
-    --foreground: 48 45% 95%; /* Cream */
+    /* Dark mode - inverted editorial */
+    --background: 0 0% 7%; /* Deep black */
+    --foreground: 0 0% 98%; /* Newsprint white */
 
-    --card: 30 25% 15%; /* Dark card */
-    --card-foreground: 48 45% 95%; /* Cream */
+    --card: 0 0% 10%; /* Dark card */
+    --card-foreground: 0 0% 98%; /* Newsprint */
 
-    --popover: 30 25% 15%; /* Dark popover */
-    --popover-foreground: 48 45% 95%; /* Cream */
+    --popover: 0 0% 10%; /* Dark popover */
+    --popover-foreground: 0 0% 98%; /* Newsprint */
 
-    --primary: 45 70% 47%; /* Gold #C9A227 */
-    --primary-foreground: 30 30% 15%; /* Ink */
+    --primary: 0 0% 98%; /* White accent */
+    --primary-foreground: 0 0% 7%; /* Black */
 
-    --secondary: 20 30% 28%; /* Sepia */
-    --secondary-foreground: 48 45% 95%; /* Cream */
+    --secondary: 0 0% 15%; /* Dark gray */
+    --secondary-foreground: 0 0% 98%; /* Newsprint */
 
-    --muted: 30 20% 25%; /* Dark muted */
-    --muted-foreground: 30 20% 65%; /* Light muted text */
+    --muted: 0 0% 15%; /* Dark muted */
+    --muted-foreground: 0 0% 60%; /* Medium gray */
 
-    --accent: 30 25% 20%; /* Dark accent */
-    --accent-foreground: 48 45% 95%; /* Cream */
+    --accent: 0 0% 15%; /* Dark accent */
+    --accent-foreground: 0 0% 98%; /* Newsprint */
 
-    --destructive: 0 62% 30%; /* Dark red */
-    --destructive-foreground: 48 45% 95%; /* Cream */
+    --destructive: 0 62% 50%; /* Dark red */
+    --destructive-foreground: 0 0% 98%; /* Newsprint */
 
-    --border: 30 20% 30% / 0.5; /* Dark border */
-    --input: 30 20% 30% / 0.5; /* Dark input */
-    --ring: 45 70% 47%; /* Gold */
+    --border: 0 0% 20%; /* Dark border */
+    --input: 0 0% 20%; /* Dark input */
+    --ring: 0 0% 98%; /* White ring */
   }
 }
 

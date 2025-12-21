@@ -103,50 +103,65 @@ export const CANVAS = {
   HEIGHT: 1100,
 } as const;
 
-// Text style defaults for each element type - shared between editor and export
+// Text style defaults for each element type - NYT/WSJ Editorial Typography
 export const TEXT_STYLES = {
   headline: {
     fontFamily: "Playfair Display",
-    fontSize: 32,
-    fontWeight: "bold" as const,
-    lineHeight: 1.2,
+    fontSize: 36,
+    fontWeight: "700" as const,
+    lineHeight: 1.1,
     letterSpacing: -0.02,
-    color: "#2c1810",
+    color: "#000000",
     textAlign: "left" as const,
     fontStyle: "normal" as const,
     textDecoration: "none",
   },
   subheading: {
     fontFamily: "Libre Baskerville",
-    fontSize: 20,
-    fontWeight: "bold" as const,
-    lineHeight: 1.3,
-    letterSpacing: -0.01,
-    color: "#2c1810",
+    fontSize: 18,
+    fontWeight: "400" as const,
+    lineHeight: 1.35,
+    letterSpacing: 0,
+    color: "#333333",
     textAlign: "left" as const,
     fontStyle: "italic" as const,
     textDecoration: "none",
   },
   caption: {
     fontFamily: "EB Garamond",
-    fontSize: 14,
-    fontWeight: "normal" as const,
-    lineHeight: 1.5,
-    letterSpacing: 0,
-    color: "#4a3628",
+    fontSize: 13,
+    fontWeight: "400" as const,
+    lineHeight: 1.45,
+    letterSpacing: 0.01,
+    color: "#666666",
     textAlign: "left" as const,
-    fontStyle: "italic" as const,
+    fontStyle: "normal" as const,
     textDecoration: "none",
   },
 } as const;
 
-// Colors used in the gazette theme
+// Colors used in the gazette theme - NYT/WSJ Editorial Palette
 export const GAZETTE_COLORS = {
-  parchment: "#F4E4BC",
-  ink: "#2c1810",
-  muted: "#8b7355",
-  cream: "#fdf8e8",
-  caption: "#4a3628",
+  // Paper & backgrounds
+  newsprint: "#FAFAFA", // Clean newsprint white
+  paper: "#FFFFFF", // Pure white for page
+  canvas: "#E8E8E8", // Neutral gray canvas backdrop
+
+  // Typography
+  ink: "#121212", // NYT-style deep black
+  headline: "#000000", // Pure black for headlines
+  body: "#333333", // Slightly softer for body text
+  caption: "#666666", // Gray for captions/metadata
+  muted: "#999999", // Light gray for subtle text
+
+  // Accents & UI
+  rule: "#CCCCCC", // Column separator rules
+  border: "#E0E0E0", // Subtle borders
+  accent: "#121212", // Black accent (monochrome)
+
+  // Legacy compatibility
+  parchment: "#FAFAFA", // Maps to newsprint
+  cream: "#F5F5F5", // Light gray
 } as const;
 
 // Text element type string literal for styling functions

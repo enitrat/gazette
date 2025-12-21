@@ -7,15 +7,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Vintage palette from BRANDING.md
-        parchment: "#F4E4BC",
-        sepia: "#5C4033",
-        gold: "#C9A227",
-        ink: "#2C2416",
-        muted: "#8B7355",
-        cream: "#FDF8E8",
-        "aged-red": "#8B4513",
-        "forest-green": "#355E3B",
+        // NYT/WSJ Editorial Palette
+        newsprint: "#FAFAFA",
+        paper: "#FFFFFF",
+        canvas: "#E8E8E8",
+        ink: "#121212",
+        headline: "#000000",
+        body: "#333333",
+        caption: "#666666",
+        muted: "#999999",
+        rule: "#CCCCCC",
+        "border-gray": "#E0E0E0",
+        // Legacy compatibility
+        parchment: "#FAFAFA",
+        cream: "#F5F5F5",
+        sepia: "#333333",
+        gold: "#121212",
         // shadcn/ui semantic colors
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

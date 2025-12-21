@@ -1,10 +1,10 @@
-import { useMemo, useEffect } from 'react';
-import { useShallow } from 'zustand/shallow';
-import { useDroppable } from '@dnd-kit/core';
-import { Loader2 } from 'lucide-react';
-import { useElementsStore } from '@/stores/elements-store';
-import { CanvasElement } from './CanvasElement';
-import { CANVAS, GAZETTE_COLORS } from '@gazette/shared';
+import { useMemo, useEffect } from "react";
+import { useShallow } from "zustand/shallow";
+import { useDroppable } from "@dnd-kit/core";
+import { Loader2 } from "lucide-react";
+import { useElementsStore } from "@/stores/elements-store";
+import { CanvasElement } from "./CanvasElement";
+import { CANVAS, GAZETTE_COLORS } from "@gazette/shared";
 
 interface GazettePageProps {
   pageId: string;
@@ -43,75 +43,38 @@ export function GazettePage({ pageId }: GazettePageProps) {
       className="gazette-page"
       onClick={handleClick}
       style={{
-        position: 'relative',
+        position: "relative",
         width: `${CANVAS.WIDTH}px`,
         height: `${CANVAS.HEIGHT}px`,
-        backgroundColor: GAZETTE_COLORS.parchment,
-        boxShadow:
-          '0 10px 40px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
-        overflow: 'hidden',
-        isolation: 'isolate',
-        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+        backgroundColor: GAZETTE_COLORS.paper,
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 30px rgba(0, 0, 0, 0.12)",
+        overflow: "hidden",
+        isolation: "isolate",
+        transition: "box-shadow 0.2s ease, transform 0.2s ease",
         ...(isOver && {
-          boxShadow: '0 10px 40px rgba(201, 162, 39, 0.3), 0 2px 8px rgba(201, 162, 39, 0.2), inset 0 0 0 2px rgba(201, 162, 39, 0.4)',
-          transform: 'scale(1.01)',
+          boxShadow:
+            "0 1px 3px rgba(0, 0, 0, 0.1), 0 12px 40px rgba(0, 0, 0, 0.18), inset 0 0 0 2px #121212",
+          transform: "scale(1.005)",
         }),
       }}
     >
-      {/* Paper texture overlay */}
+      {/* Elegant newspaper border - thin rule */}
       <div
         style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `
-            repeating-linear-gradient(
-              0deg,
-              rgba(139, 115, 85, 0.01) 0px,
-              transparent 1px,
-              transparent 2px,
-              rgba(139, 115, 85, 0.01) 3px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              rgba(139, 115, 85, 0.01) 0px,
-              transparent 1px,
-              transparent 2px,
-              rgba(139, 115, 85, 0.01) 3px
-            )
-          `,
-          pointerEvents: 'none',
-          opacity: 0.4,
+          position: "absolute",
+          inset: "24px",
+          border: `1px solid ${GAZETTE_COLORS.rule}`,
+          pointerEvents: "none",
         }}
       />
 
-      {/* Vignette effect */}
+      {/* Inner double-rule for classic newspaper feel */}
       <div
         style={{
-          position: 'absolute',
-          inset: 0,
-          background: `radial-gradient(ellipse at center, transparent 0%, transparent 50%, ${GAZETTE_COLORS.muted}1f 100%)`,
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Subtle aging effect around edges */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          boxShadow: `inset 0 0 80px ${GAZETTE_COLORS.muted}14`,
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Border decoration */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: '20px',
-          border: `1px solid ${GAZETTE_COLORS.muted}26`,
-          borderRadius: '2px',
-          pointerEvents: 'none',
+          position: "absolute",
+          inset: "28px",
+          border: `0.5px solid ${GAZETTE_COLORS.border}`,
+          pointerEvents: "none",
         }}
       />
 
@@ -119,42 +82,41 @@ export function GazettePage({ pageId }: GazettePageProps) {
       {isLoading && (
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(244, 228, 188, 0.8)',
-            backdropFilter: 'blur(4px)',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(4px)",
             zIndex: 10,
           }}
         >
           <div
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '12px',
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "12px",
             }}
           >
             <Loader2
               className="animate-spin"
               style={{
-                width: '32px',
-                height: '32px',
-                color: '#8b7355',
-                opacity: 0.6,
+                width: "24px",
+                height: "24px",
+                color: GAZETTE_COLORS.caption,
               }}
             />
             <div
               style={{
-                fontFamily: "'Crimson Text', serif",
-                fontSize: '14px',
-                color: '#8b7355',
-                opacity: 0.7,
+                fontFamily: "'EB Garamond', Georgia, serif",
+                fontSize: "13px",
+                color: GAZETTE_COLORS.caption,
+                letterSpacing: "0.02em",
               }}
             >
-              Loading elements...
+              Chargement...
             </div>
           </div>
         </div>
@@ -163,7 +125,7 @@ export function GazettePage({ pageId }: GazettePageProps) {
       {/* Elements */}
       <div
         style={{
-          position: 'absolute',
+          position: "absolute",
           inset: 0,
         }}
       >
@@ -176,40 +138,48 @@ export function GazettePage({ pageId }: GazettePageProps) {
       {elements.length === 0 && !isLoading && (
         <div
           style={{
-            position: 'absolute',
+            position: "absolute",
             inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
           }}
         >
           <div
             style={{
-              textAlign: 'center',
-              color: '#8b7355',
-              opacity: 0.4,
+              textAlign: "center",
+              color: GAZETTE_COLORS.muted,
             }}
           >
             <div
               style={{
                 fontFamily: "'Playfair Display', serif",
-                fontSize: '24px',
-                fontWeight: 600,
-                marginBottom: '8px',
-                letterSpacing: '0.02em',
+                fontSize: "28px",
+                fontWeight: 700,
+                marginBottom: "8px",
+                letterSpacing: "-0.02em",
+                textTransform: "uppercase",
               }}
             >
-              La Gazette de la Vie
+              La Gazette
             </div>
             <div
               style={{
-                fontFamily: "'Crimson Text', serif",
-                fontSize: '16px',
-                fontStyle: 'italic',
+                width: "60px",
+                height: "1px",
+                backgroundColor: GAZETTE_COLORS.rule,
+                margin: "12px auto",
+              }}
+            />
+            <div
+              style={{
+                fontFamily: "'EB Garamond', Georgia, serif",
+                fontSize: "14px",
+                fontStyle: "italic",
               }}
             >
-              Click to add elements from the toolbar
+              Glissez des éléments depuis la barre latérale
             </div>
           </div>
         </div>

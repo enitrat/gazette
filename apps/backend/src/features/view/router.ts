@@ -106,12 +106,23 @@ const serializeElement = (record: typeof schema.elements.$inferSelect, slug: str
     };
   }
 
+  // Parse style JSON if present
+  let style = null;
+  if (record.style) {
+    try {
+      style = JSON.parse(record.style);
+    } catch {
+      // Ignore invalid JSON
+    }
+  }
+
   return {
     id: record.id,
     pageId: record.pageId,
     type: record.type,
     position,
     content: record.content ?? "",
+    style,
   };
 };
 
@@ -160,6 +171,8 @@ const buildViewResponse = async (projectId: string) => {
     },
     pages: pages.map((page) => ({
       ...page,
+      title: page.title ?? "",
+      subtitle: page.subtitle ?? "",
       elements: elementsByPage.get(page.id) ?? [],
     })),
   };
@@ -210,14 +223,23 @@ router.get("/projects/:id/view", requireViewAuth, async (c) => {
   return c.json(payload);
 });
 
-router.get("/view/:slug/images/:id", requireViewAuth, async (c) => {
+// Public image endpoint - validates via slug instead of JWT
+// This allows <img src> to work without Authorization header
+router.get("/view/:slug/images/:id", async (c) => {
+  const slug = c.req.param("slug");
   const imageId = c.req.param("id");
-  const projectId = c.get("projectId");
 
+  // Validate the project exists with this slug
+  const project = await getProjectBySlug(slug);
+  if (!project) {
+    return errorResponse(c, 404, ERROR_CODES.PROJECT_NOT_FOUND, "Project not found");
+  }
+
+  // Validate the image belongs to this project
   const image = await db
     .select()
     .from(schema.images)
-    .where(and(eq(schema.images.id, imageId), eq(schema.images.projectId, projectId)))
+    .where(and(eq(schema.images.id, imageId), eq(schema.images.projectId, project.id)))
     .get();
 
   if (!image) {
@@ -234,6 +256,7 @@ router.get("/view/:slug/images/:id", requireViewAuth, async (c) => {
 
   return c.body(file.stream(), 200, {
     "Content-Type": image.mimeType,
+    "Cache-Control": "public, max-age=31536000", // Cache for 1 year since images don't change
   });
 });
 

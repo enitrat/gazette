@@ -1,80 +1,88 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useToast } from '@/components/ui/use-toast'
-import { GazetteViewer } from '@/components/viewer/GazetteViewer'
-import { viewer } from '@/lib/api'
-import type { ViewProjectResponse } from '@gazette/shared'
-import { KeyRound, Loader2 } from 'lucide-react'
+import { createFileRoute } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
+import { GazetteViewer } from "@/components/viewer/GazetteViewer";
+import { viewer } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
+import type { ViewProjectResponse } from "@gazette/shared";
+import { KeyRound, Loader2 } from "lucide-react";
 
-export const Route = createFileRoute('/view/$slug')({
+export const Route = createFileRoute("/view/$slug")({
   component: ViewComponent,
-})
+});
 
 function ViewComponent() {
-  const { slug } = Route.useParams()
-  const { toast } = useToast()
-  const [password, setPassword] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [gazetteData, setGazetteData] = useState<ViewProjectResponse | null>(null)
-  const [needsPassword, setNeedsPassword] = useState(false)
+  const { slug } = Route.useParams();
+  const { toast } = useToast();
+  const [password, setPassword] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [gazetteData, setGazetteData] = useState<ViewProjectResponse | null>(null);
+  const [needsPassword, setNeedsPassword] = useState(false);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     try {
-      // Try to access with password
-      await viewer.access(slug, password)
+      // Try to access with password - this returns the viewToken
+      const { viewToken } = await viewer.access(slug, password);
 
-      // Fetch gazette data
-      const data = await viewer.get(slug)
+      // Store the viewToken in auth store so subsequent requests include it
+      useAuthStore.getState().setToken(viewToken, {
+        id: "", // We don't have project id in viewer context
+        name: slug,
+        slug: slug,
+      });
 
-      setGazetteData(data)
-      setIsAuthenticated(true)
+      // Fetch gazette data (now with the viewToken in auth header)
+      const data = await viewer.get(slug);
+
+      setGazetteData(data);
+      setIsAuthenticated(true);
 
       toast({
-        title: 'Accès accordé',
-        description: 'Bienvenue dans la gazette',
-      })
+        title: "Accès accordé",
+        description: "Bienvenue dans la gazette",
+      });
     } catch (error: any) {
       toast({
-        title: 'Accès refusé',
-        description: error?.message || 'Mot de passe invalide',
-        variant: 'destructive',
-      })
+        title: "Accès refusé",
+        description: error?.message || "Mot de passe invalide",
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Try to fetch without password on mount
   useEffect(() => {
     const fetchGazette = async () => {
       try {
-        const data = await viewer.get(slug)
-        setGazetteData(data)
-        setIsAuthenticated(true)
+        const data = await viewer.get(slug);
+        setGazetteData(data);
+        setIsAuthenticated(true);
       } catch (error: any) {
         // If 401, needs password
         if (error?.status === 401 || error?.response?.status === 401) {
-          setNeedsPassword(true)
+          setNeedsPassword(true);
         } else {
           toast({
-            title: 'Erreur',
-            description: 'Impossible de charger la gazette',
-            variant: 'destructive',
-          })
+            title: "Erreur",
+            description: "Impossible de charger la gazette",
+            variant: "destructive",
+          });
         }
       }
-    }
+    };
 
-    fetchGazette()
-  }, [slug])
+    fetchGazette();
+  }, [slug]);
 
   if (!isAuthenticated && needsPassword) {
     return (
@@ -89,7 +97,7 @@ function ViewComponent() {
             transition={{
               duration: 20,
               repeat: Infinity,
-              ease: 'linear',
+              ease: "linear",
             }}
             className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#C9A227]/5 blur-3xl"
           />
@@ -101,7 +109,7 @@ function ViewComponent() {
             transition={{
               duration: 25,
               repeat: Infinity,
-              ease: 'linear',
+              ease: "linear",
             }}
             className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[#8b7355]/5 blur-3xl"
           />
@@ -174,7 +182,10 @@ function ViewComponent() {
             <div className="p-8">
               <form onSubmit={handlePasswordSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="font-serif text-sm font-medium text-[#2C2416]">
+                  <Label
+                    htmlFor="password"
+                    className="font-serif text-sm font-medium text-[#2C2416]"
+                  >
                     Mot de passe
                   </Label>
                   <div className="relative">
@@ -202,7 +213,7 @@ function ViewComponent() {
                       Vérification...
                     </>
                   ) : (
-                    'Accéder à la gazette'
+                    "Accéder à la gazette"
                   )}
                 </Button>
               </form>
@@ -223,27 +234,23 @@ function ViewComponent() {
           </motion.p>
         </motion.div>
       </div>
-    )
+    );
   }
 
   if (!isAuthenticated && !needsPassword) {
     // Loading state
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#f5f1e8] via-[#faf8f3] to-[#f0e9d8]">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center"
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
           <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#C9A227]" />
           <p className="mt-4 font-serif text-lg text-[#5C4033]">Chargement de la gazette...</p>
         </motion.div>
       </div>
-    )
+    );
   }
 
   if (!gazetteData) {
-    return null
+    return null;
   }
 
   return (
@@ -257,5 +264,5 @@ function ViewComponent() {
         <GazetteViewer data={gazetteData} />
       </motion.div>
     </AnimatePresence>
-  )
+  );
 }

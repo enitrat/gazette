@@ -1,9 +1,17 @@
-import { useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import type { ViewProjectResponse } from '@gazette/shared';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@/lib/constants';
-import { images } from '@/lib/api';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import type { ViewProjectResponse } from "@gazette/shared";
+import {
+  CANVAS,
+  GAZETTE_COLORS,
+  getMergedTextStyle,
+  textStyleToInlineStyle,
+} from "@gazette/shared";
+import { API_BASE_URL } from "@/lib/constants";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+const CANVAS_WIDTH = CANVAS.WIDTH;
+const CANVAS_HEIGHT = CANVAS.HEIGHT;
 
 interface GazetteViewerProps {
   data: ViewProjectResponse;
@@ -34,12 +42,12 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') goToPreviousPage();
-      if (e.key === 'ArrowRight') goToNextPage();
+      if (e.key === "ArrowLeft") goToPreviousPage();
+      if (e.key === "ArrowRight") goToNextPage();
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [currentPageIndex, totalPages]);
 
   // Page transition variants
@@ -65,26 +73,28 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-gradient-to-br from-[#f5f1e8] via-[#faf8f3] to-[#f0e9d8]">
-      {/* Decorative background pattern */}
+    <div
+      className="relative min-h-screen w-full overflow-hidden"
+      style={{ backgroundColor: GAZETTE_COLORS.canvas }}
+    >
+      {/* Subtle grid background */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.015]"
+        className="pointer-events-none absolute inset-0 opacity-40"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          backgroundImage: "radial-gradient(circle, rgba(0, 0, 0, 0.06) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
         }}
       />
 
-      {/* Vignette effect */}
-      <div
-        className="pointer-events-none absolute inset-0"
+      {/* Header - Masthead (NYT/WSJ style) */}
+      <header
+        className="relative z-10 shadow-sm"
         style={{
-          background: 'radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.05) 100%)',
+          backgroundColor: GAZETTE_COLORS.paper,
+          borderBottom: `2px solid ${GAZETTE_COLORS.ink}`,
         }}
-      />
-
-      {/* Header - Masthead */}
-      <header className="relative z-10 border-b-4 border-[#8b7355]/30 bg-gradient-to-b from-white/95 to-white/90 shadow-lg backdrop-blur-sm">
-        <div className="container mx-auto px-6 py-8">
+      >
+        <div className="container mx-auto px-6 py-6">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -92,23 +102,56 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
             className="text-center"
           >
             <div className="mb-2 flex items-center justify-center gap-4">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
-              <svg className="h-4 w-4 text-[#8b7355]" viewBox="0 0 20 20" fill="currentColor">
+              <div
+                className="h-px flex-1"
+                style={{
+                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
+                }}
+              />
+              <svg
+                className="h-3 w-3"
+                style={{ color: GAZETTE_COLORS.ink }}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
                 <path d="M10 2 L12 6 L17 7 L13.5 10.5 L14.5 16 L10 13.5 L5.5 16 L6.5 10.5 L3 7 L8 6 Z" />
               </svg>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
+              <div
+                className="h-px flex-1"
+                style={{
+                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
+                }}
+              />
             </div>
 
-            <h1 className="font-display text-5xl font-black tracking-tight text-[#2C2416] drop-shadow-sm">
+            <h1
+              className="font-display text-5xl font-black tracking-tight"
+              style={{ color: GAZETTE_COLORS.headline }}
+            >
               {data.project.name}
             </h1>
 
             <div className="mt-2 flex items-center justify-center gap-4">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
-              <svg className="h-4 w-4 text-[#8b7355]" viewBox="0 0 20 20" fill="currentColor">
+              <div
+                className="h-px flex-1"
+                style={{
+                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
+                }}
+              />
+              <svg
+                className="h-3 w-3"
+                style={{ color: GAZETTE_COLORS.ink }}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
                 <path d="M10 2 L12 6 L17 7 L13.5 10.5 L14.5 16 L10 13.5 L5.5 16 L6.5 10.5 L3 7 L8 6 Z" />
               </svg>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-[#8b7355] to-transparent" />
+              <div
+                className="h-px flex-1"
+                style={{
+                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
+                }}
+              />
             </div>
           </motion.div>
         </div>
@@ -125,38 +168,51 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
             animate="center"
             exit="exit"
             transition={{
-              x: { type: 'spring', stiffness: 300, damping: 40 },
+              x: { type: "spring", stiffness: 300, damping: 40 },
               opacity: { duration: 0.4 },
               scale: { duration: 0.4 },
               rotateY: { duration: 0.4 },
             }}
             className="relative w-full max-w-5xl"
-            style={{ perspective: '2000px' }}
+            style={{ perspective: "2000px" }}
           >
-            {/* Page container with shadow and texture */}
-            <div className="relative mx-auto" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
-              {/* Multiple shadow layers for depth */}
-              <div className="absolute inset-0 -translate-x-2 translate-y-2 rounded-sm bg-[#8b7355]/5 blur-xl" />
-              <div className="absolute inset-0 translate-x-2 translate-y-3 rounded-sm bg-[#8b7355]/10 blur-2xl" />
+            {/* Page container with shadow */}
+            <div
+              className="relative mx-auto"
+              style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
+            >
+              {/* Subtle shadow */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 30px rgba(0, 0, 0, 0.12)",
+                }}
+              />
 
               {/* Page content */}
               <div
-                className="relative overflow-hidden rounded-sm border-2 border-[#8b7355]/30 bg-[#fefdfb] shadow-2xl"
+                className="relative overflow-hidden"
                 style={{
-                  backgroundImage: `
-                    linear-gradient(to bottom, rgba(251,248,240,0) 0%, rgba(251,248,240,0.3) 100%),
-                    url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E")
-                  `,
-                  backgroundSize: 'cover',
+                  backgroundColor: GAZETTE_COLORS.paper,
+                  height: "100%",
                 }}
               >
                 {/* Page header */}
-                <div className="border-b border-[#8b7355]/20 bg-gradient-to-b from-[#faf8f3] to-transparent p-8 pb-6">
-                  <h2 className="font-display text-4xl font-bold leading-tight text-[#2C2416]">
-                    {currentPage.title}
+                <div
+                  className="p-8 pb-6"
+                  style={{ borderBottom: `1px solid ${GAZETTE_COLORS.rule}` }}
+                >
+                  <h2
+                    className="font-display text-4xl font-bold leading-tight"
+                    style={{ color: GAZETTE_COLORS.headline }}
+                  >
+                    {currentPage.title || `Page ${currentPageIndex + 1}`}
                   </h2>
                   {currentPage.subtitle && (
-                    <p className="mt-2 font-serif text-lg italic text-[#5C4033]">
+                    <p
+                      className="mt-2 font-serif text-lg italic"
+                      style={{ color: GAZETTE_COLORS.body }}
+                    >
                       {currentPage.subtitle}
                     </p>
                   )}
@@ -167,9 +223,17 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                   {currentPage.elements.map((element) => {
                     const { position } = element;
 
-                    if (element.type === 'image') {
-                      const hasVideo = element.videoUrl && element.videoStatus === 'complete';
-                      const imageUrl = element.imageId ? images.getUrl(element.imageId) : null;
+                    if (element.type === "image") {
+                      const hasVideo = element.videoUrl && element.videoStatus === "complete";
+                      // Use the imageUrl from the view API response (includes auth in the URL path)
+                      // The URL is relative like /api/view/:slug/images/:id, prepend API base
+                      const baseWithoutApi = API_BASE_URL.replace(/\/api$/, "");
+                      const imageUrl = element.imageUrl
+                        ? `${baseWithoutApi}${element.imageUrl}`
+                        : null;
+                      const videoUrl = element.videoUrl
+                        ? `${baseWithoutApi}${element.videoUrl}`
+                        : null;
 
                       return (
                         <motion.div
@@ -177,17 +241,18 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ delay: 0.2, duration: 0.5 }}
-                          className="absolute overflow-hidden rounded-sm border border-[#8b7355]/20 shadow-md"
+                          className="absolute overflow-hidden"
                           style={{
                             left: position.x,
                             top: position.y,
                             width: position.width,
                             height: position.height,
+                            border: `1px solid ${GAZETTE_COLORS.border}`,
                           }}
                         >
-                          {hasVideo ? (
+                          {hasVideo && videoUrl ? (
                             <video
-                              src={element.videoUrl!}
+                              src={videoUrl}
                               autoPlay
                               loop
                               muted
@@ -196,7 +261,7 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                               onError={(e) => {
                                 // Fallback to image if video fails
                                 const target = e.target as HTMLVideoElement;
-                                target.style.display = 'none';
+                                target.style.display = "none";
                               }}
                             />
                           ) : null}
@@ -207,14 +272,14 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                               alt=""
                               className="h-full w-full object-cover"
                               style={{
-                                display: hasVideo && imageLoadStates[element.id] ? 'none' : 'block',
+                                display: hasVideo && imageLoadStates[element.id] ? "none" : "block",
                                 transform: element.cropData
                                   ? `scale(${element.cropData.zoom}) translate(${-element.cropData.x}px, ${-element.cropData.y}px)`
                                   : undefined,
-                                transformOrigin: 'top left',
+                                transformOrigin: "top left",
                               }}
                               onLoad={() => {
-                                setImageLoadStates(prev => ({ ...prev, [element.id]: true }));
+                                setImageLoadStates((prev) => ({ ...prev, [element.id]: true }));
                               }}
                             />
                           )}
@@ -222,11 +287,20 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                       );
                     }
 
-                    if (element.type === 'headline') {
+                    // Text elements (headline, subheading, caption)
+                    if (
+                      element.type === "headline" ||
+                      element.type === "subheading" ||
+                      element.type === "caption"
+                    ) {
+                      // Use shared text style helpers for consistency with editor and export
+                      const mergedStyle = getMergedTextStyle(element.type, element.style);
+                      const inlineStyle = textStyleToInlineStyle(mergedStyle);
+
                       return (
                         <motion.div
                           key={element.id}
-                          initial={{ opacity: 0, y: 20 }}
+                          initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.3, duration: 0.5 }}
                           className="absolute"
@@ -235,55 +309,10 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                             top: position.y,
                             width: position.width,
                             height: position.height,
+                            ...inlineStyle,
                           }}
                         >
-                          <h3 className="font-display text-3xl font-bold leading-tight text-[#2C2416]">
-                            {element.content}
-                          </h3>
-                        </motion.div>
-                      );
-                    }
-
-                    if (element.type === 'subheading') {
-                      return (
-                        <motion.div
-                          key={element.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.35, duration: 0.5 }}
-                          className="absolute"
-                          style={{
-                            left: position.x,
-                            top: position.y,
-                            width: position.width,
-                            height: position.height,
-                          }}
-                        >
-                          <h4 className="font-display text-xl font-semibold leading-snug text-[#5C4033]">
-                            {element.content}
-                          </h4>
-                        </motion.div>
-                      );
-                    }
-
-                    if (element.type === 'caption') {
-                      return (
-                        <motion.div
-                          key={element.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: 0.4, duration: 0.5 }}
-                          className="absolute"
-                          style={{
-                            left: position.x,
-                            top: position.y,
-                            width: position.width,
-                            height: position.height,
-                          }}
-                        >
-                          <p className="font-serif text-base leading-relaxed text-[#2C2416]">
-                            {element.content}
-                          </p>
+                          {element.content}
                         </motion.div>
                       );
                     }
@@ -292,11 +321,22 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                   })}
                 </div>
 
-                {/* Decorative corner flourishes */}
-                <div className="pointer-events-none absolute left-4 top-4 h-8 w-8 border-l-2 border-t-2 border-[#8b7355]/20" />
-                <div className="pointer-events-none absolute right-4 top-4 h-8 w-8 border-r-2 border-t-2 border-[#8b7355]/20" />
-                <div className="pointer-events-none absolute bottom-4 left-4 h-8 w-8 border-b-2 border-l-2 border-[#8b7355]/20" />
-                <div className="pointer-events-none absolute bottom-4 right-4 h-8 w-8 border-b-2 border-r-2 border-[#8b7355]/20" />
+                {/* Elegant newspaper border - thin rule */}
+                <div
+                  className="pointer-events-none absolute"
+                  style={{
+                    inset: "24px",
+                    border: `1px solid ${GAZETTE_COLORS.rule}`,
+                  }}
+                />
+                {/* Inner double-rule */}
+                <div
+                  className="pointer-events-none absolute"
+                  style={{
+                    inset: "28px",
+                    border: `0.5px solid ${GAZETTE_COLORS.border}`,
+                  }}
+                />
               </div>
             </div>
           </motion.div>
@@ -304,16 +344,27 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
       </main>
 
       {/* Footer navigation */}
-      <footer className="fixed bottom-0 left-0 right-0 z-20 border-t-2 border-[#8b7355]/30 bg-gradient-to-t from-white/95 to-white/90 backdrop-blur-sm">
-        <div className="container mx-auto px-6 py-6">
+      <footer
+        className="fixed bottom-0 left-0 right-0 z-20 backdrop-blur-sm"
+        style={{
+          backgroundColor: `${GAZETTE_COLORS.paper}f0`,
+          borderTop: `1px solid ${GAZETTE_COLORS.rule}`,
+        }}
+      >
+        <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Previous button */}
             <motion.button
-              whileHover={{ scale: 1.05, x: -5 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.02, x: -2 }}
+              whileTap={{ scale: 0.98 }}
               onClick={goToPreviousPage}
               disabled={currentPageIndex === 0}
-              className="group flex items-center gap-2 rounded-sm border border-[#8b7355]/30 bg-gradient-to-br from-[#faf8f3] to-[#f4e4bc] px-6 py-3 font-serif text-sm font-medium text-[#2C2416] shadow-md transition-all hover:border-[#8b7355]/50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+              className="group flex items-center gap-2 px-5 py-2.5 font-serif text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                backgroundColor: GAZETTE_COLORS.newsprint,
+                color: GAZETTE_COLORS.ink,
+                border: `1px solid ${GAZETTE_COLORS.border}`,
+              }}
             >
               <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
               <span>Page précédente</span>
@@ -334,35 +385,48 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                     whileTap={{ scale: 0.9 }}
                   >
                     <div
-                      className={`h-full w-full rounded-full transition-all ${
-                        index === currentPageIndex
-                          ? 'bg-[#C9A227] shadow-md'
-                          : 'bg-[#8b7355]/30 group-hover:bg-[#8b7355]/50'
-                      }`}
+                      className="h-full w-full rounded-full transition-all"
+                      style={{
+                        backgroundColor:
+                          index === currentPageIndex ? GAZETTE_COLORS.ink : GAZETTE_COLORS.rule,
+                      }}
                     />
                     {index === currentPageIndex && (
                       <motion.div
                         layoutId="activePageIndicator"
-                        className="absolute inset-0 -m-1 rounded-full border-2 border-[#C9A227]"
-                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        className="absolute inset-0 -m-1 rounded-full"
+                        style={{ border: `2px solid ${GAZETTE_COLORS.ink}` }}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
                       />
                     )}
                   </motion.button>
                 ))}
               </div>
 
-              <div className="font-display text-sm font-medium text-[#5C4033]">
-                Page <span className="text-lg font-bold text-[#C9A227]">{currentPageIndex + 1}</span> sur {totalPages}
+              <div
+                className="font-display text-sm font-medium"
+                style={{ color: GAZETTE_COLORS.body }}
+              >
+                Page{" "}
+                <span className="text-lg font-bold" style={{ color: GAZETTE_COLORS.ink }}>
+                  {currentPageIndex + 1}
+                </span>{" "}
+                sur {totalPages}
               </div>
             </div>
 
             {/* Next button */}
             <motion.button
-              whileHover={{ scale: 1.05, x: 5 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.02, x: 2 }}
+              whileTap={{ scale: 0.98 }}
               onClick={goToNextPage}
               disabled={currentPageIndex === totalPages - 1}
-              className="group flex items-center gap-2 rounded-sm border border-[#8b7355]/30 bg-gradient-to-br from-[#faf8f3] to-[#f4e4bc] px-6 py-3 font-serif text-sm font-medium text-[#2C2416] shadow-md transition-all hover:border-[#8b7355]/50 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+              className="group flex items-center gap-2 px-5 py-2.5 font-serif text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              style={{
+                backgroundColor: GAZETTE_COLORS.newsprint,
+                color: GAZETTE_COLORS.ink,
+                border: `1px solid ${GAZETTE_COLORS.border}`,
+              }}
             >
               <span>Page suivante</span>
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
