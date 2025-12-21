@@ -94,6 +94,7 @@ export const CreateElementSchema = z.discriminatedUnion("type", [
 // Update element request
 export const UpdateElementSchema = z.object({
   position: PositionSchema.optional(),
+  imageId: z.string().uuid().nullable().optional(),
   cropData: CropDataSchema.nullable().optional(),
   animationPrompt: z.string().max(500).nullable().optional(),
   content: z.string().max(1000).optional(),

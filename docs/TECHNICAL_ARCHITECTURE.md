@@ -617,6 +617,8 @@ REDIS_URL=redis://localhost:6379
 
 # JWT
 JWT_SECRET=your-super-secret-key-change-in-production
+SIGNED_URL_SECRET=your-media-url-signing-secret
+SIGNED_URL_TTL_SECONDS=3600
 
 # Public URLs
 APP_URL=http://localhost:5173
@@ -635,6 +637,8 @@ GEMINI_API_KEY=your-gemini-api-key
 VITE_API_URL=http://localhost:3000/api
 ```
 
+Note: In production, set `UPLOAD_DIR` to `/var/lib/gazette/uploads` (as in `ops/ecosystem.config.cjs`). If you leave it as `./uploads`, files will be stored inside the repo directory on the VPS, which is easy to overlook and may be wiped if you later change deploy paths or switch to rsync syncing.
+
 ---
 
 ## 7. Security Considerations
@@ -644,7 +648,13 @@ VITE_API_URL=http://localhost:3000/api
 - Project-based auth (name + password), no user accounts
 - Passwords hashed with Bun.password (Argon2id)
 - JWT tokens with 24-hour expiry
-- Tokens stored in httpOnly cookies (production)
+- Tokens stored in localStorage and sent via Authorization header
+
+### 7.2 Signed Media URLs
+
+- Image/video URLs are signed with a short-lived HMAC token
+- Default TTL is 1 hour; expired URLs require a fresh API response
+- Media endpoints validate `exp` + `sig` query params before serving files
 
 ### 7.2 Input Validation
 
@@ -652,15 +662,9 @@ VITE_API_URL=http://localhost:3000/api
 - File uploads: type checked, size limited
 - SQL injection: prevented by Drizzle ORM parameterization
 
-### 7.3 Rate Limiting
-
-- API rate limiting per IP
-- Generation requests limited per project
-
-### 7.4 HTTPS
+### 7.3 HTTPS
 
 - Enforced via Caddy (automatic Let's Encrypt)
-- HSTS headers enabled
 
 ---
 

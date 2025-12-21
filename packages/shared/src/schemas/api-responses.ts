@@ -151,6 +151,7 @@ export const SerializedImageSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   uploadedAt: DateStringSchema,
+  url: z.string(),
 });
 
 // GET /projects/:id/images

@@ -6,6 +6,7 @@ import api, { videos } from "@/lib/api";
 import { Loader2, Clock, AlertCircle, Play } from "lucide-react";
 import {
   getMergedTextStyle,
+  getImageCropInlineStyle,
   textStyleToInlineStyle,
   type TextElementTypeKey,
 } from "@gazette/shared";
@@ -55,7 +56,7 @@ export function CanvasElement({ element }: CanvasElementProps) {
           {/* Video or Image */}
           {hasVideo ? (
             <video
-              src={videos.getUrl(element.videoUrl!)}
+              src={videos.getUrl(element.videoUrl ?? null)}
               className="h-full w-full object-cover"
               autoPlay
               loop
@@ -64,15 +65,10 @@ export function CanvasElement({ element }: CanvasElementProps) {
             />
           ) : element.imageId ? (
             <img
-              src={api.images.getUrl(element.imageId)}
+              src={api.images.getUrl(element.imageUrl ?? null)}
               alt="Image"
               className="h-full w-full object-cover"
-              style={{
-                objectPosition: element.cropData
-                  ? `${-element.cropData.x}px ${-element.cropData.y}px`
-                  : "center",
-                transform: element.cropData ? `scale(${element.cropData.zoom})` : undefined,
-              }}
+              style={getImageCropInlineStyle(element.cropData)}
               draggable={false}
             />
           ) : (

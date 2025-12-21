@@ -11,6 +11,7 @@ import { signViewToken, VIEW_JWT_EXPIRES_IN } from "../../auth/jwt";
 import { errorResponse } from "../shared/http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isSignedRequestValid, signMediaPath, SIGNED_URL_TTL_SECONDS } from "../../lib/signed-urls";
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
@@ -90,7 +91,9 @@ const serializeElement = (record: typeof schema.elements.$inferSelect, slug: str
           zoom: record.cropZoom ?? DEFAULTS.CROP_ZOOM,
         }
       : null;
-    const imageUrl = record.imageId ? `/api/view/${slug}/images/${record.imageId}` : null;
+    const imageUrl = record.imageId
+      ? signMediaPath(`/api/view/${slug}/images/${record.imageId}`)
+      : null;
 
     return {
       id: record.id,
@@ -101,7 +104,7 @@ const serializeElement = (record: typeof schema.elements.$inferSelect, slug: str
       imageUrl,
       cropData,
       animationPrompt: record.animationPrompt ?? null,
-      videoUrl: record.videoUrl ?? null,
+      videoUrl: signMediaPath(record.videoUrl ?? null),
       videoStatus: record.videoStatus ?? "none",
     };
   }
@@ -226,6 +229,12 @@ router.get("/projects/:id/view", requireViewAuth, async (c) => {
 // Public image endpoint - validates via slug instead of JWT
 // This allows <img src> to work without Authorization header
 router.get("/view/:slug/images/:id", async (c) => {
+  const exp = c.req.query("exp");
+  const sig = c.req.query("sig");
+  if (!isSignedRequestValid(c.req.path, exp, sig)) {
+    return errorResponse(c, 403, ERROR_CODES.UNAUTHORIZED, "Invalid or expired image URL");
+  }
+
   const slug = c.req.param("slug");
   const imageId = c.req.param("id");
 
@@ -256,7 +265,7 @@ router.get("/view/:slug/images/:id", async (c) => {
 
   return c.body(file.stream(), 200, {
     "Content-Type": image.mimeType,
-    "Cache-Control": "public, max-age=31536000", // Cache for 1 year since images don't change
+    "Cache-Control": `private, max-age=${SIGNED_URL_TTL_SECONDS}`,
   });
 });
 

@@ -305,7 +305,7 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
                     className="group relative aspect-square overflow-hidden rounded-sm border border-sepia/20 bg-white hover:border-gold/40 hover:shadow-sm"
                   >
                     <img
-                      src={api.images.getUrl(image.id)}
+                      src={api.images.getUrl(image.url)}
                       alt={image.originalFilename}
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
                     />

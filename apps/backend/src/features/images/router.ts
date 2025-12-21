@@ -13,6 +13,7 @@ import { images, projects } from "../../db/schema";
 import { ERROR_CODES, IMAGE_CONSTRAINTS } from "@gazette/shared";
 import { errorResponse } from "../shared/http";
 import { analyzeImage } from "../../lib/gemini-client";
+import { isSignedRequestValid, signMediaPath, SIGNED_URL_TTL_SECONDS } from "../../lib/signed-urls";
 
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
@@ -90,6 +91,7 @@ const safeUnlink = async (filePath: string) => {
 const imageResponseHeaders = (mimeType: string) => ({
   "Content-Type": mimeType,
   "Cross-Origin-Resource-Policy": "cross-origin",
+  "Cache-Control": `private, max-age=${SIGNED_URL_TTL_SECONDS}`,
 });
 
 export const imagesRouter = new Hono();
@@ -124,6 +126,7 @@ imagesRouter.get("/projects/:id/images", async (c) => {
       width: img.width,
       height: img.height,
       uploadedAt: img.uploadedAt.toISOString(),
+      url: signMediaPath(`/api/images/${img.id}/file`),
     })),
   });
 });
@@ -244,7 +247,7 @@ imagesRouter.post("/projects/:id/images", async (c) => {
       mimeType: normalizedType.mimeType,
       width: info.width,
       height: info.height,
-      url: `/api/images/${imageId}/file`,
+      url: signMediaPath(`/api/images/${imageId}/file`),
       uploadedAt: uploadedAt.toISOString(),
     },
     201
@@ -272,7 +275,7 @@ imagesRouter.get("/images/:id", requireAuth, async (c) => {
     mimeType: image.mimeType,
     width: image.width,
     height: image.height,
-    url: `/api/images/${imageId}/file`,
+    url: signMediaPath(`/api/images/${imageId}/file`),
     uploadedAt: image.uploadedAt.toISOString(),
   });
 });
@@ -308,6 +311,12 @@ imagesRouter.get("/images/:id/public", async (c) => {
 
 // Get image file (no auth required - image IDs are UUIDs and not guessable)
 imagesRouter.get("/images/:id/file", async (c) => {
+  const exp = c.req.query("exp");
+  const sig = c.req.query("sig");
+  if (!isSignedRequestValid(c.req.path, exp, sig)) {
+    return errorResponse(c, 403, ERROR_CODES.UNAUTHORIZED, "Invalid or expired image URL");
+  }
+
   const imageId = c.req.param("id");
   const image = db.select().from(images).where(eq(images.id, imageId)).get();
 

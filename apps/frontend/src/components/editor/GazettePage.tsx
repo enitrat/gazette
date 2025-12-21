@@ -4,7 +4,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { Loader2 } from "lucide-react";
 import { useElementsStore } from "@/stores/elements-store";
 import { CanvasElement } from "./CanvasElement";
-import { CANVAS, GAZETTE_COLORS } from "@gazette/shared";
+import { GAZETTE_COLORS, getPageFrameInlineStyle, getPageRuleInlineStyle } from "@gazette/shared";
 
 interface GazettePageProps {
   pageId: string;
@@ -43,12 +43,7 @@ export function GazettePage({ pageId }: GazettePageProps) {
       className="gazette-page"
       onClick={handleClick}
       style={{
-        position: "relative",
-        width: `${CANVAS.WIDTH}px`,
-        height: `${CANVAS.HEIGHT}px`,
-        backgroundColor: GAZETTE_COLORS.paper,
-        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 30px rgba(0, 0, 0, 0.12)",
-        overflow: "hidden",
+        ...getPageFrameInlineStyle(),
         isolation: "isolate",
         transition: "box-shadow 0.2s ease, transform 0.2s ease",
         ...(isOver && {
@@ -59,24 +54,10 @@ export function GazettePage({ pageId }: GazettePageProps) {
       }}
     >
       {/* Elegant newspaper border - thin rule */}
-      <div
-        style={{
-          position: "absolute",
-          inset: "24px",
-          border: `1px solid ${GAZETTE_COLORS.rule}`,
-          pointerEvents: "none",
-        }}
-      />
+      <div style={getPageRuleInlineStyle("outer")} />
 
       {/* Inner double-rule for classic newspaper feel */}
-      <div
-        style={{
-          position: "absolute",
-          inset: "28px",
-          border: `0.5px solid ${GAZETTE_COLORS.border}`,
-          pointerEvents: "none",
-        }}
-      />
+      <div style={getPageRuleInlineStyle("inner")} />
 
       {/* Loading State */}
       {isLoading && (

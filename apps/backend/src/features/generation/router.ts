@@ -19,6 +19,7 @@ import { errorResponse } from "../shared/http";
 import { generationQueue } from "../../queue/queue";
 import type { GenerationJobPayload } from "../../queue/jobs/types";
 import { getWanTaskStatus, downloadVideo } from "../../lib/wan-client";
+import { isSignedRequestValid, signMediaPath, SIGNED_URL_TTL_SECONDS } from "../../lib/signed-urls";
 
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
@@ -97,7 +98,7 @@ const buildJobResponse = (job: typeof generationJobs.$inferSelect) => ({
   prompt: job.prompt,
   status: job.status,
   progress: job.progress,
-  videoUrl: job.videoUrl ?? null,
+  videoUrl: signMediaPath(job.videoUrl ?? null),
   error: job.error ?? null,
   metadata: parseMetadata(job.metadata),
   createdAt: toIso(job.createdAt),
@@ -425,7 +426,10 @@ generationRouter.get("/projects/:id/generation/status", async (c) => {
     projectId,
     totalJobs: jobs.length,
     ...summary,
-    jobs,
+    jobs: jobs.map((job) => ({
+      ...job,
+      videoUrl: signMediaPath(job.videoUrl ?? null),
+    })),
   });
 });
 
@@ -612,6 +616,12 @@ generationRouter.post("/generation/:id/retry", async (c) => {
 // Handles both generated videos (by job ID) and uploaded videos (by video ID)
 
 generationRouter.get("/videos/:id/file", async (c) => {
+  const exp = c.req.query("exp");
+  const sig = c.req.query("sig");
+  if (!isSignedRequestValid(c.req.path, exp, sig)) {
+    return errorResponse(c, 403, ERROR_CODES.UNAUTHORIZED, "Invalid or expired video URL");
+  }
+
   const id = c.req.param("id");
 
   // Validate ID format (UUID) to prevent path traversal
@@ -626,6 +636,7 @@ generationRouter.get("/videos/:id/file", async (c) => {
   if (await generatedFile.exists()) {
     return c.body(generatedFile.stream(), 200, {
       "Content-Type": "video/mp4",
+      "Cache-Control": `private, max-age=${SIGNED_URL_TTL_SECONDS}`,
     });
   }
 
@@ -641,6 +652,7 @@ generationRouter.get("/videos/:id/file", async (c) => {
     if (await uploadedFile.exists()) {
       return c.body(uploadedFile.stream(), 200, {
         "Content-Type": video.mimeType,
+        "Cache-Control": `private, max-age=${SIGNED_URL_TTL_SECONDS}`,
       });
     }
   }
@@ -683,7 +695,7 @@ generationRouter.get("/projects/:id/videos", async (c) => {
           ? video.createdAt.toISOString()
           : new Date((video.createdAt as number) * 1000).toISOString(),
       // URL for playback - uses video ID for uploaded videos, or job ID for generated ones
-      url: `/api/videos/${video.generationJobId || video.id}/file`,
+      url: signMediaPath(`/api/videos/${video.generationJobId || video.id}/file`),
     })),
   });
 });
@@ -775,7 +787,7 @@ generationRouter.post("/projects/:id/videos", async (c) => {
       filename: originalFilename,
       mimeType,
       fileSize,
-      url: `/api/videos/${videoId}/file`,
+      url: signMediaPath(`/api/videos/${videoId}/file`),
       createdAt: new Date().toISOString(),
     },
     201

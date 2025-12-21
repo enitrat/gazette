@@ -2,16 +2,18 @@ import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { ViewProjectResponse } from "@gazette/shared";
 import {
-  CANVAS,
+  CANVAS_FRAME,
   GAZETTE_COLORS,
+  getImageCropInlineStyle,
   getMergedTextStyle,
+  getPageFrameInlineStyle,
+  getPageRuleInlineStyle,
   textStyleToInlineStyle,
 } from "@gazette/shared";
 import { API_BASE_URL } from "@/lib/constants";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-const CANVAS_WIDTH = CANVAS.WIDTH;
-const CANVAS_HEIGHT = CANVAS.HEIGHT;
+const CANVAS_HEIGHT = CANVAS_FRAME.height;
 
 interface GazetteViewerProps {
   data: ViewProjectResponse;
@@ -176,27 +178,10 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
             className="relative w-full max-w-5xl"
             style={{ perspective: "2000px" }}
           >
-            {/* Page container with shadow */}
-            <div
-              className="relative mx-auto"
-              style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
-            >
-              {/* Subtle shadow */}
-              <div
-                className="absolute inset-0"
-                style={{
-                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 30px rgba(0, 0, 0, 0.12)",
-                }}
-              />
-
+            {/* Page container */}
+            <div className="relative mx-auto" style={getPageFrameInlineStyle()}>
               {/* Page content */}
-              <div
-                className="relative overflow-hidden"
-                style={{
-                  backgroundColor: GAZETTE_COLORS.paper,
-                  height: "100%",
-                }}
-              >
+              <div className="relative h-full">
                 {/* Page header */}
                 <div
                   className="p-8 pb-6"
@@ -273,10 +258,7 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                               className="h-full w-full object-cover"
                               style={{
                                 display: hasVideo && imageLoadStates[element.id] ? "none" : "block",
-                                transform: element.cropData
-                                  ? `scale(${element.cropData.zoom}) translate(${-element.cropData.x}px, ${-element.cropData.y}px)`
-                                  : undefined,
-                                transformOrigin: "top left",
+                                ...getImageCropInlineStyle(element.cropData),
                               }}
                               onLoad={() => {
                                 setImageLoadStates((prev) => ({ ...prev, [element.id]: true }));
@@ -324,18 +306,12 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
                 {/* Elegant newspaper border - thin rule */}
                 <div
                   className="pointer-events-none absolute"
-                  style={{
-                    inset: "24px",
-                    border: `1px solid ${GAZETTE_COLORS.rule}`,
-                  }}
+                  style={getPageRuleInlineStyle("outer")}
                 />
                 {/* Inner double-rule */}
                 <div
                   className="pointer-events-none absolute"
-                  style={{
-                    inset: "28px",
-                    border: `0.5px solid ${GAZETTE_COLORS.border}`,
-                  }}
+                  style={getPageRuleInlineStyle("inner")}
                 />
               </div>
             </div>

@@ -39,6 +39,14 @@ import {
 // Re-export types for use in components
 export type { PageListItem, SerializedElement, ViewProjectResponse };
 
+const toAbsoluteUrl = (url: string | null): string => {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const baseWithoutApi = API_BASE_URL.replace(/\/api$/, "");
+  const normalized = url.startsWith("/") ? url : `/${url}`;
+  return `${baseWithoutApi}${normalized}`;
+};
+
 // Simplified Project type for frontend use (without passwordHash)
 export type FrontendProject = Omit<AccessProjectResponse, "token">;
 
@@ -140,8 +148,8 @@ export const images = {
     return apiClient.get(`images/${imageId}`).json();
   },
 
-  getUrl: (imageId: string): string => {
-    return `${API_BASE_URL}/images/${imageId}/file`;
+  getUrl: (signedUrl: string | null): string => {
+    return toAbsoluteUrl(signedUrl);
   },
 };
 
@@ -161,11 +169,8 @@ export const videos = {
     return apiClient.post(`projects/${projectId}/videos`, { body: formData }).json();
   },
 
-  getUrl: (videoUrl: string): string => {
-    // videoUrl from backend is like "/api/videos/:id/file"
-    // We need to prepend the base URL (without /api since videoUrl includes it)
-    const baseWithoutApi = API_BASE_URL.replace(/\/api$/, "");
-    return `${baseWithoutApi}${videoUrl}`;
+  getUrl: (signedUrl: string | null): string => {
+    return toAbsoluteUrl(signedUrl);
   },
 
   getDownloadUrl: (videoId: string): string => {

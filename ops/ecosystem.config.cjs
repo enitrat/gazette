@@ -15,6 +15,8 @@ const sharedEnv = {
   APP_URL: process.env.APP_URL || "https://gazette.example.com",
   PUBLIC_APP_URL: process.env.PUBLIC_APP_URL || "https://gazette.example.com",
   JWT_SECRET: process.env.JWT_SECRET,
+  SIGNED_URL_SECRET: process.env.SIGNED_URL_SECRET,
+  SIGNED_URL_TTL_SECONDS: process.env.SIGNED_URL_TTL_SECONDS || "3600",
   WAN_API_KEY: process.env.WAN_API_KEY,
   WAN_API_URL: process.env.WAN_API_URL,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,

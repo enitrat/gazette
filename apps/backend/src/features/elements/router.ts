@@ -11,6 +11,7 @@ import {
   validateUpdateElement,
 } from "@gazette/shared";
 import { errorResponse } from "../shared/http";
+import { signMediaPath } from "../../lib/signed-urls";
 
 const MAX_PHOTOS_PER_PAGE = 5;
 
@@ -31,7 +32,7 @@ const serializeElement = (record: ElementRecord) => {
           zoom: record.cropZoom ?? DEFAULTS.CROP_ZOOM,
         }
       : null;
-    const imageUrl = record.imageId ? `/api/images/${record.imageId}/file` : null;
+    const imageUrl = record.imageId ? signMediaPath(`/api/images/${record.imageId}/file`) : null;
 
     return {
       id: record.id,
@@ -42,7 +43,7 @@ const serializeElement = (record: ElementRecord) => {
       imageUrl,
       cropData,
       animationPrompt: record.animationPrompt ?? null,
-      videoUrl: record.videoUrl ?? null,
+      videoUrl: signMediaPath(record.videoUrl ?? null),
       videoStatus: record.videoStatus ?? "none",
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
@@ -259,7 +260,9 @@ elementsRouter.put("/elements/:id", async (c) => {
 
   if (
     existing.type !== ELEMENT_TYPES.IMAGE &&
-    (validation.data.cropData !== undefined || validation.data.animationPrompt !== undefined)
+    (validation.data.cropData !== undefined ||
+      validation.data.animationPrompt !== undefined ||
+      validation.data.imageId !== undefined)
   ) {
     return errorResponse(
       c,
@@ -298,6 +301,10 @@ elementsRouter.put("/elements/:id", async (c) => {
 
   if (validation.data.animationPrompt !== undefined) {
     updateValues.animationPrompt = validation.data.animationPrompt;
+  }
+
+  if (validation.data.imageId !== undefined) {
+    updateValues.imageId = validation.data.imageId;
   }
 
   if (validation.data.style !== undefined) {

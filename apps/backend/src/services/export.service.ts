@@ -12,25 +12,21 @@ import { db, schema } from "../db";
 import {
   DEFAULTS,
   ELEMENT_TYPES,
-  CANVAS,
+  CANVAS_FRAME,
   GAZETTE_COLORS,
+  getImageCropCss,
   getMergedTextStyle,
   textStyleToCss,
   type TextElementTypeKey,
   type PartialTextStyle,
 } from "@gazette/shared";
 
-const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
-const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
-const VIDEO_SUBDIR = "videos";
-
 // Go up from src/services/ to apps/backend/
 const appRoot = fileURLToPath(new URL("../..", import.meta.url));
-const videoRoot = join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
 
 // Use shared canvas dimensions
-const CANVAS_WIDTH = CANVAS.WIDTH;
-const CANVAS_HEIGHT = CANVAS.HEIGHT;
+const CANVAS_WIDTH = CANVAS_FRAME.width;
+const CANVAS_HEIGHT = CANVAS_FRAME.height;
 const GOOGLE_FONTS_URL =
   "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700;1,800&family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap";
 
@@ -106,15 +102,6 @@ const formatText = (value: string | null | undefined) => {
 };
 
 /**
- * Build CSS style string for image crop data (position and zoom).
- * Matches the styling used in the canvas editor (CanvasElement.tsx).
- */
-const buildImageCropStyle = (cropData?: { x: number; y: number; zoom: number } | null): string => {
-  if (!cropData) return "";
-  return `object-position: ${-cropData.x}px ${-cropData.y}px; transform: scale(${cropData.zoom});`;
-};
-
-/**
  * Get CSS string for a text element, merging default styles with custom overrides.
  * Uses the shared getMergedTextStyle and textStyleToCss helpers for consistency with editor.
  */
@@ -126,10 +113,26 @@ const getElementTextStyleCss = (
   return textStyleToCss(mergedStyle);
 };
 
-const extractVideoJobId = (value: string | null | undefined) => {
+const extractVideoId = (value: string | null | undefined) => {
   if (!value) return null;
   const match = value.match(/\/api\/videos\/([^/]+)\/file/);
   return match?.[1] ?? null;
+};
+
+const getVideoFilePath = async (videoId: string): Promise<string | null> => {
+  const video = await db
+    .select({ storagePath: schema.videos.storagePath })
+    .from(schema.videos)
+    .where(eq(schema.videos.id, videoId))
+    .get();
+
+  if (!video) return null;
+
+  const normalizedPath = video.storagePath.startsWith("/")
+    ? video.storagePath.slice(1)
+    : video.storagePath;
+
+  return join(appRoot, normalizedPath);
 };
 
 const readImageDataUri = async (image: typeof schema.images.$inferSelect) => {
@@ -304,11 +307,8 @@ main {
   position: relative;
   width: ${CANVAS_WIDTH}px;
   height: ${CANVAS_HEIGHT}px;
-  background-color: var(--color-parchment);
-  box-shadow:
-    0 10px 40px rgba(0, 0, 0, 0.15),
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  background-color: ${CANVAS_FRAME.backgroundColor};
+  box-shadow: ${CANVAS_FRAME.shadow};
   overflow: hidden;
 }
 
@@ -321,14 +321,19 @@ main {
   pointer-events: none;
 }
 
-/* Inner border decoration */
-.gazette-page::after {
-  content: "";
+.page-rule {
   position: absolute;
-  inset: 20px;
-  border: 1px solid rgba(139, 115, 85, 0.15);
-  border-radius: 2px;
   pointer-events: none;
+}
+
+.page-rule.outer {
+  inset: ${CANVAS_FRAME.outerInset}px;
+  border: ${CANVAS_FRAME.outerBorderWidth}px solid ${CANVAS_FRAME.ruleColor};
+}
+
+.page-rule.inner {
+  inset: ${CANVAS_FRAME.innerInset}px;
+  border: ${CANVAS_FRAME.innerBorderWidth}px solid ${CANVAS_FRAME.borderColor};
 }
 
 .element {
@@ -421,7 +426,7 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
           const videoAsset = videoAssetMap.get(element.id);
           const poster = imageData ? ` poster="${imageData.dataUri}"` : "";
           const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
-          const cropStyle = buildImageCropStyle(element.cropData);
+          const cropStyle = getImageCropCss(element.cropData);
 
           if (videoAsset) {
             return `
@@ -467,6 +472,8 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
         <div class="page-frame">
           <div class="page-canvas gazette-page paper-texture" data-page>
             ${elementsMarkup}
+            <div class="page-rule outer"></div>
+            <div class="page-rule inner"></div>
           </div>
         </div>
         <div class="page-nav">
@@ -682,9 +689,10 @@ export const buildHtmlExportZip = async (projectId: string) => {
       if (element.type !== ELEMENT_TYPES.IMAGE) continue;
       if (!element.videoUrl) continue;
       if (element.videoStatus && element.videoStatus !== "complete") continue;
-      const jobId = extractVideoJobId(element.videoUrl);
-      if (!jobId) continue;
-      const filePath = join(videoRoot, `${jobId}.mp4`);
+      const videoId = extractVideoId(element.videoUrl);
+      if (!videoId) continue;
+      const filePath = await getVideoFilePath(videoId);
+      if (!filePath) continue;
       const file = Bun.file(filePath);
       if (!(await file.exists())) continue;
       const filename = `assets/videos/page-${pageIndex + 1}-element-${elementIndex + 1}.mp4`;
@@ -728,14 +736,14 @@ export const buildVideoExportZip = async (projectId: string) => {
       if (!element.videoUrl) continue;
       if (element.videoStatus && element.videoStatus !== "complete") continue;
 
-      const jobId = extractVideoJobId(element.videoUrl);
+      const videoId = extractVideoId(element.videoUrl);
       const safeBase = sanitizeFilename(
         `page-${page.order + 1}-element-${elementIndex + 1}`,
         `video-${pageIndex + 1}-${elementIndex + 1}`
       );
       const zipPath = `videos/${safeBase}.mp4`;
 
-      if (!jobId) {
+      if (!videoId) {
         metadata.push({
           page,
           element: { id: element.id, index: elementIndex + 1, imageId: element.imageId ?? null },
@@ -743,12 +751,25 @@ export const buildVideoExportZip = async (projectId: string) => {
           videoUrl: element.videoUrl ?? null,
           file: null,
           missing: true,
-          missingReason: "missing_job_id",
+          missingReason: "missing_video_id",
         });
         continue;
       }
 
-      const filePath = join(videoRoot, `${jobId}.mp4`);
+      const filePath = await getVideoFilePath(videoId);
+      if (!filePath) {
+        metadata.push({
+          page,
+          element: { id: element.id, index: elementIndex + 1, imageId: element.imageId ?? null },
+          prompt: element.animationPrompt ?? null,
+          videoUrl: element.videoUrl ?? null,
+          file: null,
+          missing: true,
+          missingReason: "video_not_in_db",
+        });
+        continue;
+      }
+
       const file = Bun.file(filePath);
       if (!(await file.exists())) {
         metadata.push({
@@ -806,7 +827,7 @@ const buildPdfHtml = async (payload: HtmlExportPayload) => {
         if (element.type === ELEMENT_TYPES.IMAGE) {
           const imageData = element.imageId ? payload.imageDataById.get(element.imageId) : null;
           const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
-          const cropStyle = buildImageCropStyle(element.cropData);
+          const cropStyle = getImageCropCss(element.cropData);
 
           if (imageData) {
             return `
@@ -836,6 +857,8 @@ const buildPdfHtml = async (payload: HtmlExportPayload) => {
       <section class="pdf-page">
         <div class="gazette-page">
           ${elementsMarkup}
+          <div class="page-rule outer"></div>
+          <div class="page-rule inner"></div>
         </div>
       </section>
     `;
@@ -954,7 +977,7 @@ const buildSlideshowPageHtml = (
         const videoAsset = videoAssetMap.get(element.id);
         const poster = imageData ? ` poster="${imageData.dataUri}"` : "";
         const label = imageData?.filename ? escapeHtml(imageData.filename) : "Image";
-        const cropStyle = buildImageCropStyle(element.cropData);
+        const cropStyle = getImageCropCss(element.cropData);
 
         if (videoAsset) {
           return `
@@ -1013,6 +1036,8 @@ body {
   <body>
     <div class="page-canvas gazette-page paper-texture">
       ${elementsMarkup}
+      <div class="page-rule outer"></div>
+      <div class="page-rule inner"></div>
     </div>
   </body>
 </html>`;
@@ -1051,9 +1076,10 @@ export const buildVideoSlideshowExport = async (projectId: string) => {
       if (element.type !== ELEMENT_TYPES.IMAGE) continue;
       if (!element.videoUrl) continue;
       if (element.videoStatus && element.videoStatus !== "complete") continue;
-      const jobId = extractVideoJobId(element.videoUrl);
-      if (!jobId) continue;
-      const filePath = join(videoRoot, `${jobId}.mp4`);
+      const videoId = extractVideoId(element.videoUrl);
+      if (!videoId) continue;
+      const filePath = await getVideoFilePath(videoId);
+      if (!filePath) continue;
       const file = Bun.file(filePath);
       if (await file.exists()) {
         // Use file:// URL for local video files

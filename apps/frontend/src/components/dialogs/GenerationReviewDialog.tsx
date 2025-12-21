@@ -252,7 +252,7 @@ export function GenerationReviewDialog() {
                     <div className="flex-shrink-0 w-24 h-24 bg-[#2c2416]/5 border border-[#2c2416]/20 rounded-sm overflow-hidden">
                       {item.element.imageId ? (
                         <img
-                          src={images.getUrl(item.element.imageId)}
+                          src={images.getUrl(item.element.imageUrl ?? null)}
                           alt="Element preview"
                           className="w-full h-full object-cover"
                         />
