@@ -22,6 +22,7 @@ import {
   type SerializedElement,
   type SerializedImage,
   type SerializedVideo,
+  type ImageSuggestion,
   type GenerationJobResponse,
   type AccessProjectResponse,
   type GetProjectResponse,
@@ -148,8 +149,19 @@ export const images = {
     return apiClient.get(`images/${imageId}`).json();
   },
 
+  update: async (
+    imageId: string,
+    data: { suggestedPrompts?: ImageSuggestion[] | null }
+  ): Promise<SerializedImage> => {
+    return apiClient.put(`images/${imageId}`, { json: data }).json();
+  },
+
   getUrl: (signedUrl: string | null): string => {
     return toAbsoluteUrl(signedUrl);
+  },
+
+  delete: async (imageId: string): Promise<void> => {
+    await validatedDelete(`images/${imageId}`);
   },
 };
 
@@ -176,6 +188,10 @@ export const videos = {
   getDownloadUrl: (videoId: string): string => {
     const baseWithoutApi = API_BASE_URL.replace(/\/api$/, "");
     return `${baseWithoutApi}/api/videos/${videoId}/file`;
+  },
+
+  delete: async (videoId: string): Promise<void> => {
+    await validatedDelete(`videos/${videoId}`);
   },
 };
 

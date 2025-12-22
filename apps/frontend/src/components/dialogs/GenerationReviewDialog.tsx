@@ -9,11 +9,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { usePagesStore } from "@/stores/pages-store";
 import api, { images } from "@/lib/api";
 import type { SerializedElement } from "@/lib/api";
+import type { ImageSuggestion } from "@gazette/shared";
 import {
   Sparkles,
   Loader2,
@@ -22,6 +30,7 @@ import {
   FileText,
   Play,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,18 +40,23 @@ interface ImageElementWithPage {
   pageOrder: number;
 }
 
+// Track whether user selected a suggestion or is using custom prompt
+type PromptMode = { type: "suggestion"; index: number } | { type: "custom" };
+
 export function GenerationReviewDialog() {
   const { activeDialog, closeDialog, openDialog } = useUIStore();
   const { currentProject } = useAuthStore();
   const pages = usePagesStore((state) => state.pages);
 
   const [imageElements, setImageElements] = useState<ImageElementWithPage[]>([]);
-  const [prompts, setPrompts] = useState<Record<string, string>>({});
+  const [suggestionsMap, setSuggestionsMap] = useState<Map<string, ImageSuggestion[]>>(new Map());
+  const [promptModes, setPromptModes] = useState<Record<string, PromptMode>>({});
+  const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch all image elements from all pages
+  // Fetch all image elements from all pages and their suggested prompts
   useEffect(() => {
     if (activeDialog !== "generation" || !currentProject || pages.length === 0) {
       return;
@@ -54,7 +68,17 @@ export function GenerationReviewDialog() {
 
       try {
         const allImageElements: ImageElementWithPage[] = [];
-        const initialPrompts: Record<string, string> = {};
+        const newSuggestionsMap = new Map<string, ImageSuggestion[]>();
+        const initialModes: Record<string, PromptMode> = {};
+        const initialCustomPrompts: Record<string, string> = {};
+
+        // Fetch images to get suggested prompts
+        const projectImages = await api.images.list(currentProject.id);
+        for (const img of projectImages) {
+          if (img.suggestedPrompts && img.suggestedPrompts.length > 0) {
+            newSuggestionsMap.set(img.id, img.suggestedPrompts);
+          }
+        }
 
         // Fetch elements for each page
         for (const page of pages) {
@@ -77,8 +101,26 @@ export function GenerationReviewDialog() {
               pageOrder: page.order,
             });
 
-            // Initialize prompt from element or empty string
-            initialPrompts[element.id] = element.animationPrompt || "";
+            // Determine initial mode and prompt
+            const suggestions = element.imageId ? newSuggestionsMap.get(element.imageId) || [] : [];
+
+            if (element.animationPrompt) {
+              // Check if animationPrompt matches any suggestion
+              const matchIndex = suggestions.findIndex((s) => s.prompt === element.animationPrompt);
+              if (matchIndex >= 0) {
+                initialModes[element.id] = { type: "suggestion", index: matchIndex };
+              } else {
+                initialModes[element.id] = { type: "custom" };
+                initialCustomPrompts[element.id] = element.animationPrompt;
+              }
+            } else if (suggestions.length > 0) {
+              // Default to first suggestion
+              initialModes[element.id] = { type: "suggestion", index: 0 };
+            } else {
+              // No suggestions, use custom
+              initialModes[element.id] = { type: "custom" };
+              initialCustomPrompts[element.id] = "";
+            }
           }
         }
 
@@ -86,7 +128,9 @@ export function GenerationReviewDialog() {
         allImageElements.sort((a, b) => a.pageOrder - b.pageOrder);
 
         setImageElements(allImageElements);
-        setPrompts(initialPrompts);
+        setSuggestionsMap(newSuggestionsMap);
+        setPromptModes(initialModes);
+        setCustomPrompts(initialCustomPrompts);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch elements");
       } finally {
@@ -97,11 +141,30 @@ export function GenerationReviewDialog() {
     fetchAllElements();
   }, [activeDialog, currentProject, pages]);
 
-  const handlePromptChange = (elementId: string, value: string) => {
-    setPrompts((prev) => ({
-      ...prev,
-      [elementId]: value,
-    }));
+  // Get the current prompt for an element based on its mode
+  const getPromptForElement = (elementId: string, imageId: string | null): string => {
+    const mode = promptModes[elementId];
+    if (!mode) return "";
+
+    if (mode.type === "custom") {
+      return customPrompts[elementId] || "";
+    }
+
+    const suggestions = imageId ? suggestionsMap.get(imageId) || [] : [];
+    return suggestions[mode.index]?.prompt || "";
+  };
+
+  const handleModeChange = (elementId: string, value: string) => {
+    if (value === "custom") {
+      setPromptModes((prev) => ({ ...prev, [elementId]: { type: "custom" } }));
+    } else {
+      const index = parseInt(value, 10);
+      setPromptModes((prev) => ({ ...prev, [elementId]: { type: "suggestion", index } }));
+    }
+  };
+
+  const handleCustomPromptChange = (elementId: string, value: string) => {
+    setCustomPrompts((prev) => ({ ...prev, [elementId]: value }));
   };
 
   const handleGenerate = async () => {
@@ -111,21 +174,46 @@ export function GenerationReviewDialog() {
 
     try {
       // First, update all prompts that have been modified
-      const updatePromises = imageElements
-        .filter((item) => {
-          const currentPrompt = prompts[item.element.id] || "";
-          const originalPrompt = item.element.animationPrompt || "";
-          return currentPrompt !== originalPrompt;
-        })
-        .map((item) =>
-          api.elements.update(item.element.id, {
-            animationPrompt: prompts[item.element.id] || null,
-          })
-        );
+      const elementUpdatePromises: Promise<unknown>[] = [];
+      const imageUpdatePromises: Promise<unknown>[] = [];
 
-      if (updatePromises.length > 0) {
-        await Promise.all(updatePromises);
+      for (const item of imageElements) {
+        const currentPrompt = getPromptForElement(item.element.id, item.element.imageId);
+        const originalPrompt = item.element.animationPrompt || "";
+
+        // If the prompt has changed, update the element
+        if (currentPrompt !== originalPrompt) {
+          elementUpdatePromises.push(
+            api.elements.update(item.element.id, {
+              animationPrompt: currentPrompt || null,
+            })
+          );
+        }
+
+        // Save user's selection/custom prompt back to the image
+        // We store it as the first suggestion so it's selected by default next time
+        if (currentPrompt && item.element.imageId) {
+          const mode = promptModes[item.element.id];
+          const existingSuggestions = suggestionsMap.get(item.element.imageId) || [];
+
+          if (mode?.type === "custom") {
+            // Add custom prompt as first suggestion
+            const newSuggestions: ImageSuggestion[] = [
+              { description: "Your custom prompt", prompt: currentPrompt },
+              ...existingSuggestions.filter((s) => s.prompt !== currentPrompt),
+            ];
+            imageUpdatePromises.push(
+              api.images.update(item.element.imageId, {
+                suggestedPrompts: newSuggestions,
+              })
+            );
+          }
+          // If using a suggestion, no need to update - it's already saved
+        }
       }
+
+      // Execute all updates in parallel
+      await Promise.all([...elementUpdatePromises, ...imageUpdatePromises]);
 
       // Then generate for each page that has images
       const pageIds = [...new Set(imageElements.map((item) => item.element.pageId))];
@@ -151,8 +239,12 @@ export function GenerationReviewDialog() {
   };
 
   const imagesWithoutPrompt = useMemo(
-    () => imageElements.filter((item) => !prompts[item.element.id]?.trim()).length,
-    [imageElements, prompts]
+    () =>
+      imageElements.filter((item) => {
+        const prompt = getPromptForElement(item.element.id, item.element.imageId);
+        return !prompt?.trim();
+      }).length,
+    [imageElements, promptModes, customPrompts, suggestionsMap]
   );
 
   const imagesWithPrompt = imageElements.length - imagesWithoutPrompt;
@@ -241,61 +333,137 @@ export function GenerationReviewDialog() {
                 </div>
               </div>
             ) : (
-              imageElements.map((item, index) => (
-                <div
-                  key={item.element.id}
-                  className="p-4 border-2 border-[#2c2416]/20 bg-white/50 rounded-sm animate-in fade-in-50 slide-in-from-left-5"
-                  style={{ animationDelay: `${index * 30}ms` }}
-                >
-                  <div className="flex gap-4">
-                    {/* Image thumbnail */}
-                    <div className="flex-shrink-0 w-24 h-24 bg-[#2c2416]/5 border border-[#2c2416]/20 rounded-sm overflow-hidden">
-                      {item.element.imageId ? (
-                        <img
-                          src={images.getUrl(item.element.imageUrl ?? null)}
-                          alt="Element preview"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="w-8 h-8 text-[#2c2416]/20" />
-                        </div>
-                      )}
-                    </div>
+              imageElements.map((item, index) => {
+                const suggestions = item.element.imageId
+                  ? suggestionsMap.get(item.element.imageId) || []
+                  : [];
+                const mode = promptModes[item.element.id];
+                const hasSuggestions = suggestions.length > 0;
+                const isCustomMode = mode?.type === "custom";
+                const currentPrompt = getPromptForElement(item.element.id, item.element.imageId);
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-serif font-semibold text-[#8b4513] bg-[#8b4513]/10 px-2 py-0.5 rounded-sm">
-                          {item.pageTitle}
-                        </span>
-                        <ChevronRight className="w-3 h-3 text-[#2c2416]/30" />
-                        <span className="text-xs font-serif text-[#2c2416]/60">
-                          Image {index + 1}
-                        </span>
+                return (
+                  <div
+                    key={item.element.id}
+                    className="p-4 border-2 border-[#2c2416]/20 bg-white/50 rounded-sm animate-in fade-in-50 slide-in-from-left-5"
+                    style={{ animationDelay: `${index * 30}ms` }}
+                  >
+                    <div className="flex gap-4">
+                      {/* Image thumbnail */}
+                      <div className="flex-shrink-0 w-24 h-24 bg-[#2c2416]/5 border border-[#2c2416]/20 rounded-sm overflow-hidden">
+                        {item.element.imageId ? (
+                          <img
+                            src={images.getUrl(item.element.imageUrl ?? null)}
+                            alt="Element preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <ImageIcon className="w-8 h-8 text-[#2c2416]/20" />
+                          </div>
+                        )}
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-xs font-serif font-medium text-[#2c2416]">
-                          Animation Prompt
-                        </label>
-                        <Textarea
-                          value={prompts[item.element.id] || ""}
-                          onChange={(e) => handlePromptChange(item.element.id, e.target.value)}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          placeholder="Describe how this image should animate (e.g., 'Gentle camera zoom in with soft wind motion')"
-                          className="min-h-[60px] text-sm font-serif bg-white border-[#2c2416]/20 focus:border-[#d4af37] focus:ring-[#d4af37]/20 placeholder:text-[#2c2416]/40 resize-none"
-                        />
-                        {!prompts[item.element.id]?.trim() && (
-                          <p className="text-xs font-serif text-[#d4af37] italic">
-                            No prompt set — AI will auto-generate animation
-                          </p>
-                        )}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-serif font-semibold text-[#8b4513] bg-[#8b4513]/10 px-2 py-0.5 rounded-sm">
+                            {item.pageTitle}
+                          </span>
+                          <ChevronRight className="w-3 h-3 text-[#2c2416]/30" />
+                          <span className="text-xs font-serif text-[#2c2416]/60">
+                            Image {index + 1}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs font-serif font-medium text-[#2c2416]">
+                            Animation Prompt
+                          </label>
+
+                          {hasSuggestions ? (
+                            <>
+                              <Select
+                                value={
+                                  isCustomMode
+                                    ? "custom"
+                                    : String(mode?.type === "suggestion" ? mode.index : 0)
+                                }
+                                onValueChange={(val) => handleModeChange(item.element.id, val)}
+                              >
+                                <SelectTrigger className="w-full text-sm font-serif bg-white border-[#2c2416]/20 focus:border-[#d4af37] focus:ring-[#d4af37]/20">
+                                  <SelectValue placeholder="Select animation style" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#f4f1e8] border-[#2c2416]/30 max-w-[500px]">
+                                  {suggestions.map((suggestion, idx) => (
+                                    <SelectItem
+                                      key={idx}
+                                      value={String(idx)}
+                                      className="font-serif text-sm cursor-pointer"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Sparkles className="w-3 h-3 text-[#d4af37] flex-shrink-0" />
+                                        <span className="truncate">{suggestion.description}</span>
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem
+                                    value="custom"
+                                    className="font-serif text-sm cursor-pointer"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Pencil className="w-3 h-3 text-[#2c2416] flex-shrink-0" />
+                                      <span>Write custom prompt...</span>
+                                    </div>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              {isCustomMode ? (
+                                <Textarea
+                                  value={customPrompts[item.element.id] || ""}
+                                  onChange={(e) =>
+                                    handleCustomPromptChange(item.element.id, e.target.value)
+                                  }
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  placeholder="Describe how this image should animate..."
+                                  className="min-h-[60px] text-sm font-serif bg-white border-[#2c2416]/20 focus:border-[#d4af37] focus:ring-[#d4af37]/20 placeholder:text-[#2c2416]/40 resize-none w-full"
+                                />
+                              ) : (
+                                <p className="text-xs font-serif text-[#2c2416]/60 italic px-1 break-words">
+                                  {currentPrompt}
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <Textarea
+                                value={customPrompts[item.element.id] || ""}
+                                onChange={(e) =>
+                                  handleCustomPromptChange(item.element.id, e.target.value)
+                                }
+                                onKeyDown={(e) => e.stopPropagation()}
+                                placeholder="Describe how this image should animate (e.g., 'Gentle camera zoom in with soft wind motion')"
+                                className="min-h-[60px] text-sm font-serif bg-white border-[#2c2416]/20 focus:border-[#d4af37] focus:ring-[#d4af37]/20 placeholder:text-[#2c2416]/40 resize-none w-full"
+                              />
+                              <p className="text-xs font-serif text-[#d4af37] italic">
+                                No AI suggestions available — enter a custom prompt or leave empty
+                                for auto-generation
+                              </p>
+                            </>
+                          )}
+
+                          {!currentPrompt?.trim() && hasSuggestions && (
+                            <p className="text-xs font-serif text-[#d4af37] italic">
+                              No prompt set — AI will auto-generate animation
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </ScrollArea>

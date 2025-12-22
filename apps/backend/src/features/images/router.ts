@@ -14,6 +14,11 @@ import { ERROR_CODES, IMAGE_CONSTRAINTS } from "@gazette/shared";
 import { errorResponse } from "../shared/http";
 import { analyzeImage } from "../../lib/gemini-client";
 import { isSignedRequestValid, signMediaPath, SIGNED_URL_TTL_SECONDS } from "../../lib/signed-urls";
+import { generationQueue } from "../../queue/queue";
+import type { GenerationJobPayload } from "../../queue/jobs/types";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("images-router");
 
 const RAW_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads";
 const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
@@ -96,10 +101,26 @@ const imageResponseHeaders = (mimeType: string) => ({
   "Cache-Control": `private, max-age=${SIGNED_URL_TTL_SECONDS}`,
 });
 
+// Parse suggestedPrompts JSON from database
+const parseSuggestedPrompts = (
+  value: string | null
+): Array<{ description: string; prompt: string }> | null => {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 export const imagesRouter = new Hono();
 
 imagesRouter.use("/projects/:id/images", requireAuth);
-imagesRouter.use("/images/:id/analyze", requireAuth);
+imagesRouter.use("/images/:id", requireAuth);
 imagesRouter.use("/images/:id/analyze", requireAuth);
 
 // List all images in a project
@@ -127,6 +148,7 @@ imagesRouter.get("/projects/:id/images", async (c) => {
       mimeType: img.mimeType,
       width: img.width,
       height: img.height,
+      suggestedPrompts: parseSuggestedPrompts(img.suggestedPrompts),
       uploadedAt: img.uploadedAt.toISOString(),
       url: signMediaPath(`/api/images/${img.id}/file`),
     })),
@@ -242,6 +264,23 @@ imagesRouter.post("/projects/:id/images", async (c) => {
     throw error;
   }
 
+  // Queue background job to generate a suggested animation prompt
+  try {
+    const jobPayload: GenerationJobPayload = {
+      type: "suggest-prompt",
+      imageId,
+    };
+    await generationQueue.add("suggest-prompt", jobPayload, {
+      jobId: `suggest-${imageId}`,
+      attempts: 2,
+      backoff: { type: "exponential", delay: 2000 },
+    });
+    log.info({ imageId }, "Queued suggest-prompt job for uploaded image");
+  } catch (error) {
+    // Don't fail the upload if we can't queue the job - prompt can be generated later
+    log.warn({ imageId, err: error }, "Failed to queue suggest-prompt job");
+  }
+
   return c.json(
     {
       id: imageId,
@@ -274,11 +313,55 @@ imagesRouter.get("/images/:id", requireAuth, async (c) => {
     id: imageId,
     projectId: image.projectId,
     originalFilename: image.originalFilename,
+    storagePath: image.storagePath,
     mimeType: image.mimeType,
     width: image.width,
     height: image.height,
+    suggestedPrompts: parseSuggestedPrompts(image.suggestedPrompts),
     url: signMediaPath(`/api/images/${imageId}/file`),
     uploadedAt: image.uploadedAt.toISOString(),
+  });
+});
+
+// Update image metadata (e.g., suggestedPrompts)
+imagesRouter.put("/images/:id", async (c) => {
+  const imageId = c.req.param("id");
+  const projectId = c.get("projectId");
+  const image = db.select().from(images).where(eq(images.id, imageId)).get();
+
+  if (!image) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
+  }
+
+  if (image.projectId !== projectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  const body = await c.req.json();
+  const updates: Partial<{ suggestedPrompts: string | null }> = {};
+
+  if ("suggestedPrompts" in body) {
+    // Accept array and stringify, or null to clear
+    updates.suggestedPrompts = body.suggestedPrompts ? JSON.stringify(body.suggestedPrompts) : null;
+  }
+
+  if (Object.keys(updates).length > 0) {
+    db.update(images).set(updates).where(eq(images.id, imageId)).run();
+  }
+
+  const updatedImage = db.select().from(images).where(eq(images.id, imageId)).get();
+
+  return c.json({
+    id: imageId,
+    projectId: updatedImage!.projectId,
+    originalFilename: updatedImage!.originalFilename,
+    storagePath: updatedImage!.storagePath,
+    mimeType: updatedImage!.mimeType,
+    width: updatedImage!.width,
+    height: updatedImage!.height,
+    suggestedPrompts: parseSuggestedPrompts(updatedImage!.suggestedPrompts),
+    url: signMediaPath(`/api/images/${imageId}/file`),
+    uploadedAt: updatedImage!.uploadedAt.toISOString(),
   });
 });
 
@@ -335,6 +418,32 @@ imagesRouter.get("/images/:id/file", async (c) => {
   }
 
   return c.body(file.stream(), 200, imageResponseHeaders(image.mimeType));
+});
+
+// Delete an image
+imagesRouter.delete("/images/:id", async (c) => {
+  const imageId = c.req.param("id");
+  const projectId = c.get("projectId");
+  const image = db.select().from(images).where(eq(images.id, imageId)).get();
+
+  if (!image) {
+    return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
+  }
+
+  if (image.projectId !== projectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  // Delete the file from disk
+  const filePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
+  await safeUnlink(filePath);
+
+  // Delete from database
+  db.delete(images).where(eq(images.id, imageId)).run();
+
+  return c.body(null, 204);
 });
 
 // Analyze image for animation suggestions

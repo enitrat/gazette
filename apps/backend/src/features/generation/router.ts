@@ -87,7 +87,9 @@ const updateElementVideo = (elementId: string, values: Partial<typeof elements.$
     .where(eq(elements.id, elementId))
     .run();
 
-const enqueueGenerationJob = async (payload: GenerationJobPayload) => {
+const enqueueGenerationJob = async (
+  payload: Extract<GenerationJobPayload, { type: "generate-video" }>
+) => {
   await generationQueue.add("generate-video", payload, {
     jobId: payload.jobId,
   });
@@ -699,6 +701,43 @@ generationRouter.get("/projects/:id/videos", async (c) => {
       url: signMediaPath(`/api/videos/${video.generationJobId || video.id}/file`),
     })),
   });
+});
+
+// Delete a video
+
+generationRouter.delete("/videos/:id", requireAuth, async (c) => {
+  const videoId = c.req.param("id");
+  const projectId = c.get("projectId");
+
+  const video = db.select().from(videos).where(eq(videos.id, videoId)).get();
+
+  if (!video) {
+    return errorResponse(c, 404, ERROR_CODES.NOT_FOUND, "Video not found");
+  }
+
+  if (video.projectId !== projectId) {
+    throw AuthErrors.ACCESS_DENIED();
+  }
+
+  // Delete the file from disk
+  const filePath = isAbsolute(video.storagePath)
+    ? video.storagePath
+    : join(appRoot, video.storagePath);
+
+  try {
+    const file = Bun.file(filePath);
+    if (await file.exists()) {
+      const { unlink } = await import("node:fs/promises");
+      await unlink(filePath);
+    }
+  } catch {
+    // File might not exist, continue with database deletion
+  }
+
+  // Delete from database
+  db.delete(videos).where(eq(videos.id, videoId)).run();
+
+  return c.body(null, 204);
 });
 
 // Upload a video file

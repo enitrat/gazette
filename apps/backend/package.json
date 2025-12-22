@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run dev:server & bun run dev:worker",
+    "dev": "concurrently -k -n server,worker -c blue,magenta \"bun run dev:server\" \"bun run dev:worker\"",
     "dev:server": "bun --env-file=.env run --hot src/index.ts",
     "dev:worker": "bun --env-file=.env run --hot src/queue/worker.ts",
     "build": "bun build src/index.ts src/queue/worker.ts --outdir ./dist --target bun",
@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "concurrently": "^9.2.1",
     "drizzle-kit": "^0.31.8",
     "typescript": "^5.3.3"
   }

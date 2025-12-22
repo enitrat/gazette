@@ -9,6 +9,7 @@ import {
   LayoutTemplate,
   Video,
   Download,
+  Trash2,
 } from "lucide-react";
 import {
   Accordion,
@@ -95,6 +96,59 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
     link.click();
     document.body.removeChild(link);
   }, []);
+
+  const { triggerMediaRefresh } = useUIStore();
+
+  const handleDeleteImage = useCallback(
+    async (image: SerializedImage, e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (!confirm(`Delete "${image.originalFilename}"?`)) {
+        return;
+      }
+
+      try {
+        await api.images.delete(image.id);
+        triggerMediaRefresh();
+      } catch (error) {
+        console.error("Failed to delete image:", error);
+        alert("Failed to delete image");
+      }
+    },
+    [triggerMediaRefresh]
+  );
+
+  const handleDownloadImage = useCallback((image: SerializedImage, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const imageUrl = api.images.getUrl(image.url);
+    const link = document.createElement("a");
+    link.href = imageUrl;
+    link.download = image.originalFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
+
+  const handleDeleteVideo = useCallback(
+    async (video: SerializedVideo, e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (!confirm(`Delete "${video.filename}"?`)) {
+        return;
+      }
+
+      try {
+        await api.videos.delete(video.id);
+        triggerMediaRefresh();
+      } catch (error) {
+        console.error("Failed to delete video:", error);
+        alert("Failed to delete video");
+      }
+    },
+    [triggerMediaRefresh]
+  );
 
   // Template definitions
   const templates: TemplateDefinition[] = [
@@ -280,17 +334,26 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
                       <Video className="h-3 w-3 text-white" strokeWidth={2} />
                       <span className="font-ui text-[9px] font-medium text-white">Video</span>
                     </div>
-                    {/* Download button */}
-                    <button
-                      onClick={(e) => handleDownloadVideo(video, e)}
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-sm bg-ink/70 opacity-0 transition-opacity hover:bg-gold/80 group-hover:opacity-100"
-                      title="Download video"
-                    >
-                      <Download className="h-3 w-3 text-white" strokeWidth={2} />
-                    </button>
+                    {/* Action buttons */}
+                    <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={(e) => handleDownloadVideo(video, e)}
+                        className="flex h-6 w-6 items-center justify-center rounded-sm bg-ink/70 hover:bg-gold/80"
+                        title="Download video"
+                      >
+                        <Download className="h-3 w-3 text-white" strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteVideo(video, e)}
+                        className="flex h-6 w-6 items-center justify-center rounded-sm bg-ink/70 hover:bg-red-600"
+                        title="Delete video"
+                      >
+                        <Trash2 className="h-3 w-3 text-white" strokeWidth={2} />
+                      </button>
+                    </div>
                     {/* Overlay on hover */}
                     <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none" />
-                    <p className="absolute bottom-1 left-1 right-8 truncate font-ui text-[9px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <p className="absolute bottom-1 left-1 right-1 truncate font-ui text-[9px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
                       {video.filename}
                     </p>
                   </DraggableItem>
@@ -309,8 +372,25 @@ export function ContentLibrary({ projectId }: { projectId: string }) {
                       alt={image.originalFilename}
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
                     />
+                    {/* Action buttons */}
+                    <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={(e) => handleDownloadImage(image, e)}
+                        className="flex h-6 w-6 items-center justify-center rounded-sm bg-ink/70 hover:bg-gold/80"
+                        title="Download image"
+                      >
+                        <Download className="h-3 w-3 text-white" strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteImage(image, e)}
+                        className="flex h-6 w-6 items-center justify-center rounded-sm bg-ink/70 hover:bg-red-600"
+                        title="Delete image"
+                      >
+                        <Trash2 className="h-3 w-3 text-white" strokeWidth={2} />
+                      </button>
+                    </div>
                     {/* Overlay on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none" />
                     <p className="absolute bottom-1 left-1 right-1 truncate font-ui text-[9px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
                       {image.originalFilename}
                     </p>

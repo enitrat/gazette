@@ -141,6 +141,12 @@ export const UpdateElementResponseSchema = SerializedElementSchema;
 // Images API Responses
 // =============================================================================
 
+// Suggestion item for image animation
+export const ImageSuggestionSchema = z.object({
+  description: z.string(),
+  prompt: z.string(),
+});
+
 // Serialized image for API responses
 export const SerializedImageSchema = z.object({
   id: z.string().uuid(),
@@ -150,6 +156,7 @@ export const SerializedImageSchema = z.object({
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  suggestedPrompts: z.array(ImageSuggestionSchema).nullable(),
   uploadedAt: DateStringSchema,
   url: z.string(),
 });
@@ -377,6 +384,7 @@ export type ElementsListResponse = z.infer<typeof ElementsListResponseSchema>;
 export type CreateElementResponse = z.infer<typeof CreateElementResponseSchema>;
 export type UpdateElementResponse = z.infer<typeof UpdateElementResponseSchema>;
 
+export type ImageSuggestion = z.infer<typeof ImageSuggestionSchema>;
 export type SerializedImage = z.infer<typeof SerializedImageSchema>;
 export type ImagesListResponse = z.infer<typeof ImagesListResponseSchema>;
 

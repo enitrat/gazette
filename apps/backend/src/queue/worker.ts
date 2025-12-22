@@ -9,6 +9,7 @@ import { GENERATION_QUEUE_NAME } from "./queue";
 import { analyzeImageJob } from "./jobs/analyze-image";
 import { generateVideoJob } from "./jobs/generate-video";
 import { recoverPendingWanTasks } from "./jobs/recover-wan-tasks";
+import { suggestPromptJob } from "./jobs/suggest-prompt";
 import type { GenerationJobPayload } from "./jobs/types";
 import { createLogger } from "../lib/logger";
 
@@ -21,6 +22,15 @@ const videoRoot = isAbsolute(UPLOAD_DIR)
   : join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
 
 const log = createLogger("queue-worker");
+
+// Startup marker to verify we're running latest code
+log.info(
+  {
+    timestamp: new Date().toISOString(),
+    supportedJobTypes: ["generate-video", "analyze-image", "suggest-prompt"],
+  },
+  "Worker module loaded"
+);
 
 // Debug: Log environment variables at worker startup
 log.info(
@@ -127,20 +137,23 @@ const worker = new Worker<GenerationJobPayload>(
       `Processing job ${job.id}`
     );
 
-    await updateJobStatus(job.data.jobId, {
-      status: "processing",
-      progress: 10,
-      error: null,
-    });
-
     const jobType: string = job.data.type;
+
+    // suggest-prompt jobs don't have a db job record, skip status update
+    if (jobType !== "suggest-prompt" && "jobId" in job.data) {
+      await updateJobStatus(job.data.jobId, {
+        status: "processing",
+        progress: 10,
+        error: null,
+      });
+    }
 
     if (jobType === "generate-video") {
       const payload = job.data as Extract<GenerationJobPayload, { type: "generate-video" }>;
-      await updateElementVideoStatus(job.data.elementId, { videoStatus: "processing" });
+      await updateElementVideoStatus(payload.elementId, { videoStatus: "processing" });
       await job.updateProgress(25);
       const result = await generateVideoJob(payload);
-      await updateJobStatus(job.data.jobId, {
+      await updateJobStatus(payload.jobId, {
         status: "complete",
         progress: 100,
         videoUrl: result.videoUrl,
@@ -148,7 +161,7 @@ const worker = new Worker<GenerationJobPayload>(
         metadata: JSON.stringify(result.metadata),
         error: null,
       });
-      await updateElementVideoStatus(job.data.elementId, {
+      await updateElementVideoStatus(payload.elementId, {
         videoStatus: "complete",
         videoUrl: result.videoUrl,
         animationPrompt: result.promptUsed,
@@ -168,12 +181,20 @@ const worker = new Worker<GenerationJobPayload>(
     if (jobType === "analyze-image") {
       const payload = job.data as Extract<GenerationJobPayload, { type: "analyze-image" }>;
       await analyzeImageJob(payload);
-      await updateJobStatus(job.data.jobId, {
+      await updateJobStatus(payload.jobId, {
         status: "complete",
         progress: 100,
         error: null,
       });
       return { ok: true };
+    }
+
+    if (jobType === "suggest-prompt") {
+      const payload = job.data as Extract<GenerationJobPayload, { type: "suggest-prompt" }>;
+      // suggest-prompt jobs are lightweight and don't have a db job record
+      const result = await suggestPromptJob(payload);
+      log.info({ imageId: payload.imageId, result }, "Suggest-prompt job completed");
+      return result;
     }
 
     throw new Error(`Unknown job type: ${jobType}`);
@@ -199,7 +220,7 @@ worker.on("failed", async (job: Job<GenerationJobPayload> | undefined, error: Er
   log.error(
     {
       jobId: job.id,
-      dbJobId: job.data.jobId,
+      dbJobId: "jobId" in job.data ? job.data.jobId : undefined,
       type: job.data.type,
       attemptsMade: job.attemptsMade,
       maxAttempts: attempts,
@@ -211,13 +232,16 @@ worker.on("failed", async (job: Job<GenerationJobPayload> | undefined, error: Er
     `Job failed: ${error.message}`
   );
 
-  await updateJobStatus(job.data.jobId, {
-    status,
-    progress,
-    error: finalFailure ? error.message : null,
-  });
+  // suggest-prompt jobs don't have a db job record, skip status update
+  if (job.data.type !== "suggest-prompt" && "jobId" in job.data) {
+    await updateJobStatus(job.data.jobId, {
+      status,
+      progress,
+      error: finalFailure ? error.message : null,
+    });
+  }
 
-  if (job.data.type === "generate-video") {
+  if (job.data.type === "generate-video" && "elementId" in job.data) {
     await updateElementVideoStatus(job.data.elementId, {
       videoStatus: finalFailure ? "failed" : "pending",
     });
@@ -228,7 +252,36 @@ worker.on("error", (error: Error) => {
   log.error({ err: error }, "Worker error");
 });
 
+// Periodic recovery check interval (1 minute)
+const RECOVERY_CHECK_INTERVAL_MS = 60 * 1000;
+let recoveryCheckInterval: ReturnType<typeof setInterval> | null = null;
+let isRecoveryRunning = false;
+
+const runPeriodicRecovery = async () => {
+  // Skip if already running to prevent overlap
+  if (isRecoveryRunning) {
+    log.debug("Skipping periodic recovery - previous check still running");
+    return;
+  }
+
+  isRecoveryRunning = true;
+  try {
+    await recoverPendingWanTasks();
+  } catch (error) {
+    log.error({ err: error }, "Periodic recovery check failed");
+  } finally {
+    isRecoveryRunning = false;
+  }
+};
+
 const shutdown = async () => {
+  // Stop periodic recovery
+  if (recoveryCheckInterval) {
+    clearInterval(recoveryCheckInterval);
+    recoveryCheckInterval = null;
+    log.info("Stopped periodic recovery check");
+  }
+
   await worker.close();
   await connection.quit();
 };
@@ -253,6 +306,10 @@ worker.on("ready", async () => {
   } catch (error) {
     log.error({ err: error }, "Failed to recover pending WAN tasks on startup");
   }
+
+  // Start periodic recovery check every 1 minute
+  recoveryCheckInterval = setInterval(runPeriodicRecovery, RECOVERY_CHECK_INTERVAL_MS);
+  log.info({ intervalMs: RECOVERY_CHECK_INTERVAL_MS }, "Started periodic recovery check");
 });
 
 worker.on("active", (job) => {

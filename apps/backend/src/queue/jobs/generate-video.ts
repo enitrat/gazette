@@ -1,11 +1,9 @@
-import { Buffer } from "node:buffer";
 import { mkdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
 import type { GenerationMetadata } from "@gazette/shared";
 import { db, schema } from "../../db";
-import { analyzeImage } from "../../lib/gemini-client";
 import { createWanTask, pollWanTaskUntilComplete, downloadVideo } from "../../lib/wan-client";
 import { createLogger } from "../../lib/logger";
 import type { GenerateVideoJobPayload } from "./types";
@@ -101,52 +99,21 @@ export async function generateVideoJob(
 
   log.info({ imagePath, mimeType: image.mimeType }, "Loading image for analysis");
 
-  const imageData = Buffer.from(await imageFile.arrayBuffer());
-
-  log.info({ imageId: payload.imageId }, "Analyzing image with Gemini");
-  const analysis = await analyzeImage({
-    imageId: payload.imageId,
-    mimeType: image.mimeType,
-    imageData,
-  });
-  log.info(
-    {
-      sceneDescription: analysis.sceneDescription?.substring(0, 100),
-      suggestionsCount: analysis.suggestions.length,
-    },
-    "Image analysis complete"
-  );
-
-  const suggestion = analysis.suggestions[0];
   const overridePrompt = payload.promptOverride?.trim();
-  const fallbackPrompt =
-    element.animationPrompt?.trim() ||
-    analysis.sceneDescription ||
-    "Subtle, realistic motion in the photo.";
-
-  let promptUsed = "";
-  let promptSource: GenerationMetadata["promptSource"] = "fallback";
-  let suggestionId: string | null = null;
-
-  if (overridePrompt) {
-    promptUsed = overridePrompt;
-    promptSource = "override";
-  } else if (suggestion?.prompt) {
-    promptUsed = suggestion.prompt;
-    promptSource = "gemini";
-    suggestionId = suggestion.id ?? null;
-  } else {
-    promptUsed = fallbackPrompt;
+  if (!overridePrompt) {
+    log.error({ imageId: payload.imageId }, "No prompt override provided for generation job");
+    throw new Error("No prompt override provided for generation job");
   }
 
-  promptUsed = clampPrompt(promptUsed);
+  const promptUsed = clampPrompt(overridePrompt);
+  const promptSource: GenerationMetadata["promptSource"] = "override";
 
   const durationSeconds = getDurationSeconds();
   const resolution = getResolution();
 
   log.info(
     {
-      promptUsed: promptUsed.substring(0, 100),
+      promptUsed: promptUsed,
       promptSource,
       durationSeconds,
       resolution,
@@ -214,8 +181,8 @@ export async function generateVideoJob(
   const metadata: GenerationMetadata = {
     promptUsed,
     promptSource,
-    suggestionId,
-    sceneDescription: analysis.sceneDescription || null,
+    suggestionId: null,
+    sceneDescription: null,
     durationSeconds,
     resolution,
     geminiModel: process.env.GEMINI_MODEL || null,

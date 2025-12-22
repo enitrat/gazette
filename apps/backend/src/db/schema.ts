@@ -44,6 +44,7 @@ export const images = sqliteTable("images", {
   mimeType: text("mime_type").notNull(),
   width: integer("width").notNull(),
   height: integer("height").notNull(),
+  suggestedPrompts: text("suggested_prompts"), // JSON array of AI-generated animation suggestions [{description, prompt}, ...]
   uploadedAt: integer("uploaded_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
