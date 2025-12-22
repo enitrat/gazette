@@ -645,10 +645,9 @@ generationRouter.get("/videos/:id/file", async (c) => {
   // Then try as video ID (uploaded video - look up in database)
   const video = db.select().from(videos).where(eq(videos.id, id)).get();
   if (video) {
-    const normalizedPath = video.storagePath.startsWith("/")
-      ? video.storagePath.slice(1)
-      : video.storagePath;
-    const uploadedFilePath = join(appRoot, normalizedPath);
+    const uploadedFilePath = isAbsolute(video.storagePath)
+      ? video.storagePath
+      : join(appRoot, video.storagePath);
     const uploadedFile = Bun.file(uploadedFilePath);
 
     if (await uploadedFile.exists()) {

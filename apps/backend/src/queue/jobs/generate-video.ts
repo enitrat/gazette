@@ -90,10 +90,9 @@ export async function generateVideoJob(
     throw new Error("Image not found for generation job");
   }
 
-  const normalizedPath = image.storagePath.startsWith("/")
-    ? image.storagePath.slice(1)
-    : image.storagePath;
-  const imagePath = join(appRoot, normalizedPath);
+  const imagePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
   const imageFile = Bun.file(imagePath);
   if (!(await imageFile.exists())) {
     log.error({ imagePath }, "Image file not found for generation job");

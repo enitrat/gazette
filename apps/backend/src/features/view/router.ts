@@ -9,7 +9,7 @@ import { getProjectById, getProjectBySlug } from "../../projects";
 import { requireViewAuth } from "../../auth";
 import { signViewToken, VIEW_JWT_EXPIRES_IN } from "../../auth/jwt";
 import { errorResponse } from "../shared/http";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isSignedRequestValid, signMediaPath, SIGNED_URL_TTL_SECONDS } from "../../lib/signed-urls";
 
@@ -255,10 +255,10 @@ router.get("/view/:slug/images/:id", async (c) => {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
   }
 
-  const normalizedPath = image.storagePath.startsWith("/")
-    ? image.storagePath.slice(1)
-    : image.storagePath;
-  const file = Bun.file(join(appRoot, normalizedPath));
+  const filePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
+  const file = Bun.file(filePath);
   if (!(await file.exists())) {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
   }

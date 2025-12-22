@@ -300,10 +300,10 @@ imagesRouter.get("/images/:id/public", async (c) => {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
   }
 
-  const normalizedPath = image.storagePath.startsWith("/")
-    ? image.storagePath.slice(1)
-    : image.storagePath;
-  const file = Bun.file(join(appRoot, normalizedPath));
+  const filePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
+  const file = Bun.file(filePath);
   if (!(await file.exists())) {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
   }
@@ -326,10 +326,10 @@ imagesRouter.get("/images/:id/file", async (c) => {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image not found");
   }
 
-  const normalizedPath = image.storagePath.startsWith("/")
-    ? image.storagePath.slice(1)
-    : image.storagePath;
-  const file = Bun.file(join(appRoot, normalizedPath));
+  const filePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
+  const file = Bun.file(filePath);
   if (!(await file.exists())) {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");
   }
@@ -351,10 +351,9 @@ imagesRouter.post("/images/:id/analyze", async (c) => {
     throw AuthErrors.ACCESS_DENIED();
   }
 
-  const normalizedPath = image.storagePath.startsWith("/")
-    ? image.storagePath.slice(1)
-    : image.storagePath;
-  const filePath = join(appRoot, normalizedPath);
+  const filePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
   const file = Bun.file(filePath);
   if (!(await file.exists())) {
     return errorResponse(c, 404, ERROR_CODES.IMAGE_NOT_FOUND, "Image file not found");

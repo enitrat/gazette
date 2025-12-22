@@ -173,20 +173,6 @@ export function CanvasViewport() {
           <GazettePage pageId={currentPageId} />
         </div>
       </div>
-
-      {/* Instructions overlay - bottom center */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 pointer-events-none">
-        <div className="px-4 py-2 bg-white/95 border border-black/10 rounded shadow-sm text-xs text-[#666666] font-serif">
-          <kbd className="px-1.5 py-0.5 bg-[#F0F0F0] border border-black/10 rounded text-[10px] font-mono">
-            Espace
-          </kbd>{" "}
-          + glisser pour déplacer •
-          <kbd className="px-1.5 py-0.5 bg-[#F0F0F0] border border-black/10 rounded text-[10px] font-mono ml-1">
-            Ctrl
-          </kbd>{" "}
-          + molette pour zoomer
-        </div>
-      </div>
     </div>
   );
 }

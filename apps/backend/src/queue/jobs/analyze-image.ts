@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../../db";
@@ -14,10 +14,9 @@ export async function analyzeImageJob(payload: AnalyzeImageJobPayload) {
     throw new Error("Image not found for analysis job");
   }
 
-  const normalizedPath = image.storagePath.startsWith("/")
-    ? image.storagePath.slice(1)
-    : image.storagePath;
-  const imagePath = join(appRoot, normalizedPath);
+  const imagePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
   const file = Bun.file(imagePath);
   if (!(await file.exists())) {
     throw new Error("Image file not found for analysis job");

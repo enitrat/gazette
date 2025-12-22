@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -128,18 +128,13 @@ const getVideoFilePath = async (videoId: string): Promise<string | null> => {
 
   if (!video) return null;
 
-  const normalizedPath = video.storagePath.startsWith("/")
-    ? video.storagePath.slice(1)
-    : video.storagePath;
-
-  return join(appRoot, normalizedPath);
+  return isAbsolute(video.storagePath) ? video.storagePath : join(appRoot, video.storagePath);
 };
 
 const readImageDataUri = async (image: typeof schema.images.$inferSelect) => {
-  const normalizedPath = image.storagePath.startsWith("/")
-    ? image.storagePath.slice(1)
-    : image.storagePath;
-  const filePath = join(appRoot, normalizedPath);
+  const filePath = isAbsolute(image.storagePath)
+    ? image.storagePath
+    : join(appRoot, image.storagePath);
   const file = Bun.file(filePath);
   if (!(await file.exists())) {
     return null;
