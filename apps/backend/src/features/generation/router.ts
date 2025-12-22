@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { mkdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Buffer } from "node:buffer";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
@@ -26,7 +26,9 @@ const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
 const VIDEO_SUBDIR = "videos";
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const videoRoot = join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
+const videoRoot = isAbsolute(UPLOAD_DIR)
+  ? join(UPLOAD_DIR, VIDEO_SUBDIR)
+  : join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
 await mkdir(videoRoot, { recursive: true });
 
 const toIso = (value: unknown) => {

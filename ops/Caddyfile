@@ -1,7 +1,8 @@
 # Caddyfile for La Gazette de la Vie
-# Copy to /etc/caddy/Caddyfile and replace the domain.
+# Copy to /etc/caddy/Caddyfile on your VPS
+# Then run: sudo systemctl reload caddy
 
-gazette.example.com {
+:80 {
   encode zstd gzip
 
   handle /api/* {

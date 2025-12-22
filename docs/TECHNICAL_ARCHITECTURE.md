@@ -306,16 +306,9 @@ User → Click "Generate" → POST /api/pages/:id/generate (or /api/projects/:id
 
 ---
 
-## 5. Deployment Strategy
+## 5. Deployment
 
-### 5.1 Target Environment
-
-- **Provider**: Hetzner or OVH VPS
-- **Specs**: 2 vCPU, 4GB RAM, 40GB SSD
-- **OS**: Ubuntu 22.04 LTS
-- **Domain**: `gazette.example.com` (DNS A/AAAA to VPS)
-
-### 5.2 Architecture
+### 5.1 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -323,9 +316,9 @@ User → Click "Generate" → POST /api/pages/:id/generate (or /api/projects/:id
 │                                                         │
 │  ┌─────────────┐     ┌─────────────────────────────┐   │
 │  │   Caddy     │────▶│     Bun App (PM2)           │   │
-│  │  (HTTPS)    │     │   - API Server :3000        │   │
-│  │  :443/:80   │     │   - Worker (BullMQ)         │   │
-│  └─────────────┘     └─────────────────────────────┘   │
+│  │    :80      │     │   - API Server :3000        │   │
+│  └─────────────┘     │   - Worker (BullMQ)         │   │
+│                      └─────────────────────────────┘   │
 │                                  │                      │
 │                      ┌───────────┼───────────┐         │
 │                      ▼           ▼           ▼         │
@@ -337,128 +330,42 @@ User → Click "Generate" → POST /api/pages/:id/generate (or /api/projects/:id
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 5.3 VPS Setup (Hetzner/OVH)
+Access via `http://VPS_IP`
 
-1. **Provision VPS**
-   - Create VPS and attach SSH key.
-   - Configure DNS A/AAAA record for `gazette.example.com`.
+### 5.2 First-Time VPS Setup
 
-2. **Harden Base OS**
-
-   ```bash
-   sudo apt update && sudo apt upgrade -y
-   sudo apt install -y curl git unzip ufw fail2ban sqlite3
-
-   # Create non-root user
-   sudo adduser gazette
-   sudo usermod -aG sudo gazette
-
-   # Firewall
-   sudo ufw allow 22
-   sudo ufw allow 80
-   sudo ufw allow 443
-   sudo ufw enable
-   ```
-
-3. **Directory Layout**
-
-   ```bash
-   sudo mkdir -p /opt/gazette /var/lib/gazette/uploads /var/backups/gazette /etc/gazette
-   sudo chown -R gazette:gazette /opt/gazette /var/lib/gazette /var/backups/gazette
-   sudo chmod 750 /etc/gazette
-   ```
-
-### 5.4 Install Dependencies (Bun, Redis, Caddy, PM2)
+Run these commands on your VPS:
 
 ```bash
-# Bun (as gazette user)
-curl -fsSL https://bun.sh/install | bash
-echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.profile
-source ~/.profile
+# 1. Update system and install basics
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl git unzip ufw redis-server
 
-# PM2 (process manager)
-bun add -g pm2
+# 2. Create gazette user
+sudo adduser gazette
+sudo usermod -aG sudo gazette
 
-# Redis
-sudo apt install -y redis-server
+# 3. Create directories
+sudo mkdir -p /opt/gazette /var/lib/gazette/uploads
+sudo chown -R gazette:gazette /opt/gazette /var/lib/gazette
+
+# 4. Firewall
+sudo ufw allow 22
+sudo ufw allow 80
+sudo ufw enable
+
+# 5. Enable Redis
 sudo systemctl enable --now redis-server
 
-# Caddy (official repo)
+# 6. Install Caddy
 sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt update && sudo apt install caddy
-```
 
-### 5.5 Application Deployment (First-Time)
-
-```bash
-sudo -iu gazette
-git clone https://github.com/user/gazette.git /opt/gazette
-cd /opt/gazette
-
-# Configure environment
-sudo nano /etc/gazette/gazette.env
-sudo chmod 600 /etc/gazette/gazette.env
-```
-
-Notes on `.env` management:
-
-- The production env file **lives on the VPS** at `/etc/gazette/gazette.env` and is not checked into git.
-- After editing the env file, rerun `deploy.sh` (or `pm2 startOrReload ... --update-env`) so PM2 picks up changes.
-- You can override the env file path via `ENV_FILE=/path/to/file` when running `deploy.sh`.
-
-```bash
-# Build and migrate
-set -a && source /etc/gazette/gazette.env && set +a
-./scripts/build-production.sh
-bun run --filter '@gazette/backend' db:migrate
-
-# Start PM2
-pm2 startOrReload ops/ecosystem.config.cjs --env production --update-env
-pm2 save
-pm2 startup
-```
-
-#### One-Click Deploy (SSH)
-
-`deploy.sh` can be run on the VPS, or from your laptop as a one-click SSH deploy that runs the exact same steps on the server (git pull → build → migrate → PM2 reload).
-
-From your local machine:
-
-```bash
-REMOTE_HOST=your.vps.ip \
-REMOTE_USER=gazette \
-REMOTE_APP_DIR=/opt/gazette \
-./deploy.sh
-```
-
-Optional SSH conveniences:
-
-- **Rsync file sync** (useful if you have local uncommitted changes):
-  ```bash
-  SYNC=1 SKIP_GIT=1 \
-  REMOTE_HOST=your.vps.ip \
-  REMOTE_USER=gazette \
-  REMOTE_APP_DIR=/opt/gazette \
-  ./deploy.sh
-  ```
-- **Sync env file** (only if you want to update it from local):
-  ```bash
-  SYNC_ENV=1 ENV_FILE_LOCAL=./ops/gazette.env \
-  REMOTE_HOST=your.vps.ip \
-  REMOTE_USER=gazette \
-  ./deploy.sh
-  ```
-
-By default, deploys use **git pull on the server**; no file sync happens unless you set `SYNC=1`.
-
-### 5.6 Caddy Reverse Proxy + HTTPS
-
-Use the template in `ops/Caddyfile` and install to `/etc/caddy/Caddyfile`:
-
-```caddyfile
-gazette.example.com {
+# 7. Configure Caddy (copy ops/Caddyfile or create manually)
+sudo tee /etc/caddy/Caddyfile << 'EOF'
+:80 {
   encode zstd gzip
 
   handle /api/* {
@@ -475,126 +382,58 @@ gazette.example.com {
     file_server
   }
 }
-```
-
-```bash
+EOF
 sudo systemctl reload caddy
+
+# 8. Switch to gazette user and install Bun + PM2
+sudo -iu gazette
+curl -fsSL https://bun.sh/install | bash
+source ~/.profile
+bun add -g pm2
+pm2 startup  # run the sudo command it prints
 ```
 
-### 5.7 PM2 Process Management
+### 5.3 Local Setup (before first deploy)
 
-Production PM2 configuration lives in `ops/ecosystem.config.cjs` and runs:
-
-- `gazette-api` → `apps/backend/dist/index.js`
-- `gazette-worker` → `apps/backend/dist/queue/worker.js`
-
-### 5.8 Production Build Scripts
-
-- `scripts/build-production.sh` installs dependencies and builds both apps.
-- Root script `bun run build:production` is available for CI/CD use.
-- `VITE_API_URL` must be set in the environment before running the frontend build.
-- `deploy.sh` performs git pull, build, migrations, and PM2 reloads on the VPS.
-  - It can also be run locally with `REMOTE_HOST=...` to trigger a one-click SSH deploy.
-  - Environment variables are loaded from `/etc/gazette/gazette.env` by default.
-
-### 5.9 Redis Production Setup
-
-- Keep Redis bound to localhost (`bind 127.0.0.1`).
-- Enable supervised mode (`supervised systemd`) in `/etc/redis/redis.conf`.
-- If you set `requirepass`, update `REDIS_URL` to:
-  `redis://:YOUR_PASSWORD@127.0.0.1:6379`.
-
-### 5.10 SQLite Backup Strategy
-
-- Use `scripts/backup-sqlite.sh` for consistent `.backup` snapshots.
-- Schedule with cron (daily) and keep 30 days of gzip archives:
+Create `./ops/gazette.env` with your production config:
 
 ```bash
-crontab -e
-0 3 * * * /opt/gazette/scripts/backup-sqlite.sh >/var/log/gazette-backup.log 2>&1
+cp .env.example ./ops/gazette.env
+# Edit with production values (API keys, URLs, secrets)
 ```
 
-### 5.11 Health Check Monitoring
+Key values to set:
+- `VITE_API_URL=http://YOUR_VPS_IP/api`
+- `APP_URL=http://YOUR_VPS_IP`
+- `PUBLIC_APP_URL=http://YOUR_VPS_IP`
+- `CORS_ORIGIN=http://YOUR_VPS_IP`
+- All API keys (`WAN_API_KEY`, `GEMINI_API_KEY`, `JWT_SECRET`, etc.)
 
-- Health endpoint: `GET /health`
-- Suggested monitoring:
-  - Uptime Kuma or Healthchecks.io with a 1–5 minute check interval.
-  - Example: `curl -fsS https://gazette.example.com/health`.
+### 5.4 Deploy
 
-### 5.12 Docker Alternative
+From your local machine:
 
-```dockerfile
-# Dockerfile
-FROM oven/bun:1 AS base
-WORKDIR /app
-
-# Install dependencies
-FROM base AS deps
-COPY package.json bun.lock ./
-COPY apps/frontend/package.json ./apps/frontend/
-COPY apps/backend/package.json ./apps/backend/
-COPY packages/shared/package.json ./packages/shared/
-RUN bun install --frozen-lockfile
-
-# Build frontend
-FROM deps AS builder
-COPY . .
-RUN bun run build
-
-# Production
-FROM base AS runner
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/apps/backend ./apps/backend
-COPY --from=builder /app/apps/frontend/dist ./apps/frontend/dist
-COPY --from=builder /app/packages ./packages
-
-ENV NODE_ENV=production
-EXPOSE 3000
-CMD ["bun", "run", "./apps/backend/src/index.ts"]
+```bash
+REMOTE_HOST=$VPS_IP REMOTE_USER=gazette ./deploy.sh
 ```
 
-```yaml
-# docker-compose.prod.yml
-version: "3.8"
+**What it does:**
+1. Rsyncs local files → `/opt/gazette`
+2. Uploads `./ops/gazette.env` → `/opt/gazette/.env`
+3. Installs dependencies and builds
+4. Runs database migrations
+5. Reloads PM2
 
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=/data/gazette.db
-      - REDIS_URL=redis://redis:6379
-    volumes:
-      - ./data:/data
-      - ./uploads:/app/uploads
-    depends_on:
-      - redis
-    restart: unless-stopped
+**Optional flags:**
+- `SKIP_SYNC=1` - Skip rsync, only rebuild
+- `REMOTE_PORT=2222` - Custom SSH port
 
-  worker:
-    build: .
-    command: bun run ./apps/backend/src/queue/worker.ts
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=/data/gazette.db
-      - REDIS_URL=redis://redis:6379
-    volumes:
-      - ./data:/data
-      - ./uploads:/app/uploads
-    depends_on:
-      - redis
-    restart: unless-stopped
+### 5.5 Subsequent Deploys
 
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
+Same command:
 
-volumes:
-  redis-data:
+```bash
+REMOTE_HOST=$VPS_IP REMOTE_USER=gazette ./deploy.sh
 ```
 
 ---

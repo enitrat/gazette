@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
 import type { GenerationMetadata } from "@gazette/shared";
@@ -20,7 +20,9 @@ const DEFAULT_DURATION_SECONDS = 5;
 const DEFAULT_RESOLUTION: GenerationMetadata["resolution"] = "720p";
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const videoRoot = join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
+const videoRoot = isAbsolute(UPLOAD_DIR)
+  ? join(UPLOAD_DIR, VIDEO_SUBDIR)
+  : join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
 
 const clampPrompt = (value: string, maxLength = 500) => {
   const trimmed = value.trim().replace(/\s+/g, " ");

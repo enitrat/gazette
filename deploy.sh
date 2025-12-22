@@ -1,107 +1,156 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# =============================================================================
+# Gazette Deploy Script
+# =============================================================================
+# Usage: ./deploy.sh
+#
+# Required environment variables:
+#   REMOTE_HOST     - VPS IP or hostname
+#   REMOTE_USER     - SSH user (should be 'gazette')
+#
+# Optional:
+#   REMOTE_PORT     - SSH port (default: 22)
+#   SKIP_SYNC       - Set to 1 to skip rsync (default: 0)
+# =============================================================================
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log_info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $*"; }
+log_warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+# Get script directory (local machine)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-APP_DIR=${APP_DIR:-$SCRIPT_DIR}
-BRANCH=${BRANCH:-main}
-ENV_FILE=${ENV_FILE:-/etc/gazette/gazette.env}
-PM2_CONFIG=${PM2_CONFIG:-$APP_DIR/ops/ecosystem.config.cjs}
 
-export PATH="$HOME/.bun/bin:$PATH"
-
-print_usage() {
-  cat <<'USAGE'
-Usage:
-  ./deploy.sh                           # run on the server
-  REMOTE_HOST=host ./deploy.sh          # run remotely via SSH
-
-Remote options (env vars):
-  REMOTE_HOST        Required for SSH mode (e.g. 203.0.113.10)
-  REMOTE_USER        Optional SSH user (default: current user)
-  REMOTE_PORT        Optional SSH port (default: 22)
-  REMOTE_APP_DIR     Remote app path (default: /opt/gazette)
-  REMOTE_PM2_CONFIG  Remote PM2 config (default: $REMOTE_APP_DIR/ops/ecosystem.config.cjs)
-  SYNC=1             Rsync repo to server before deploy (default: 0)
-  LOCAL_APP_DIR      Local repo path for rsync (default: script directory)
-  SYNC_ENV=1         Upload env file to server before deploy (default: 0)
-  ENV_FILE_LOCAL     Local env file to upload (default: $ENV_FILE)
-
-General options (env vars):
-  APP_DIR            Local/remote app path for deploy execution
-  BRANCH             Git branch to deploy (default: main)
-  ENV_FILE           Env file path on the server (default: /etc/gazette/gazette.env)
-  PM2_CONFIG         PM2 config path (default: $APP_DIR/ops/ecosystem.config.cjs)
-  SKIP_GIT=1         Skip git fetch/checkout/pull (default: 0)
-USAGE
-}
-
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  print_usage
-  exit 0
-fi
-
+# Configuration
 REMOTE_HOST=${REMOTE_HOST:-}
 REMOTE_USER=${REMOTE_USER:-}
 REMOTE_PORT=${REMOTE_PORT:-22}
-REMOTE_APP_DIR=${REMOTE_APP_DIR:-/opt/gazette}
-REMOTE_PM2_CONFIG=${REMOTE_PM2_CONFIG:-$REMOTE_APP_DIR/ops/ecosystem.config.cjs}
-SYNC=${SYNC:-0}
-LOCAL_APP_DIR=${LOCAL_APP_DIR:-$APP_DIR}
-SYNC_ENV=${SYNC_ENV:-0}
-ENV_FILE_LOCAL=${ENV_FILE_LOCAL:-$ENV_FILE}
-SKIP_GIT=${SKIP_GIT:-0}
+SKIP_SYNC=${SKIP_SYNC:-0}
 
-if [[ -n "$REMOTE_HOST" && -z "${REMOTE_EXEC:-}" ]]; then
-  remote_target="$REMOTE_HOST"
-  if [[ -n "$REMOTE_USER" ]]; then
-    remote_target="$REMOTE_USER@$REMOTE_HOST"
-  fi
+# Fixed paths
+LOCAL_APP_DIR="$SCRIPT_DIR"
+LOCAL_ENV_FILE="$SCRIPT_DIR/ops/gazette.env"
+REMOTE_APP_DIR="/opt/gazette"
+REMOTE_ENV_FILE="/opt/gazette/.env"
 
-  if [[ "$SYNC" == "1" ]]; then
-    rsync -az --delete -e "ssh -p $REMOTE_PORT" \
-      --exclude ".git" \
-      --exclude "node_modules" \
-      --exclude "apps/*/dist" \
-      "$LOCAL_APP_DIR"/ "$remote_target:$REMOTE_APP_DIR"/
-  fi
-
-  if [[ "$SYNC_ENV" == "1" ]]; then
-    if [[ ! -f "$ENV_FILE_LOCAL" ]]; then
-      echo "Missing local env file: $ENV_FILE_LOCAL" >&2
-      exit 1
-    fi
-    scp -P "$REMOTE_PORT" "$ENV_FILE_LOCAL" "$remote_target:$ENV_FILE"
-    ssh -p "$REMOTE_PORT" "$remote_target" "chmod 600 '$ENV_FILE'"
-  fi
-
-  ssh -p "$REMOTE_PORT" "$remote_target" \
-    "APP_DIR='$REMOTE_APP_DIR' BRANCH='$BRANCH' ENV_FILE='$ENV_FILE' PM2_CONFIG='$REMOTE_PM2_CONFIG' SKIP_GIT='$SKIP_GIT' REMOTE_EXEC=1 bash -s" \
-    < "$0"
-  exit 0
-fi
-
-cd "$APP_DIR"
-
-if [[ "$SKIP_GIT" != "1" ]]; then
-  git fetch --prune
-
-  git checkout "$BRANCH"
-
-  git pull --ff-only origin "$BRANCH"
-fi
-
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing env file: $ENV_FILE" >&2
+# Validate required vars
+if [[ -z "$REMOTE_HOST" ]]; then
+  log_error "REMOTE_HOST is required"
+  echo "Usage: REMOTE_HOST=x.x.x.x REMOTE_USER=gazette ./deploy.sh"
   exit 1
 fi
 
+if [[ -z "$REMOTE_USER" ]]; then
+  log_error "REMOTE_USER is required"
+  exit 1
+fi
+
+# Validate local env file exists
+if [[ ! -f "$LOCAL_ENV_FILE" ]]; then
+  log_error "Missing local env file: $LOCAL_ENV_FILE"
+  exit 1
+fi
+
+REMOTE_TARGET="$REMOTE_USER@$REMOTE_HOST"
+SSH_CMD="ssh -p $REMOTE_PORT $REMOTE_TARGET"
+
+log_info "Deploying to $REMOTE_TARGET"
+log_info "  Local:  $LOCAL_APP_DIR"
+log_info "  Remote: $REMOTE_APP_DIR"
+
+# =============================================================================
+# Step 1: Rsync files to remote
+# =============================================================================
+if [[ "$SKIP_SYNC" != "1" ]]; then
+  log_info "Syncing files via rsync..."
+  rsync -az --delete \
+    -e "ssh -p $REMOTE_PORT" \
+    --exclude ".git" \
+    --exclude "node_modules" \
+    --exclude "apps/*/dist" \
+    --exclude "apps/*/node_modules" \
+    --exclude "packages/*/node_modules" \
+    --exclude ".env" \
+    --exclude "*.db" \
+    --exclude "*.db-journal" \
+    --exclude "*.db-wal" \
+    --exclude "*.db-shm" \
+    --exclude "uploads/" \
+    "$LOCAL_APP_DIR/" "$REMOTE_TARGET:$REMOTE_APP_DIR/"
+  log_success "Files synced"
+else
+  log_warn "Skipping rsync (SKIP_SYNC=1)"
+fi
+
+# =============================================================================
+# Step 2: Upload env file
+# =============================================================================
+log_info "Uploading env file..."
+scp -P "$REMOTE_PORT" "$LOCAL_ENV_FILE" "$REMOTE_TARGET:$REMOTE_ENV_FILE"
+log_success "Env file uploaded to $REMOTE_ENV_FILE"
+
+# =============================================================================
+# Step 3: Run build and deploy on remote
+# =============================================================================
+log_info "Running build and deploy on remote..."
+
+$SSH_CMD << 'REMOTE_SCRIPT'
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log_info()    { echo -e "${BLUE}[REMOTE]${NC} $*"; }
+log_success() { echo -e "${GREEN}[REMOTE OK]${NC} $*"; }
+log_error()   { echo -e "${RED}[REMOTE ERROR]${NC} $*" >&2; }
+
+APP_DIR="/opt/gazette"
+ENV_FILE="/opt/gazette/.env"
+
+# Add bun to PATH
+export PATH="$HOME/.bun/bin:$PATH"
+
+cd "$APP_DIR"
+log_info "Working directory: $(pwd)"
+
+# Load environment
+log_info "Loading environment..."
 set -a
 source "$ENV_FILE"
 set +a
+log_success "Environment loaded"
 
-./scripts/build-production.sh
+# Install dependencies and build
+log_info "Installing dependencies..."
+bun install --frozen-lockfile
+log_success "Dependencies installed"
 
+log_info "Building for production..."
+bun run build:production
+log_success "Build complete"
+
+# Run migrations
+log_info "Running database migrations..."
 bun run --filter '@gazette/backend' db:migrate
+log_success "Migrations complete"
 
-pm2 startOrReload "$PM2_CONFIG" --env production --update-env
+# Reload PM2
+log_info "Reloading PM2..."
+pm2 startOrReload "$APP_DIR/ops/ecosystem.config.cjs" --env production --update-env
 pm2 save
+log_success "PM2 reloaded"
+
+log_success "Remote deploy complete!"
+REMOTE_SCRIPT
+
+log_success "Deploy complete!"

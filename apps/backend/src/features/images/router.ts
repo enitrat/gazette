@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { mkdir, unlink } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp, { type OutputInfo } from "sharp";
 import { eq, desc } from "drizzle-orm";
@@ -37,7 +37,9 @@ const EXTENSION_BY_MIME: Record<SupportedMimeType, string> = {
 };
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const uploadRoot = join(appRoot, UPLOAD_DIR, IMAGE_SUBDIR);
+const uploadRoot = isAbsolute(UPLOAD_DIR)
+  ? join(UPLOAD_DIR, IMAGE_SUBDIR)
+  : join(appRoot, UPLOAD_DIR, IMAGE_SUBDIR);
 await mkdir(uploadRoot, { recursive: true });
 
 type BodyValue = string | File;

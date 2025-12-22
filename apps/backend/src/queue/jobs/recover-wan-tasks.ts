@@ -1,5 +1,5 @@
 import { mkdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql, and, isNotNull, inArray } from "drizzle-orm";
 import { db, schema } from "../../db";
@@ -13,7 +13,9 @@ const UPLOAD_DIR = RAW_UPLOAD_DIR.replace(/^\.\//, "").replace(/\/$/, "");
 const VIDEO_SUBDIR = "videos";
 
 const appRoot = fileURLToPath(new URL("../../..", import.meta.url));
-const videoRoot = join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
+const videoRoot = isAbsolute(UPLOAD_DIR)
+  ? join(UPLOAD_DIR, VIDEO_SUBDIR)
+  : join(appRoot, UPLOAD_DIR, VIDEO_SUBDIR);
 
 type RecoverableJob = {
   id: string;
