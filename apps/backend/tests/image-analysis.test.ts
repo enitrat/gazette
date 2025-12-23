@@ -53,7 +53,7 @@ describe("image analysis endpoint", () => {
     await seedDatabase();
 
     const appModule = await import("../src/index.ts");
-    fetchHandler = appModule.default.fetch;
+    fetchHandler = appModule.app.fetch;
 
     await import("../src/db");
   });

@@ -35,7 +35,7 @@ describe("project authentication endpoints", () => {
     await seedDatabase();
 
     const appModule = await import("../src/index.ts");
-    fetchHandler = appModule.default.fetch;
+    fetchHandler = appModule.app.fetch;
 
     const dbModule = await import("../src/db");
     db = dbModule.db;

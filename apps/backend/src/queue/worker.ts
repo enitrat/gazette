@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
-import { db, schema } from "../db";
+import { closeDatabase, db, schema } from "../db";
 import { createRedisConnection } from "./connection";
 import { GENERATION_QUEUE_NAME } from "./queue";
 import { analyzeImageJob } from "./jobs/analyze-image";
@@ -256,6 +256,7 @@ worker.on("error", (error: Error) => {
 const RECOVERY_CHECK_INTERVAL_MS = 60 * 1000;
 let recoveryCheckInterval: ReturnType<typeof setInterval> | null = null;
 let isRecoveryRunning = false;
+let isShuttingDown = false;
 
 const runPeriodicRecovery = async () => {
   // Skip if already running to prevent overlap
@@ -274,7 +275,13 @@ const runPeriodicRecovery = async () => {
   }
 };
 
-const shutdown = async () => {
+const shutdown = async (signal: NodeJS.Signals) => {
+  if (isShuttingDown) {
+    return;
+  }
+  isShuttingDown = true;
+  log.info({ signal }, "Shutdown signal received");
+
   // Stop periodic recovery
   if (recoveryCheckInterval) {
     clearInterval(recoveryCheckInterval);
@@ -282,12 +289,37 @@ const shutdown = async () => {
     log.info("Stopped periodic recovery check");
   }
 
-  await worker.close();
-  await connection.quit();
+  const timeoutMs = Number(process.env.SHUTDOWN_TIMEOUT_MS || "10000");
+  const shutdownTimer = setTimeout(() => {
+    log.error({ timeoutMs }, "Shutdown timed out, exiting");
+    process.exit(1);
+  }, timeoutMs);
+  shutdownTimer.unref();
+
+  try {
+    await worker.close();
+  } catch (error) {
+    log.error({ err: error }, "Failed to close worker");
+  }
+
+  try {
+    await connection.quit();
+  } catch (error) {
+    log.error({ err: error }, "Failed to close Redis connection");
+  }
+
+  try {
+    closeDatabase();
+  } catch (error) {
+    log.error({ err: error }, "Failed to close database");
+  }
+
+  clearTimeout(shutdownTimer);
+  process.exit(0);
 };
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.once("SIGINT", () => void shutdown("SIGINT"));
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
 log.info(
   {

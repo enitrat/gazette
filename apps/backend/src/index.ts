@@ -15,6 +15,8 @@ import { viewRouter } from "./routes/view";
 import { exportRouter } from "./routes/export";
 import { pinoLogger } from "./lib/hono-logger";
 import { createLogger } from "./lib/logger";
+import { generationQueue } from "./queue/queue";
+import { closeDatabase } from "./db";
 
 const serverLog = createLogger("server");
 
@@ -114,13 +116,59 @@ app.onError((err, c) => {
   );
 });
 
-// Start server
-serverLog.info(
-  { port: PORT, env: NODE_ENV, corsOrigin: CORS_ORIGIN },
-  `Server starting on port ${PORT}`
-);
+const startServer = () => {
+  const server = Bun.serve({
+    port: PORT,
+    fetch: app.fetch,
+  });
 
-export default {
-  port: PORT,
-  fetch: app.fetch,
+  serverLog.info(
+    { port: PORT, env: NODE_ENV, corsOrigin: CORS_ORIGIN },
+    `Server started on port ${PORT}`
+  );
+
+  let isShuttingDown = false;
+
+  const shutdown = async (signal: NodeJS.Signals) => {
+    if (isShuttingDown) {
+      return;
+    }
+    isShuttingDown = true;
+    serverLog.info({ signal }, "Shutdown signal received");
+
+    const timeoutMs = Number(process.env.SHUTDOWN_TIMEOUT_MS || "10000");
+    const shutdownTimer = setTimeout(() => {
+      serverLog.error({ timeoutMs }, "Shutdown timed out, exiting");
+      process.exit(1);
+    }, timeoutMs);
+    shutdownTimer.unref();
+
+    try {
+      server.stop();
+    } catch (error) {
+      serverLog.warn({ err: error }, "Failed to stop HTTP server");
+    }
+
+    try {
+      await generationQueue.close();
+    } catch (error) {
+      serverLog.warn({ err: error }, "Failed to close Redis queue connection");
+    }
+
+    try {
+      closeDatabase();
+    } catch (error) {
+      serverLog.warn({ err: error }, "Failed to close database");
+    }
+
+    clearTimeout(shutdownTimer);
+    process.exit(0);
+  };
+
+  process.once("SIGINT", () => void shutdown("SIGINT"));
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
 };
+
+if (import.meta.main) {
+  startServer();
+}

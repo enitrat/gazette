@@ -23,6 +23,10 @@ export const db = drizzle(sqlite, { schema });
 // Export db type for tests and tooling
 export type DatabaseClient = typeof db;
 
+export const closeDatabase = () => {
+  sqlite.close();
+};
+
 // Export schema for use in other modules
 export { schema };
 
