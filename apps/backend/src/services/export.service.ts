@@ -215,10 +215,13 @@ const getInlineFontCss = async () => {
 
 const buildBaseCss = () => `
 :root {
-  --color-parchment: ${GAZETTE_COLORS.parchment};
+  --color-canvas: ${GAZETTE_COLORS.canvas};
+  --color-paper: ${GAZETTE_COLORS.paper};
   --color-ink: ${GAZETTE_COLORS.ink};
-  --color-muted: ${GAZETTE_COLORS.muted};
-  --color-cream: ${GAZETTE_COLORS.cream};
+  --color-body: ${GAZETTE_COLORS.body};
+  --color-rule: ${GAZETTE_COLORS.rule};
+  --color-border: ${GAZETTE_COLORS.border};
+  --color-newsprint: ${GAZETTE_COLORS.newsprint};
 }
 
 *,
@@ -231,100 +234,65 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: "EB Garamond", Garamond, serif;
-  background-color: var(--color-cream);
+  background-color: var(--color-canvas);
   color: var(--color-ink);
   line-height: 1.6;
+  overflow-x: hidden;
 }
 
-a {
-  color: var(--color-ink);
-  text-decoration: none;
-  border-bottom: 1px solid rgba(44, 24, 16, 0.4);
+/* Grid background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  opacity: 0.4;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 0;
 }
 
-a:hover {
-  color: var(--color-muted);
-}
-
-.export-nav {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: rgba(253, 248, 232, 0.95);
-  border-bottom: 1px solid rgba(139, 115, 85, 0.2);
-  padding: 8px 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  align-items: center;
-  backdrop-filter: blur(6px);
-}
-
-.nav-title {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.nav-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  font-family: "Inter", system-ui, sans-serif;
-  font-size: 12px;
-}
-
+/* Main content - full screen centered */
 main {
-  padding: 16px 8px 40px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 16px;
+  padding-bottom: 80px;
+  z-index: 1;
+  overflow: hidden;
 }
 
-@media (min-width: 640px) {
-  .export-nav {
-    padding: 12px 24px;
-    gap: 12px 24px;
-  }
-
-  .nav-title {
-    font-size: 20px;
-  }
-
-  .nav-links {
-    gap: 8px 16px;
-    font-size: 14px;
-  }
-
-  main {
-    padding: 24px 16px 60px;
-  }
-}
-
+/* Page section - only one visible at a time */
 .page-section {
-  padding-bottom: 32px;
-  margin-bottom: 32px;
-  border-bottom: 1px dashed rgba(139, 115, 85, 0.25);
+  display: none;
 }
 
-.page-frame {
-  width: 100%;
+.page-section.active {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
 }
 
-.page-canvas {
+/* Page frame wrapper - sized to match scaled page by JS */
+.page-frame {
   position: relative;
-  width: ${CANVAS_WIDTH}px;
-  height: ${CANVAS_HEIGHT}px;
-  transform-origin: top left;
+  /* Width and height set by JavaScript to match scaled dimensions */
 }
 
+/* Page canvas - fixed size, scaled via transform */
 .gazette-page {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: ${CANVAS_WIDTH}px;
   height: ${CANVAS_HEIGHT}px;
   background-color: ${CANVAS_FRAME.backgroundColor};
   box-shadow: ${CANVAS_FRAME.shadow};
   overflow: hidden;
+  transform-origin: top left;
 }
 
 /* Vignette effect */
@@ -383,33 +351,142 @@ main {
   justify-content: center;
   font-family: "Inter", system-ui, sans-serif;
   font-size: 14px;
-  color: var(--color-muted);
+  color: var(--color-body);
   background: linear-gradient(135deg, #e8dcc0, #d4c4a0);
   border: 1px dashed rgba(139, 115, 85, 0.3);
 }
 
-.page-nav {
+/* Fixed footer navigation */
+.footer-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background-color: rgba(255, 255, 255, 0.94);
+  border-top: 1px solid var(--color-rule);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.footer-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 12px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin: 8px auto 0;
-  padding: 0 8px;
-  max-width: ${CANVAS_WIDTH}px;
-  font-family: "Inter", system-ui, sans-serif;
-  font-size: 12px;
-  color: var(--color-muted);
+  justify-content: space-between;
+  gap: 8px;
 }
 
 @media (min-width: 640px) {
-  .page-nav {
-    margin: 12px auto 0;
+  .footer-nav-inner {
+    padding: 16px 24px;
+  }
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  font-family: "EB Garamond", Georgia, serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink);
+  background-color: var(--color-newsprint);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+.nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nav-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nav-btn-text {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .nav-btn {
+    gap: 8px;
+    padding: 10px 20px;
+  }
+
+  .nav-btn-text {
+    display: inline;
+  }
+}
+
+/* Page indicator */
+.page-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-rule);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.page-dot:hover {
+  transform: scale(1.3);
+}
+
+.page-dot.active {
+  background-color: var(--color-ink);
+  box-shadow: 0 0 0 3px rgba(18, 18, 18, 0.2);
+}
+
+.page-count {
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 12px;
+  color: var(--color-body);
+  white-space: nowrap;
+}
+
+.page-count strong {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+@media (min-width: 640px) {
+  .page-count {
     font-size: 14px;
+  }
+
+  .page-count strong {
+    font-size: 18px;
   }
 }
 
 @media print {
-  .export-nav,
-  .page-nav {
+  body::before,
+  .footer-nav {
     display: none;
   }
 
@@ -418,15 +495,27 @@ main {
     color: black;
   }
 
+  main {
+    display: block;
+    padding: 0;
+  }
+
   .page-section {
+    display: block !important;
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
     page-break-after: always;
-    border: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
   }
 
   .gazette-page {
     box-shadow: none;
+    transform: none !important;
+  }
+
+  .page-frame {
+    height: auto !important;
   }
 }
 `;
@@ -481,32 +570,27 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
       })
       .join("");
 
-    const prevLink = pageIndex > 0 ? `#page-${pageIndex}` : "#top";
-    const nextLink = pageIndex < payload.pages.length - 1 ? `#page-${pageIndex + 2}` : "#top";
-
     return `
-      <section id="page-${pageIndex + 1}" class="page-section">
-        <div class="page-frame">
-          <div class="page-canvas gazette-page paper-texture" data-page>
+      <section id="page-${pageIndex + 1}" class="page-section${pageIndex === 0 ? " active" : ""}" data-page-index="${pageIndex}">
+        <div class="page-frame" data-frame>
+          <div class="gazette-page" data-page>
             ${elementsMarkup}
             <div class="page-rule outer"></div>
             <div class="page-rule inner"></div>
           </div>
         </div>
-        <div class="page-nav">
-          <a href="${prevLink}">Previous page</a>
-          <span>Page ${pageIndex + 1} of ${payload.pages.length}</span>
-          <a href="${nextLink}">Next page</a>
-        </div>
       </section>
     `;
   });
 
-  const navLinks = payload.pages
-    .map((page, index) => {
-      const label = page.title?.trim() || `Page ${index + 1}`;
-      return `<a href="#page-${index + 1}">${escapeHtml(label)}</a>`;
-    })
+  const totalPages = payload.pages.length;
+
+  // Generate page dots
+  const pageDots = payload.pages
+    .map(
+      (_, index) =>
+        `<button class="page-dot${index === 0 ? " active" : ""}" data-goto="${index}" aria-label="Go to page ${index + 1}"></button>`
+    )
     .join("");
 
   return `<!doctype html>
@@ -521,30 +605,99 @@ ${baseCss}
     </style>
   </head>
   <body>
-    <a id="top"></a>
-    <nav class="export-nav">
-      <div class="nav-title">${escapeHtml(payload.project.name)}</div>
-      <div class="nav-links">${navLinks}</div>
-    </nav>
     <main>
       ${pagesMarkup.join("")}
     </main>
+
+    <footer class="footer-nav">
+      <div class="footer-nav-inner">
+        <button class="nav-btn" id="prevBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span class="nav-btn-text">Page précédente</span>
+        </button>
+
+        <div class="page-indicator">
+          <div class="page-dots">
+            ${pageDots}
+          </div>
+          <div class="page-count">
+            <strong id="currentPage">1</strong> / ${totalPages}
+          </div>
+        </div>
+
+        <button class="nav-btn" id="nextBtn"${totalPages <= 1 ? " disabled" : ""}>
+          <span class="nav-btn-text">Page suivante</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </footer>
+
     <script>
       (function () {
         const CANVAS_WIDTH = ${CANVAS_WIDTH};
         const CANVAS_HEIGHT = ${CANVAS_HEIGHT};
-        const pages = Array.from(document.querySelectorAll("[data-page]"));
+        const TOTAL_PAGES = ${totalPages};
+        const FOOTER_HEIGHT = 80;
 
-        const updateScale = () => {
-          pages.forEach((page) => {
-            const wrapper = page.parentElement;
-            if (!wrapper) return;
-            const maxWidth = Math.min(wrapper.clientWidth, CANVAS_WIDTH);
-            const scale = maxWidth / CANVAS_WIDTH;
+        let currentPageIndex = 0;
+
+        const sections = Array.from(document.querySelectorAll(".page-section"));
+        const pages = Array.from(document.querySelectorAll("[data-page]"));
+        const frames = Array.from(document.querySelectorAll("[data-frame]"));
+        const dots = Array.from(document.querySelectorAll(".page-dot"));
+        const prevBtn = document.getElementById("prevBtn");
+        const nextBtn = document.getElementById("nextBtn");
+        const currentPageEl = document.getElementById("currentPage");
+
+        function updateScale() {
+          const availableWidth = window.innerWidth - 32;
+          const availableHeight = window.innerHeight - FOOTER_HEIGHT - 32;
+
+          const scaleW = availableWidth / CANVAS_WIDTH;
+          const scaleH = availableHeight / CANVAS_HEIGHT;
+          const scale = Math.min(1, scaleW, scaleH);
+
+          pages.forEach((page, i) => {
             page.style.transform = "scale(" + scale.toFixed(4) + ")";
-            wrapper.style.height = (CANVAS_HEIGHT * scale).toFixed(2) + "px";
+            frames[i].style.width = (CANVAS_WIDTH * scale).toFixed(2) + "px";
+            frames[i].style.height = (CANVAS_HEIGHT * scale).toFixed(2) + "px";
           });
-        };
+        }
+
+        function goToPage(index) {
+          if (index < 0 || index >= TOTAL_PAGES) return;
+
+          sections[currentPageIndex].classList.remove("active");
+          dots[currentPageIndex].classList.remove("active");
+
+          currentPageIndex = index;
+
+          sections[currentPageIndex].classList.add("active");
+          dots[currentPageIndex].classList.add("active");
+          currentPageEl.textContent = currentPageIndex + 1;
+
+          prevBtn.disabled = currentPageIndex === 0;
+          nextBtn.disabled = currentPageIndex === TOTAL_PAGES - 1;
+        }
+
+        prevBtn.addEventListener("click", () => goToPage(currentPageIndex - 1));
+        nextBtn.addEventListener("click", () => goToPage(currentPageIndex + 1));
+
+        dots.forEach((dot) => {
+          dot.addEventListener("click", () => {
+            const index = parseInt(dot.dataset.goto, 10);
+            goToPage(index);
+          });
+        });
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "ArrowLeft") goToPage(currentPageIndex - 1);
+          if (e.key === "ArrowRight") goToPage(currentPageIndex + 1);
+        });
 
         window.addEventListener("resize", updateScale);
         updateScale();
