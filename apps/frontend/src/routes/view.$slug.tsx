@@ -68,8 +68,11 @@ function ViewComponent() {
         setGazetteData(data);
         setIsAuthenticated(true);
       } catch (error: any) {
-        // If 401, needs password
-        if (error?.status === 401 || error?.response?.status === 401) {
+        // If 401 or 403, needs password (403 can occur with stale/invalid tokens)
+        const status = error?.status || error?.response?.status;
+        if (status === 401 || status === 403) {
+          // Clear any stale auth token before showing password prompt
+          useAuthStore.getState().logout();
           setNeedsPassword(true);
         } else {
           toast({

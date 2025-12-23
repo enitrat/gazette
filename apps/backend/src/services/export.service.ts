@@ -252,30 +252,50 @@ a:hover {
   z-index: 5;
   background: rgba(253, 248, 232, 0.95);
   border-bottom: 1px solid rgba(139, 115, 85, 0.2);
-  padding: 12px 24px;
+  padding: 8px 12px;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 24px;
+  gap: 8px 16px;
   align-items: center;
   backdrop-filter: blur(6px);
 }
 
 .nav-title {
   font-family: "Playfair Display", Georgia, serif;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .nav-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: 6px 12px;
   font-family: "Inter", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 main {
-  padding: 24px 16px 60px;
+  padding: 16px 8px 40px;
+}
+
+@media (min-width: 640px) {
+  .export-nav {
+    padding: 12px 24px;
+    gap: 12px 24px;
+  }
+
+  .nav-title {
+    font-size: 20px;
+  }
+
+  .nav-links {
+    gap: 8px 16px;
+    font-size: 14px;
+  }
+
+  main {
+    padding: 24px 16px 60px;
+  }
 }
 
 .page-section {
@@ -372,11 +392,19 @@ main {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 12px auto 0;
+  margin: 8px auto 0;
+  padding: 0 8px;
   max-width: ${CANVAS_WIDTH}px;
   font-family: "Inter", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--color-muted);
+}
+
+@media (min-width: 640px) {
+  .page-nav {
+    margin: 12px auto 0;
+    font-size: 14px;
+  }
 }
 
 @media print {
@@ -409,8 +437,6 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
 
   const pagesMarkup = payload.pages.map((page, pageIndex) => {
     const elements = payload.elementsByPage.get(page.id) ?? [];
-    const pageLabel = page.title?.trim() || `Page ${pageIndex + 1}`;
-    const subtitle = page.subtitle?.trim() ?? "";
 
     const elementsMarkup = elements
       .map((element) => {
@@ -460,10 +486,6 @@ const buildHtml = async (payload: HtmlExportPayload, videoAssetMap: Map<string, 
 
     return `
       <section id="page-${pageIndex + 1}" class="page-section">
-        <div class="page-meta">
-          <h2>${escapeHtml(pageLabel)}</h2>
-          ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
-        </div>
         <div class="page-frame">
           <div class="page-canvas gazette-page paper-texture" data-page>
             ${elementsMarkup}

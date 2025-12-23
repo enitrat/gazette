@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { ViewProjectResponse } from "@gazette/shared";
 import {
@@ -13,6 +13,7 @@ import {
 import { API_BASE_URL } from "@/lib/constants";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+const CANVAS_WIDTH = CANVAS_FRAME.width;
 const CANVAS_HEIGHT = CANVAS_FRAME.height;
 
 interface GazetteViewerProps {
@@ -23,9 +24,36 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [direction, setDirection] = useState(0);
   const [imageLoadStates, setImageLoadStates] = useState<Record<string, boolean>>({});
+  const [scale, setScale] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const currentPage = data.pages[currentPageIndex];
   const totalPages = data.pages.length;
+
+  // Calculate scale based on container width for responsive layout
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth;
+        const padding = 32; // px-4 = 16px on each side
+        const availableWidth = containerWidth - padding;
+
+        // Also consider available height to avoid cutting off on short screens
+        // Footer is approx 80px, plus some padding for top/bottom
+        const availableHeight = window.innerHeight - 160;
+
+        const scaleW = availableWidth / CANVAS_WIDTH;
+        const scaleH = availableHeight / CANVAS_HEIGHT;
+
+        const newScale = Math.min(1, scaleW, scaleH);
+        setScale(newScale);
+      }
+    };
+
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
 
   const goToNextPage = () => {
     if (currentPageIndex < totalPages - 1) {
@@ -88,79 +116,11 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
         }}
       />
 
-      {/* Header - Masthead (NYT/WSJ style) */}
-      <header
-        className="relative z-10 shadow-sm"
-        style={{
-          backgroundColor: GAZETTE_COLORS.paper,
-          borderBottom: `2px solid ${GAZETTE_COLORS.ink}`,
-        }}
-      >
-        <div className="container mx-auto px-6 py-6">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="text-center"
-          >
-            <div className="mb-2 flex items-center justify-center gap-4">
-              <div
-                className="h-px flex-1"
-                style={{
-                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
-                }}
-              />
-              <svg
-                className="h-3 w-3"
-                style={{ color: GAZETTE_COLORS.ink }}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M10 2 L12 6 L17 7 L13.5 10.5 L14.5 16 L10 13.5 L5.5 16 L6.5 10.5 L3 7 L8 6 Z" />
-              </svg>
-              <div
-                className="h-px flex-1"
-                style={{
-                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
-                }}
-              />
-            </div>
-
-            <h1
-              className="font-display text-5xl font-black tracking-tight"
-              style={{ color: GAZETTE_COLORS.headline }}
-            >
-              {data.project.name}
-            </h1>
-
-            <div className="mt-2 flex items-center justify-center gap-4">
-              <div
-                className="h-px flex-1"
-                style={{
-                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
-                }}
-              />
-              <svg
-                className="h-3 w-3"
-                style={{ color: GAZETTE_COLORS.ink }}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M10 2 L12 6 L17 7 L13.5 10.5 L14.5 16 L10 13.5 L5.5 16 L6.5 10.5 L3 7 L8 6 Z" />
-              </svg>
-              <div
-                className="h-px flex-1"
-                style={{
-                  background: `linear-gradient(to right, transparent, ${GAZETTE_COLORS.rule}, transparent)`,
-                }}
-              />
-            </div>
-          </motion.div>
-        </div>
-      </header>
-
       {/* Main content */}
-      <main className="relative flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-16">
+      <main
+        ref={containerRef}
+        className="relative flex min-h-screen items-center justify-center px-4 pb-20 pt-4 md:pb-24 md:pt-8"
+      >
         <AnimatePresence initial={false} custom={direction} mode="wait">
           <motion.div
             key={currentPageIndex}
@@ -175,36 +135,24 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
               scale: { duration: 0.4 },
               rotateY: { duration: 0.4 },
             }}
-            className="relative w-full max-w-5xl"
-            style={{ perspective: "2000px" }}
+            style={{
+              perspective: "2000px",
+              height: CANVAS_HEIGHT * scale,
+              width: CANVAS_WIDTH * scale,
+            }}
           >
-            {/* Page container */}
-            <div className="relative mx-auto" style={getPageFrameInlineStyle()}>
+            {/* Page container - scales responsively from top-left, wrapper is centered by parent */}
+            <div
+              style={{
+                ...getPageFrameInlineStyle(),
+                transform: `scale(${scale})`,
+                transformOrigin: "top left",
+              }}
+            >
               {/* Page content */}
               <div className="relative h-full">
-                {/* Page header */}
-                <div
-                  className="p-8 pb-6"
-                  style={{ borderBottom: `1px solid ${GAZETTE_COLORS.rule}` }}
-                >
-                  <h2
-                    className="font-display text-4xl font-bold leading-tight"
-                    style={{ color: GAZETTE_COLORS.headline }}
-                  >
-                    {currentPage.title || `Page ${currentPageIndex + 1}`}
-                  </h2>
-                  {currentPage.subtitle && (
-                    <p
-                      className="mt-2 font-serif text-lg italic"
-                      style={{ color: GAZETTE_COLORS.body }}
-                    >
-                      {currentPage.subtitle}
-                    </p>
-                  )}
-                </div>
-
                 {/* Elements rendering */}
-                <div className="relative p-8" style={{ height: CANVAS_HEIGHT - 140 }}>
+                <div className="relative" style={{ height: CANVAS_HEIGHT }}>
                   {currentPage.elements.map((element) => {
                     const { position } = element;
 
@@ -327,15 +275,15 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
           borderTop: `1px solid ${GAZETTE_COLORS.rule}`,
         }}
       >
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="container mx-auto px-3 py-3 md:px-6 md:py-4">
+          <div className="flex items-center justify-between gap-2">
             {/* Previous button */}
             <motion.button
               whileHover={{ scale: 1.02, x: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={goToPreviousPage}
               disabled={currentPageIndex === 0}
-              className="group flex items-center gap-2 px-5 py-2.5 font-serif text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              className="group flex items-center gap-1 px-3 py-2 font-serif text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 md:gap-2 md:px-5 md:py-2.5"
               style={{
                 backgroundColor: GAZETTE_COLORS.newsprint,
                 color: GAZETTE_COLORS.ink,
@@ -343,12 +291,12 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
               }}
             >
               <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-              <span>Page précédente</span>
+              <span className="hidden sm:inline">Page précédente</span>
             </motion.button>
 
             {/* Page indicator */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 md:gap-4">
+              <div className="flex items-center gap-1.5 md:gap-2">
                 {data.pages.map((_, index) => (
                   <motion.button
                     key={index}
@@ -380,14 +328,14 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
               </div>
 
               <div
-                className="font-display text-sm font-medium"
+                className="whitespace-nowrap font-display text-xs font-medium md:text-sm"
                 style={{ color: GAZETTE_COLORS.body }}
               >
-                Page{" "}
-                <span className="text-lg font-bold" style={{ color: GAZETTE_COLORS.ink }}>
+                <span className="font-bold" style={{ color: GAZETTE_COLORS.ink }}>
                   {currentPageIndex + 1}
-                </span>{" "}
-                sur {totalPages}
+                </span>
+                <span className="mx-1">/</span>
+                {totalPages}
               </div>
             </div>
 
@@ -397,14 +345,14 @@ export function GazetteViewer({ data }: GazetteViewerProps) {
               whileTap={{ scale: 0.98 }}
               onClick={goToNextPage}
               disabled={currentPageIndex === totalPages - 1}
-              className="group flex items-center gap-2 px-5 py-2.5 font-serif text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40"
+              className="group flex items-center gap-1 px-3 py-2 font-serif text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 md:gap-2 md:px-5 md:py-2.5"
               style={{
                 backgroundColor: GAZETTE_COLORS.newsprint,
                 color: GAZETTE_COLORS.ink,
                 border: `1px solid ${GAZETTE_COLORS.border}`,
               }}
             >
-              <span>Page suivante</span>
+              <span className="hidden sm:inline">Page suivante</span>
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </motion.button>
           </div>
